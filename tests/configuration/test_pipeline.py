@@ -15,7 +15,7 @@ from typing import Any
 from uuid import uuid4
 import pytest
 
-from stageflow.core.stages import (
+from stageflow.core import (
     Stage,
     StageContext,
     StageKind,
@@ -355,8 +355,8 @@ class TestPipeline:
 
     async def test_build_runner_executes_stage(self):
         """Test that built runner actually executes the stage."""
-        from stageflow.context.snapshot import ContextSnapshot
-        from stageflow.stages.graph import UnifiedStageGraph
+        from stageflow.context import ContextSnapshot
+        from stageflow.pipeline.dag import UnifiedStageGraph
 
         pipeline = Pipeline().with_stage("simple", SimpleStage, StageKind.TRANSFORM)
         graph: UnifiedStageGraph = pipeline.build()
@@ -370,7 +370,7 @@ class TestPipeline:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
 
         ctx = StageContext(snapshot=snapshot, config={})

@@ -6,10 +6,10 @@ when planning work. It contains:
 - run identity (user, session, org, request)
 - normalized message history
 - profile and canonical memory view
-- active exercise state
-- enrichments (profile, skills, docs, web, etc.)
+- enrichments (profile, memory, docs, etc.)
 - routing decision
-- behavior and quality mode flags
+- execution_mode flag
+- extensions for application-specific data
 
 ContextSnapshot is serializable to JSON to support unit testing and Central Pulse replay.
 """
@@ -22,7 +22,7 @@ from typing import Any
 from uuid import UUID
 
 from .types import Message, RoutingDecision
-from .enrichments import ProfileEnrichment, MemoryEnrichment, SkillsEnrichment, DocumentEnrichment
+from .enrichments import ProfileEnrichment, MemoryEnrichment, DocumentEnrichment
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,10 +43,10 @@ class ContextSnapshot:
     org_id: UUID | None
     interaction_id: UUID | None
 
-    # === Topology / Configuration / Behavior ===
+    # === Topology / Configuration / Execution Mode ===
     topology: str | None  # e.g., "fast_kernel", "accurate_kernel"
     channel: str | None  # e.g., "text_channel", "voice_channel"
-    behavior: str | None  # e.g., "practice", "roleplay", "doc_edit"
+    execution_mode: str | None  # e.g., "practice", "roleplay", "doc_edit"
 
     # === Message History ===
     messages: list[Message] = field(default_factory=list)
@@ -57,17 +57,16 @@ class ContextSnapshot:
     # === Enrichments ===
     profile: ProfileEnrichment | None = None
     memory: MemoryEnrichment | None = None
-    skills: SkillsEnrichment | None = None
     documents: list[DocumentEnrichment] = field(default_factory=list)
     web_results: list[dict[str, Any]] = field(default_factory=list)
-
-    # === Active Exercise/Assessment State ===
-    exercise_id: str | None = None
-    assessment_state: dict[str, Any] = field(default_factory=dict)
 
     # === Input Context ===
     input_text: str | None = None  # Raw user input (text or STT transcript)
     input_audio_duration_ms: int | None = None
+
+    # === Extensions ===
+    # Application-specific extensions stored as key-value pairs
+    extensions: dict[str, Any] = field(default_factory=dict)
 
     # === Metadata ===
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -84,7 +83,7 @@ class ContextSnapshot:
             "interaction_id": str(self.interaction_id) if self.interaction_id else None,
             "topology": self.topology,
             "channel": self.channel,
-            "behavior": self.behavior,
+            "execution_mode": self.execution_mode,
             "messages": [
                 {
                     "role": m.role,
@@ -108,7 +107,6 @@ class ContextSnapshot:
                 "display_name": self.profile.display_name if self.profile else None,
                 "preferences": self.profile.preferences if self.profile else {},
                 "goals": self.profile.goals if self.profile else [],
-                "skill_levels": self.profile.skill_levels if self.profile else {},
             }
             if self.profile
             else None,
@@ -121,13 +119,6 @@ class ContextSnapshot:
             }
             if self.memory
             else None,
-            "skills": {
-                "active_skill_ids": self.skills.active_skill_ids if self.skills else [],
-                "current_level": self.skills.current_level if self.skills else None,
-                "skill_progress": self.skills.skill_progress if self.skills else {},
-            }
-            if self.skills
-            else None,
             "documents": [
                 {
                     "document_id": d.document_id,
@@ -138,10 +129,9 @@ class ContextSnapshot:
                 for d in self.documents
             ],
             "web_results": self.web_results,
-            "exercise_id": self.exercise_id,
-            "assessment_state": self.assessment_state,
             "input_text": self.input_text,
             "input_audio_duration_ms": self.input_audio_duration_ms,
+            "extensions": self.extensions,
             "created_at": self.created_at.isoformat(),
             "metadata": self.metadata,
         }
@@ -185,7 +175,6 @@ class ContextSnapshot:
                 display_name=p.get("display_name"),
                 preferences=p.get("preferences", {}),
                 goals=p.get("goals", []),
-                skill_levels=p.get("skill_levels", {}),
             )
 
         memory = None
@@ -195,15 +184,6 @@ class ContextSnapshot:
                 recent_topics=m.get("recent_topics", []),
                 key_facts=m.get("key_facts", []),
                 interaction_history_summary=m.get("interaction_history_summary"),
-            )
-
-        skills = None
-        if data.get("skills"):
-            s = data["skills"]
-            skills = SkillsEnrichment(
-                active_skill_ids=s.get("active_skill_ids", []),
-                current_level=s.get("current_level"),
-                skill_progress=s.get("skill_progress", {}),
             )
 
         documents = []
@@ -230,18 +210,16 @@ class ContextSnapshot:
             interaction_id=UUID(data["interaction_id"]) if data.get("interaction_id") else None,
             topology=data.get("topology"),
             channel=data.get("channel"),
-            behavior=data.get("behavior"),
+            execution_mode=data.get("execution_mode"),
             messages=messages,
             routing_decision=routing_decision,
             profile=profile,
             memory=memory,
-            skills=skills,
             documents=documents,
             web_results=data.get("web_results", []),
-            exercise_id=data.get("exercise_id"),
-            assessment_state=data.get("assessment_state", {}),
             input_text=data.get("input_text"),
             input_audio_duration_ms=data.get("input_audio_duration_ms"),
+            extensions=data.get("extensions", {}),
             created_at=created_at,
             metadata=data.get("metadata", {}),
         )

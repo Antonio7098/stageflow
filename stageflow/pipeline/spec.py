@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from stageflow.core.stages import StageOutput
+    from stageflow.core import StageOutput
     from stageflow.stages.context import PipelineContext
 
 

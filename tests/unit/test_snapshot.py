@@ -4,7 +4,7 @@ Tests:
 - ContextSnapshot class
 - Message dataclass
 - RoutingDecision dataclass
-- Enrichment dataclasses (ProfileEnrichment, MemoryEnrichment, SkillsEnrichment, DocumentEnrichment)
+- Enrichment dataclasses (ProfileEnrichment, MemoryEnrichment, DocumentEnrichment)
 - to_dict and from_dict serialization
 """
 
@@ -14,14 +14,13 @@ from typing import Any
 from uuid import uuid4
 import pytest
 
-from stageflow.context.snapshot import (
+from stageflow.context import (
     ContextSnapshot,
     DocumentEnrichment,
     MemoryEnrichment,
     Message,
     ProfileEnrichment,
     RoutingDecision,
-    SkillsEnrichment,
 )
 
 
@@ -126,13 +125,11 @@ class TestProfileEnrichment:
             display_name="John Doe",
             preferences={"theme": "dark"},
             goals=["Learn Python", "Master testing"],
-            skill_levels={"python": "intermediate"},
         )
         assert profile.user_id == user_id
         assert profile.display_name == "John Doe"
         assert profile.preferences == {"theme": "dark"}
         assert profile.goals == ["Learn Python", "Master testing"]
-        assert profile.skill_levels == {"python": "intermediate"}
 
     def test_profile_enrichment_defaults(self):
         """Test ProfileEnrichment default values."""
@@ -141,7 +138,6 @@ class TestProfileEnrichment:
         assert profile.display_name is None
         assert profile.preferences == {}
         assert profile.goals == []
-        assert profile.skill_levels == {}
 
     def test_profile_enrichment_is_frozen(self):
         """Test ProfileEnrichment is frozen."""
@@ -179,36 +175,6 @@ class TestMemoryEnrichment:
         memory = MemoryEnrichment()
         with pytest.raises(FrozenInstanceError):
             memory.recent_topics = ["new_topic"]  # Field reassignment raises FrozenInstanceError
-
-
-# === Test SkillsEnrichment ===
-
-class TestSkillsEnrichment:
-    """Tests for SkillsEnrichment dataclass."""
-
-    def test_skills_enrichment_creation(self):
-        """Test SkillsEnrichment creation."""
-        skills = SkillsEnrichment(
-            active_skill_ids=["python", "async"],
-            current_level="intermediate",
-            skill_progress={"python": 75, "async": 50},
-        )
-        assert skills.active_skill_ids == ["python", "async"]
-        assert skills.current_level == "intermediate"
-        assert skills.skill_progress == {"python": 75, "async": 50}
-
-    def test_skills_enrichment_defaults(self):
-        """Test SkillsEnrichment default values."""
-        skills = SkillsEnrichment()
-        assert skills.active_skill_ids == []
-        assert skills.current_level is None
-        assert skills.skill_progress == {}
-
-    def test_skills_enrichment_is_frozen(self):
-        """Test SkillsEnrichment is frozen."""
-        skills = SkillsEnrichment()
-        with pytest.raises(FrozenInstanceError):
-            skills.active_skill_ids = ["new_skill"]  # Field reassignment raises FrozenInstanceError
 
 
 # === Test DocumentEnrichment ===
@@ -261,7 +227,7 @@ class TestContextSnapshot:
             interaction_id=uuid4(),
             topology="test_topology",
             channel="test_channel",
-            behavior="test",
+            execution_mode="test",
         )
 
     def test_minimal_snapshot(self, required_fields):
@@ -273,9 +239,9 @@ class TestContextSnapshot:
         assert snapshot.routing_decision is None
         assert snapshot.profile is None
         assert snapshot.memory is None
-        assert snapshot.skills is None
         assert snapshot.documents == []
         assert snapshot.web_results == []
+        assert snapshot.extensions == {}
 
     def test_snapshot_with_messages(self, required_fields):
         """Test snapshot with messages."""
@@ -310,12 +276,6 @@ class TestContextSnapshot:
         snapshot = ContextSnapshot(memory=memory, **required_fields)
         assert snapshot.memory == memory
 
-    def test_snapshot_with_skills(self, required_fields):
-        """Test snapshot with skills enrichment."""
-        skills = SkillsEnrichment(active_skill_ids=["python"])
-        snapshot = ContextSnapshot(skills=skills, **required_fields)
-        assert snapshot.skills == skills
-
     def test_snapshot_with_documents(self, required_fields):
         """Test snapshot with documents."""
         docs = [
@@ -333,16 +293,6 @@ class TestContextSnapshot:
         ]
         snapshot = ContextSnapshot(web_results=web_results, **required_fields)
         assert len(snapshot.web_results) == 2
-
-    def test_snapshot_with_exercise_state(self, required_fields):
-        """Test snapshot with exercise/assessment state."""
-        snapshot = ContextSnapshot(
-            exercise_id="exercise_123",
-            assessment_state={"question": 5, "score": 80},
-            **required_fields,
-        )
-        assert snapshot.exercise_id == "exercise_123"
-        assert snapshot.assessment_state == {"question": 5, "score": 80}
 
     def test_snapshot_with_input_context(self, required_fields):
         """Test snapshot with input context."""
@@ -400,7 +350,7 @@ class TestContextSnapshotSerialization:
             interaction_id=uuid4(),
             topology="chat_fast",
             channel="voice_channel",
-            behavior="practice",
+            execution_mode="practice",
             messages=[
                 Message(role="user", content="Hello", timestamp=datetime.now(UTC)),
                 Message(role="assistant", content="Hi!", timestamp=datetime.now(UTC)),
@@ -417,17 +367,11 @@ class TestContextSnapshotSerialization:
                 display_name="Test User",
                 preferences={"theme": "dark"},
                 goals=["Learn"],
-                skill_levels={"python": "intermediate"},
             ),
             memory=MemoryEnrichment(
                 recent_topics=["Python"],
                 key_facts=["User is learning"],
                 interaction_history_summary="First session",
-            ),
-            skills=SkillsEnrichment(
-                active_skill_ids=["python", "testing"],
-                current_level="intermediate",
-                skill_progress={"python": 60},
             ),
             documents=[
                 DocumentEnrichment(
@@ -438,10 +382,9 @@ class TestContextSnapshotSerialization:
                 )
             ],
             web_results=[{"title": "Test"}],
-            exercise_id="exercise_1",
-            assessment_state={"q": 1},
             input_text="Test input",
             input_audio_duration_ms=3000,
+            extensions={"custom_extension": "value"},
             metadata={"custom": "value"},
         )
 
@@ -452,7 +395,7 @@ class TestContextSnapshotSerialization:
         assert isinstance(result, dict)
         assert result["topology"] == "chat_fast"
         assert result["channel"] == "voice_channel"
-        assert result["behavior"] == "practice"
+        assert result["execution_mode"] == "practice"
 
     def test_to_dict_handles_uuid(self, full_snapshot):
         """Test to_dict converts UUIDs to strings."""
@@ -481,7 +424,6 @@ class TestContextSnapshotSerialization:
         result = full_snapshot.to_dict()
 
         assert result["profile"]["display_name"] == "Test User"
-        assert result["profile"]["skill_levels"]["python"] == "intermediate"
 
     def test_to_dict_handles_memory(self, full_snapshot):
         """Test to_dict handles memory enrichment."""
@@ -489,13 +431,6 @@ class TestContextSnapshotSerialization:
 
         assert result["memory"]["recent_topics"] == ["Python"]
         assert result["memory"]["interaction_history_summary"] == "First session"
-
-    def test_to_dict_handles_skills(self, full_snapshot):
-        """Test to_dict handles skills enrichment."""
-        result = full_snapshot.to_dict()
-
-        assert result["skills"]["active_skill_ids"] == ["python", "testing"]
-        assert result["skills"]["skill_progress"]["python"] == 60
 
     def test_to_dict_handles_documents(self, full_snapshot):
         """Test to_dict handles documents."""
@@ -516,13 +451,13 @@ class TestContextSnapshotSerialization:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
         result = snapshot.to_dict()
 
         assert result["profile"] is None
         assert result["memory"] is None
-        assert result["skills"] is None
+        assert result["extensions"] == {}
 
     def test_from_dict(self, full_snapshot):
         """Test from_dict creates ContextSnapshot from dict."""
@@ -531,7 +466,7 @@ class TestContextSnapshotSerialization:
 
         assert restored.topology == full_snapshot.topology
         assert restored.channel == full_snapshot.channel
-        assert restored.behavior == full_snapshot.behavior
+        assert restored.execution_mode == full_snapshot.execution_mode
 
     def test_from_dict_handles_messages(self, full_snapshot):
         """Test from_dict handles messages."""
@@ -556,7 +491,6 @@ class TestContextSnapshotSerialization:
         restored = ContextSnapshot.from_dict(data)
 
         assert restored.profile.display_name == "Test User"
-        assert restored.profile.skill_levels["python"] == "intermediate"
 
     def test_from_dict_handles_documents(self, full_snapshot):
         """Test from_dict handles documents."""
@@ -574,17 +508,17 @@ class TestContextSnapshotSerialization:
         # Check all fields
         assert restored.topology == full_snapshot.topology
         assert restored.channel == full_snapshot.channel
-        assert restored.behavior == full_snapshot.behavior
+        assert restored.execution_mode == full_snapshot.execution_mode
         assert len(restored.messages) == len(full_snapshot.messages)
-        assert restored.exercise_id == full_snapshot.exercise_id
         assert restored.input_text == full_snapshot.input_text
+        assert restored.extensions == full_snapshot.extensions
 
     def test_from_dict_with_minimal_data(self):
         """Test from_dict with minimal data."""
         data = {
             "topology": "test",
             "channel": "test",
-            "behavior": "test",
+            "execution_mode": "test",
         }
         restored = ContextSnapshot.from_dict(data)
 
@@ -615,7 +549,7 @@ class TestContextSnapshotEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
             messages=[],
         )
         assert snapshot.messages == []
@@ -631,7 +565,7 @@ class TestContextSnapshotEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
             documents=[],
         )
         assert snapshot.documents == []
@@ -647,7 +581,7 @@ class TestContextSnapshotEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
             metadata={"nested": {"deep": {"value": 1}}},
         )
         assert snapshot.metadata["nested"]["deep"]["value"] == 1
@@ -663,14 +597,14 @@ class TestContextSnapshotEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
             messages=[
                 Message(role="user", content="日本語テスト 🎉 ñ"),
             ],
         )
         assert "日本語テスト" in snapshot.messages[0].content
 
-    def test_none_topology_channel_behavior(self):
+    def test_none_topology_channel_execution_mode(self):
         """Test with None optional fields."""
         snapshot = ContextSnapshot(
             pipeline_run_id=uuid4(),
@@ -681,8 +615,8 @@ class TestContextSnapshotEdgeCases:
             interaction_id=uuid4(),
             topology=None,
             channel=None,
-            behavior=None,
+            execution_mode=None,
         )
         assert snapshot.topology is None
         assert snapshot.channel is None
-        assert snapshot.behavior is None
+        assert snapshot.execution_mode is None

@@ -1,4 +1,4 @@
-"""Enrichment classes for the agent package."""
+"""Enrichment classes for the context package."""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ class ProfileEnrichment:
     display_name: str | None = None
     preferences: dict[str, Any] = field(default_factory=dict)
     goals: list[str] = field(default_factory=list)
-    skill_levels: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,15 +24,6 @@ class MemoryEnrichment:
     recent_topics: list[str] = field(default_factory=list)
     key_facts: list[str] = field(default_factory=list)
     interaction_history_summary: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class SkillsEnrichment:
-    """Skills context enrichment data."""
-
-    active_skill_ids: list[str] = field(default_factory=list)
-    current_level: str | None = None
-    skill_progress: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

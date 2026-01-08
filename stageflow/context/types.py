@@ -1,4 +1,4 @@
-"""Basic types for the agent package."""
+"""Basic types for the context package."""
 
 from __future__ import annotations
 

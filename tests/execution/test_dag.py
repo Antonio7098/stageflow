@@ -8,7 +8,7 @@ from datetime import datetime, UTC
 from uuid import uuid4
 import pytest
 
-from stageflow.core.stages import StageOutput, StageStatus
+from stageflow.core import StageOutput, StageStatus
 from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
@@ -29,7 +29,7 @@ def create_context() -> PipelineContext:
         org_id=uuid4(),
         interaction_id=uuid4(),
         topology="test",
-        behavior="test",
+        execution_mode="test",
     )
 
 

@@ -1,0 +1,68 @@
+"""Stage output types for unified return values."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+
+from .stage_enums import StageStatus
+
+
+@dataclass(frozen=True, slots=True)
+class StageArtifact:
+    """An artifact produced by a stage during execution."""
+
+    type: str  # e.g., "audio", "transcript", "assessment"
+    payload: dict[str, Any]
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass(frozen=True, slots=True)
+class StageEvent:
+    """An event emitted by a stage during execution."""
+
+    type: str  # e.g., "started", "progress", "completed"
+    data: dict[str, Any]
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass(frozen=True, slots=True)
+class StageOutput:
+    """Unified return type for all stage executions.
+
+    Every stage returns a StageOutput regardless of its kind.
+    The status field indicates the outcome, and data/artifacts
+    contain the results.
+    """
+
+    status: StageStatus
+    data: dict[str, Any] = field(default_factory=dict)
+    artifacts: list[StageArtifact] = field(default_factory=list)
+    events: list[StageEvent] = field(default_factory=list)
+    error: str | None = None
+
+    @classmethod
+    def ok(cls, data: dict[str, Any] | None = None, **kwargs) -> StageOutput:
+        """Create a successful output."""
+        return cls(status=StageStatus.OK, data=data or kwargs)
+
+    @classmethod
+    def skip(cls, reason: str = "", data: dict[str, Any] | None = None) -> StageOutput:
+        """Create a skipped output."""
+        return cls(status=StageStatus.SKIP, data={"reason": reason, **(data or {})})
+
+    @classmethod
+    def cancel(cls, reason: str = "", data: dict[str, Any] | None = None) -> StageOutput:
+        """Create a cancelled output to stop pipeline without error."""
+        return cls(status=StageStatus.CANCEL, data={"cancel_reason": reason, **(data or {})})
+
+    @classmethod
+    def fail(cls, error: str, data: dict[str, Any] | None = None) -> StageOutput:
+        """Create a failed output."""
+        return cls(status=StageStatus.FAIL, error=error, data=data or {})
+
+    @classmethod
+    def retry(cls, error: str, data: dict[str, Any] | None = None) -> StageOutput:
+        """Create a retry-needed output."""
+        return cls(status=StageStatus.RETRY, error=error, data=data or {})

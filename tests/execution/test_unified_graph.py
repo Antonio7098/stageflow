@@ -16,14 +16,14 @@ from typing import Any
 from uuid import uuid4
 import pytest
 
-from stageflow.context.snapshot import ContextSnapshot
-from stageflow.core.stages import (
+from stageflow.context import ContextSnapshot
+from stageflow.core import (
     StageContext,
     StageKind,
     StageOutput,
     StageStatus,
 )
-from stageflow.stages.graph import (
+from stageflow.pipeline.dag import (
     UnifiedPipelineCancelled,
     UnifiedStageExecutionError,
     UnifiedStageGraph,
@@ -44,7 +44,7 @@ def create_snapshot() -> ContextSnapshot:
         interaction_id=uuid4(),
         topology="test_topology",
         channel="test_channel",
-        behavior="test",
+        execution_mode="test",
     )
 
 
@@ -738,7 +738,7 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_stage_with_artifacts(self):
         """Test stage that produces artifacts."""
-        from stageflow.core.stages import StageArtifact
+        from stageflow.core import StageArtifact
 
         async def runner(ctx: StageContext) -> StageOutput:
             return StageOutput(
@@ -762,7 +762,7 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_stage_with_events(self):
         """Test stage that emits events."""
-        from stageflow.core.stages import StageEvent
+        from stageflow.core import StageEvent
 
         async def runner(ctx: StageContext) -> StageOutput:
             ctx.emit_event("stage.started", {"stage": "test"})

@@ -8,7 +8,7 @@ Tests:
 from uuid import uuid4
 import pytest
 
-from stageflow.core.stages import StageKind, StageOutput
+from stageflow.core import StageKind, StageOutput
 from stageflow.pipeline.pipeline import Pipeline
 from stageflow.pipeline.registry import (
     PipelineRegistry,

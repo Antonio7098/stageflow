@@ -1,0 +1,291 @@
+channel/topology has bee deprecated, replaced by Pipeline. . needs to be removed. lots of references to skills, assessment, topic ect.. this is eloquence (the application we extracted the system from) specific. we need to remove this, but create a way for peoople to be ableo to add their own things in a solid compliant way. it needs to be as general as possible.
+profile, for example, is quite general. do we make an actual profile field to the context? or jsust let the user add their own?
+search for anywhere these are actually used and propose how to replace with more general. that said, i dont think they are actually being used.
+do we need to have speficic stage output types for different kinds of stages like AGENT, WORK, ENRITCH?? do we need to extend these tyoes at all?
+are we using wide events? should we?
+in observability we have for provider calls. do we need to be doing that here? is this not an application specific thing? sould
+quality mode needs to go! is specific to eloquence.
+how can we provide the structure for builders to be able to flexibly apply things like quality mode, skills ect... wilst keeping it general?
+solid principles are our doctrine!!
+hw can we optimise it for builders? what about organisations?
+we have a ws projector. what if they are not using ws? how can we generalise this? i want maximum observability.
+i see duplications like graph.py and dag.py. i also see duplicated logic and things not organised very well. do a scan of all the folders, what is in them and what they do, and come up with a better plan to organise them please.
+for example, agent action types are in stages, not agent. actually, @stages seems to be duplicatioing a lot of things. can it be deleted? i think it may be legacy code.
+why are ports ain the root of stageflow? can you do an organisational audit.
+class ProfileEnrichment:
+    """User profile enrichment data."""
+
+    user_id: UUID
+    display_name: str | None = None
+    preferences: dict[str, Any] = field(default_factory=dict)
+    goals: list[str] = field(default_factory=list)
+    skill_levels: dict[str, str] = field(default_factory=dict)
+
+
+class MemoryEnrichment:
+    """Canonical memory view enrichment data."""
+
+    recent_topics: list[str] = field(default_factory=list)
+    key_facts: list[str] = field(default_factory=list)
+    interaction_history_summary: str | None = None
+
+    @dataclass(frozen=True, slots=True)
+class SkillsEnrichment:
+    """Skills context enrichment data."""
+
+    active_skill_ids: list[str] = field(default_factory=list)
+    current_level: str | None = None
+    skill_progress: dict[str, Any] = field(default_factory=dict)
+
+
+- behavior and quality mode flags
+
+ContextSnapshot is serializable to JSON to support unit testing and Central Pulse replay.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from .types import Message, RoutingDecision
+from .enrichments import ProfileEnrichment, MemoryEnrichment, SkillsEnrichment, DocumentEnrichment
+
+
+@dataclass(frozen=True, slots=True)
+class ContextSnapshot:
+    """Immutable view passed to Agents containing run identity, messages, enrichments, and routing decision.
+
+    This is the canonical input to Agent.plan(). It is:
+    - Immutable (frozen dataclass)
+    - Serializable to JSON (for testing and Central Pulse replay)
+    - Complete (contains everything the Agent needs to plan)
+    """
+
+    # === Run Identity ===
+    pipeline_run_id: UUID | None
+    request_id: UUID | None
+    session_id: UUID | None
+    user_id: UUID | None
+    org_id: UUID | None
+    interaction_id: UUID | None
+
+    # === Topology / Configuration / Behavior ===
+    topology: str | None  # e.g., "fast_kernel", "accurate_kernel"
+    channel: str | None  # e.g., "text_channel", "voice_channel"
+    behavior: str | None  # e.g., "practice", "roleplay", "doc_edit"
+
+    # === Enrichments ===
+    profile: ProfileEnrichment | None = None
+    memory: MemoryEnrichment | None = None
+    skills: SkillsEnrichment | None = None
+    documents: list[DocumentEnrichment] = field(default_factory=list)
+    web_results: list[dict[str, Any]] = field(default_factory=list)
+
+    # === Active Exercise/Assessment State ===
+    exercise_id: str | None = None
+    assessment_state: dict[str, Any] = field(default_factory=dict)
+
+                "topology": self.topology,
+            "channel": self.channel,
+            "behavior": self.behavior,
+            "messages": [
+
+                            "profile": {
+                "user_id": str(self.profile.user_id) if self.profile else None,
+                "display_name": self.profile.display_name if self.profile else None,
+                "preferences": self.profile.preferences if self.profile else {},
+                "goals": self.profile.goals if self.profile else [],
+                "skill_levels": self.profile.skill_levels if self.profile else {},
+            }
+
+                        "skills": {
+                "active_skill_ids": self.skills.active_skill_ids if self.skills else [],
+                "current_level": self.skills.current_level if self.skills else None,
+                "skill_progress": self.skills.skill_progress if self.skills else {},
+            }
+
+        skills = None
+        if data.get("skills"):
+            s = data["skills"]
+            skills = SkillsEnrichment(
+                active_skill_ids=s.get("active_skill_ids", []),
+                current_level=s.get("current_level"),
+                skill_progress=s.get("skill_progress", {}),
+            )
+            topology=data.get("topology"),
+            channel=data.get("channel"),
+            behavior=data.get("behavior"),
+            messages=messages,
+
+class ProfileEnrichment:
+    """User profile enrichment data."""
+
+    user_id: UUID
+    display_name: str | None = None
+    preferences: dict[str, Any] = field(default_factory=dict)
+    goals: list[str] = field(default_factory=list)
+    skill_levels: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryEnrichment:
+    """Canonical memory view enrichment data."""
+
+    recent_topics: list[str] = field(default_factory=list)
+    key_facts: list[str] = field(default_factory=list)
+    interaction_history_summary: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SkillsEnrichment:
+    """Skills context enrichment data."""
+
+    active_skill_ids: list[str] = field(default_factory=list)
+    current_level: str | None = None
+    skill_progress: dict[str, Any] = field(default_factory=dict)
+
+    - Authentication/authorization
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Any
+
+from stageflow.stages.context import PipelineContext
+from stageflow.stages.result import StageResult
+
+
+class ErrorAction(Enum):
+    """Action to take when a stage errors."""
+
+    RETRY = auto()  # Retry stage with backoff
+    FALLBACK = auto()  # Use fallback result
+    FAIL = auto()  # Propagate failure to pipeline
+
+
+@dataclass(slots=True, kw_only=True)
+class InterceptorResult:
+    """Result from an interceptor's before() hook.
+
+    If stage_ran is False, the stage is skipped and result is used.
+    """
+
+    stage_ran: bool = True
+    result: Any = None
+    error: str | None = None
+
+
+class InterceptorError(Exception):
+    """Raised when an interceptor fails."""
+
+    def __init__(self, message: str, interceptor_name: str) -> None:
+        super().__init__(message)
+        self.interceptor_name = interceptor_name
+
+
+@dataclass(slots=True)
+class InterceptorContext:
+    """Read-only view of PipelineContext for interceptors."""
+
+    _ctx: PipelineContext
+    _interceptor_name: str  # Name of the interceptor that owns this context
+    _observations: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def name(self) -> str:
+        """Name of the interceptor that owns this context."""
+        return self._interceptor_name
+
+    @property
+    def data(self) -> dict[str, Any]:
+        """Interceptors get read-only access to stage data."""
+        # Return a read-only view (dict copy)
+        return self._ctx.data.copy()
+
+    @property
+    def pipeline_run_id(self):
+        """Access pipeline run ID."""
+        return self._ctx.pipeline_run_id
+
+    @property
+    def request_id(self):
+        """Access request ID."""
+        return self._ctx.request_id
+
+    @property
+    def session_id(self):
+        """Access session ID."""
+        return self._ctx.session_id
+
+    @property
+    def user_id(self):
+        """Access user ID."""
+        return self._ctx.user_id
+
+    @property
+    def org_id(self):
+        """Access org ID."""
+        return self._ctx.org_id
+
+    @property
+    def topology(self):
+        """Access topology."""
+        return self._ctx.topology
+
+    @property
+    def behavior(self):
+        """Access behavior."""
+        return self._ctx.behavior
+
+    @property
+    def quality_mode(self):
+        """Access quality mode (derived from topology)."""
+        topology = self._ctx.topology
+        if topology is None:
+            return None
+        # Handle kernel names like "fast_kernel", "accurate_kernel"
+        if topology.endswith("_kernel"):
+            return topology[:-7]  # Remove "_kernel" suffix
+        # Handle pipeline names like "chat_fast", "voice_accurate"
+        parts = topology.rsplit("_", 1)
+        if len(parts) == 2 and parts[1] in ("fast", "balanced", "accurate", "practice"):
+            return parts[1]
+        return None
+
+
+
+@dataclass(frozen=True)
+class PolicyContext:
+    pipeline_run_id: UUID
+    request_id: UUID | None
+    session_id: UUID | None
+    user_id: UUID | None
+    org_id: UUID | None
+    service: str
+    trigger: str | None
+    behavior: str | None  # Coaching style: practice, roleplay, etc.
+    quality_mode: str | None  # Performance mode: fast, accurate (derived from topology)
+    intent: str | None
+    prompt_tokens_estimate: int | None = None
+    proposed_action_types: list[str] | None = None
+    proposed_artifact_types: list[str] | None = None
+
+@dataclass(frozen=True)
+class GuardrailsContext:
+    pipeline_run_id: UUID
+    request_id: UUID
+    service: str
+    topology: str
+    behavior: str
+    messages: list[dict[str, Any]]
+    checkpoint: GuardrailsCheckpoint
+    session_id: UUID | None = None
+    user_id: UUID | None = None
+    org_id: UUID | None = None

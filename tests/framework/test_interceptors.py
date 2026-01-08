@@ -46,7 +46,7 @@ def create_context() -> PipelineContext:
         org_id=uuid4(),
         interaction_id=uuid4(),
         topology="test",
-        behavior="test",
+        execution_mode="test",
     )
 
 
@@ -201,54 +201,12 @@ class TestInterceptorContext:
         ic = InterceptorContext(ctx, "test")
         assert ic.topology == "chat_fast"
 
-    def test_behavior_property(self):
-        """Test behavior property."""
+    def test_execution_mode_property(self):
+        """Test execution_mode property."""
         ctx = create_context()
-        ctx.behavior = "practice"
+        ctx.execution_mode = "practice"
         ic = InterceptorContext(ctx, "test")
-        assert ic.behavior == "practice"
-
-    def test_quality_mode_extraction_from_topology(self):
-        """Test quality_mode extraction."""
-        ctx = create_context()
-        ctx.topology = "chat_fast"
-        ic = InterceptorContext(ctx, "test")
-        assert ic.quality_mode == "fast"
-
-    def test_quality_mode_from_kernel(self):
-        """Test quality_mode from kernel topology."""
-        ctx = create_context()
-        ctx.topology = "fast_kernel"
-        ic = InterceptorContext(ctx, "test")
-        assert ic.quality_mode == "fast"
-
-    def test_quality_mode_none_when_missing(self):
-        """Test quality_mode returns None when not extractable."""
-        ctx = create_context()
-        ctx.topology = "unknown"
-        ic = InterceptorContext(ctx, "test")
-        assert ic.quality_mode is None
-
-    def test_quality_mode_none_when_topology_none(self):
-        """Test quality_mode returns None when topology is None."""
-        ctx = create_context()
-        ctx.topology = None
-        ic = InterceptorContext(ctx, "test")
-        assert ic.quality_mode is None
-
-    def test_quality_mode_balanced(self):
-        """Test quality_mode extracts 'balanced'."""
-        ctx = create_context()
-        ctx.topology = "voice_balanced"
-        ic = InterceptorContext(ctx, "test")
-        assert ic.quality_mode == "balanced"
-
-    def test_quality_mode_accurate(self):
-        """Test quality_mode extracts 'accurate'."""
-        ctx = create_context()
-        ctx.topology = "voice_accurate"
-        ic = InterceptorContext(ctx, "test")
-        assert ic.quality_mode == "accurate"
+        assert ic.execution_mode == "practice"
 
     def test_add_observation(self):
         """Test add_observation method."""

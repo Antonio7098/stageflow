@@ -1,6 +1,6 @@
 """Stageflow pipeline module - pipeline types and registry."""
 
-from stageflow.core.stages import Stage
+from stageflow.core import Stage
 from stageflow.pipeline.builder import PipelineBuilder
 from stageflow.pipeline.dag import StageExecutionError, StageGraph, StageSpec
 from stageflow.pipeline.pipeline import Pipeline, UnifiedStageSpec

@@ -77,20 +77,20 @@ class RunStore(Protocol):
         *,
         service: str,
         topology: str | None = None,
-        behavior: str | None = None,
+        execution_mode: str | None = None,
         status: str = "created",
         **metadata: Any,
     ) -> Any:
         """Create a new pipeline run record.
-        
+
         Args:
             run_id: Unique identifier for the run
             service: Service name (e.g., "voice", "chat")
             topology: Pipeline topology name
-            behavior: Behavior mode
+            execution_mode: Execution mode
             status: Initial status
             **metadata: Additional metadata
-            
+
         Returns:
             The created run object
         """

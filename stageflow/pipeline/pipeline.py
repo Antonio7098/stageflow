@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from stageflow.core.stages import Stage, StageKind
+    from stageflow.core import Stage, StageKind
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,7 +138,7 @@ class Pipeline:
                 callable_runner = spec.runner
 
             # Create a new spec with the callable runner
-            from stageflow.stages.graph import UnifiedStageSpec as GraphUnifiedStageSpec
+            from stageflow.pipeline.dag import UnifiedStageSpec as GraphUnifiedStageSpec
 
             graph_spec = GraphUnifiedStageSpec(
                 name=spec.name,
@@ -150,7 +150,7 @@ class Pipeline:
             specs_for_graph.append(graph_spec)
 
         # Import here to avoid circular imports
-        from stageflow.stages.graph import UnifiedStageGraph
+        from stageflow.pipeline.dag import UnifiedStageGraph
 
         return UnifiedStageGraph(specs=specs_for_graph)  # type: ignore
 
@@ -159,7 +159,7 @@ class Pipeline:
 class UnifiedStageGraph(Protocol):
     """Protocol for the executable DAG produced by Pipeline.build().
 
-    The actual implementation lives in stageflow.stages.graph
+    The actual implementation lives in stageflow.pipeline.dag
     but we use a protocol here to avoid circular imports.
     """
 

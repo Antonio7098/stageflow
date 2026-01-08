@@ -10,15 +10,15 @@ from typing import Any
 from uuid import uuid4
 import pytest
 
-from stageflow.context.snapshot import ContextSnapshot
-from stageflow.core.stages import (
+from stageflow.context import ContextSnapshot
+from stageflow.core import (
     StageContext,
     StageKind,
     StageOutput,
     StageStatus,
     StageArtifact,
 )
-from stageflow.stages.graph import UnifiedStageGraph, UnifiedStageSpec
+from stageflow.pipeline.dag import UnifiedStageGraph, UnifiedStageSpec
 from stageflow.stages.inputs import StageInputs, create_stage_inputs
 from stageflow.stages.ports import StagePorts
 
@@ -39,7 +39,7 @@ def create_snapshot(
         interaction_id=uuid4(),
         topology=topology,
         channel="test",
-        behavior="test",
+        execution_mode="test",
     )
 
 

@@ -88,8 +88,8 @@ def sample_topology():
 
 
 @pytest.fixture
-def sample_behavior():
-    """Return a sample behavior."""
+def sample_execution_mode():
+    """Return a sample execution mode."""
     return "practice"
 
 
@@ -142,6 +142,6 @@ def sample_context():
         org_id=None,
         interaction_id=None,
         topology="test_topology",
-        behavior="test",
+        execution_mode="test",
         service="test",
     )

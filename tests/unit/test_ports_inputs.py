@@ -15,8 +15,8 @@ from typing import Any
 from uuid import uuid4
 import pytest
 
-from stageflow.context.snapshot import ContextSnapshot
-from stageflow.core.stages import (
+from stageflow.context import ContextSnapshot
+from stageflow.core import (
     StageContext,
     StageOutput,
     StageStatus,
@@ -315,7 +315,7 @@ class TestStageInputs:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
 
     def test_default_values(self, snapshot):
@@ -446,7 +446,7 @@ class TestCreateStageInputs:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
 
     def test_creates_inputs(self, snapshot):
@@ -501,7 +501,7 @@ class TestPortsInputsEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
         inputs = StageInputs(snapshot=snapshot, prior_outputs={})
         assert inputs.prior_outputs == {}
@@ -518,7 +518,7 @@ class TestPortsInputsEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
         inputs = create_stage_inputs(snapshot=snapshot, prior_outputs=None)
         assert inputs.prior_outputs == {}
@@ -534,7 +534,7 @@ class TestPortsInputsEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
         outputs = {
             "stage_a": StageOutput.ok(data={"nested": {"key": "value"}}),
@@ -586,7 +586,7 @@ class TestPortsInputsEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
         outputs = {
             f"stage_{i}": StageOutput.ok(data={"n": i})
@@ -610,7 +610,7 @@ class TestPortsInputsEdgeCases:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
         # Create outputs dict (preserves insertion order in Python 3.7+)
         outputs = {

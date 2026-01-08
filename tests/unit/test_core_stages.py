@@ -19,7 +19,7 @@ from typing import Any
 from uuid import uuid4
 import pytest
 
-from stageflow.core.stages import (
+from stageflow.core import (
     PipelineTimer,
     Stage,
     StageArtifact,
@@ -347,7 +347,7 @@ class TestStageContext:
     @pytest.fixture
     def mock_snapshot(self):
         """Create a mock snapshot for testing."""
-        from stageflow.context.snapshot import ContextSnapshot
+        from stageflow.context import ContextSnapshot
         return ContextSnapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -357,7 +357,7 @@ class TestStageContext:
             interaction_id=uuid4(),
             topology="test_topology",
             channel="test_channel",
-            behavior="test",
+            execution_mode="test",
         )
 
     def test_context_initialization(self, mock_snapshot):
@@ -463,7 +463,7 @@ class TestStageContext:
         outputs = ctx.collect_outputs()
         # The event output has status OK, not data with our key
         # Let's add data directly
-        from stageflow.core.stages import StageOutput
+        from stageflow.core import StageOutput
         object.__setattr__(ctx, "_outputs", [StageOutput.ok(key="value")])
         assert ctx.get_output_data("key") == "value"
 
@@ -476,7 +476,7 @@ class TestStageContext:
     def test_get_output_data_nested_search(self, mock_snapshot):
         """Test get_output_data searches all outputs."""
         ctx = StageContext(snapshot=mock_snapshot)
-        from stageflow.core.stages import StageOutput
+        from stageflow.core import StageOutput
         object.__setattr__(ctx, "_outputs", [
             StageOutput.ok(first="value1"),
             StageOutput.ok(second="value2"),
@@ -497,7 +497,7 @@ class TestCreateStageContext:
     @pytest.fixture
     def mock_snapshot(self):
         """Create a mock snapshot."""
-        from stageflow.context.snapshot import ContextSnapshot
+        from stageflow.context import ContextSnapshot
         return ContextSnapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -507,7 +507,7 @@ class TestCreateStageContext:
             interaction_id=uuid4(),
             topology="test",
             channel="test",
-            behavior="test",
+            execution_mode="test",
         )
 
     def test_factory_creates_context(self, mock_snapshot):

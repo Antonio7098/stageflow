@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from stageflow.core.stages import StageArtifact as Artifact
+from stageflow.core import StageArtifact as Artifact
 from stageflow.events import EventSink, get_event_sink
 
 
@@ -37,31 +37,6 @@ def extract_service(topology: str | None) -> str | None:
     return parts[0] if parts[0] else topology
 
 
-def extract_quality_mode(topology: str | None) -> str | None:
-    """Extract quality mode from topology string.
-
-    For pipeline names like "chat_fast", returns "fast".
-    For pipeline names like "voice_accurate", returns "accurate".
-    For kernel names (e.g., "fast_kernel"), extracts the kernel prefix.
-
-    Args:
-        topology: The topology string (e.g., "chat_fast")
-
-    Returns:
-        Quality mode (e.g., "fast", "accurate") or None if topology is None
-    """
-    if topology is None:
-        return None
-    # Kernel names like "fast_kernel" -> "fast"
-    if topology.endswith("_kernel"):
-        return topology[:-7] if len(topology) > 7 else None
-    # Pipeline names like "chat_fast", "voice_accurate"
-    parts = topology.rsplit("_", 1)
-    if len(parts) == 2 and parts[1] in ("fast", "balanced", "accurate", "practice"):
-        return parts[1]
-    return None
-
-
 @dataclass(slots=True, kw_only=True)
 class PipelineContext:
     """Execution context shared between stages."""
@@ -72,14 +47,14 @@ class PipelineContext:
     user_id: UUID | None
     org_id: UUID | None
     interaction_id: UUID | None
-    # Topology / Configuration / Behavior
+    # Topology / Configuration / Execution Mode
     # topology: the named pipeline topology (e.g. "chat_fast", "voice_accurate")
     # This encapsulates the service ("chat", "voice") and mode (derived from kernel + channel)
     topology: str | None = None
     # configuration: static wiring/configuration for this topology (optional snapshot)
     configuration: dict[str, Any] = field(default_factory=dict)
-    # behavior: high-level behavior label (e.g. "practice", "roleplay", "doc_edit")
-    behavior: str | None = None
+    # execution_mode: high-level execution mode label (e.g. "practice", "roleplay", "doc_edit")
+    execution_mode: str | None = None
     service: str = "pipeline"
     event_sink: EventSink = field(default_factory=get_event_sink)
     data: dict[str, Any] = field(default_factory=dict)
@@ -106,7 +81,7 @@ class PipelineContext:
             "status": status,
             "timestamp": timestamp,
             "topology": self.topology,
-            "behavior": self.behavior,
+            "execution_mode": self.execution_mode,
         }
         if payload:
             event_payload.update(payload)
@@ -142,7 +117,7 @@ class PipelineContext:
             "org_id": str(self.org_id) if self.org_id else None,
             "interaction_id": str(self.interaction_id) if self.interaction_id else None,
             "topology": self.topology,
-            "behavior": self.behavior,
+            "execution_mode": self.execution_mode,
             "service": self.service,
             "data": self.data,
             "canceled": self.canceled,
@@ -157,6 +132,5 @@ class PipelineContext:
 
 __all__ = [
     "PipelineContext",
-    "extract_quality_mode",
     "extract_service",
 ]

@@ -32,12 +32,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from stageflow.core.stages import StageOutput
+from stageflow.core import StageOutput
 
 from stageflow.stages.ports import StagePorts
 
 if TYPE_CHECKING:
-    from stageflow.context.snapshot import ContextSnapshot
+    from stageflow.context import ContextSnapshot
 
 
 @dataclass(frozen=True, slots=True)

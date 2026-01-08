@@ -10,6 +10,14 @@ Core Components:
 - Interceptors: Middleware for cross-cutting concerns
 - EventSink: Protocol for event persistence
 
+Stage Kinds:
+- TRANSFORM: Data transformation stages (STT, TTS, LLM)
+- ENRICH: Context enrichment stages (Profile, Memory)
+- ROUTE: Routing decision stages (Router)
+- GUARD: Guardrail/validation stages
+- WORK: Side-effect stages (Persist, Assessment)
+- AGENT: Agentic/coaching stages
+
 Example:
     from stageflow import Pipeline, Stage, StageOutput, StageKind
 
@@ -23,10 +31,21 @@ Example:
     pipeline = Pipeline().with_stage("my", MyStage, StageKind.TRANSFORM)
     graph = pipeline.build()
     results = await graph.run(ctx)
+
+Extension System:
+Stageflow provides a generic extension system for application-specific data.
+Use ContextSnapshot.extensions dict to store application data:
+
+    snapshot = ContextSnapshot(
+        ...
+        extensions={"skills": {"active_skill_ids": ["python"]}}
+    )
+
+For type-safe extensions, use the ExtensionRegistry in stageflow.extensions.
 """
 
 # Core stage types
-from stageflow.core.stages import (
+from stageflow.core import (
     PipelineTimer,
     Stage,
     StageArtifact,
@@ -81,7 +100,6 @@ from stageflow.pipeline.interceptors import (
 # Context types
 from stageflow.stages.context import (
     PipelineContext,
-    extract_quality_mode,
     extract_service,
 )
 from stageflow.stages.result import (
@@ -89,18 +107,30 @@ from stageflow.stages.result import (
     StageResult,
 )
 
-# Ports/Protocols
-from stageflow.ports import (
+# Protocols
+from stageflow.protocols import (
     ConfigProvider,
     CorrelationIds,
     RunStore,
 )
 
-# Graph executor
-from stageflow.stages.graph import (
-    UnifiedPipelineCancelled,
-    UnifiedStageExecutionError,
-    UnifiedStageGraph,
+# Observability protocols
+from stageflow.observability import (
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    PipelineRunLogger,
+    ProviderCallLogger,
+    error_summary_to_stages_patch,
+    error_summary_to_string,
+    get_circuit_breaker,
+    summarize_pipeline_error,
+)
+
+# Extensions
+from stageflow.extensions import (
+    ExtensionRegistry,
+    ExtensionHelper,
+    TypedExtension,
 )
 
 __all__ = [
@@ -122,15 +152,10 @@ __all__ = [
     "StageSpec",
     "StageGraph",
     "StageExecutionError",
-    # Unified graph
-    "UnifiedStageGraph",
-    "UnifiedStageExecutionError",
-    "UnifiedPipelineCancelled",
     # Context types
     "PipelineContext",
     "StageResult",
     "StageError",
-    "extract_quality_mode",
     "extract_service",
     # Interceptors
     "BaseInterceptor",
@@ -151,8 +176,21 @@ __all__ = [
     "get_event_sink",
     "set_event_sink",
     "clear_event_sink",
-    # Ports/Protocols
+    # Protocols
     "RunStore",
     "ConfigProvider",
     "CorrelationIds",
+    # Observability
+    "CircuitBreaker",
+    "CircuitBreakerOpenError",
+    "PipelineRunLogger",
+    "ProviderCallLogger",
+    "summarize_pipeline_error",
+    "error_summary_to_string",
+    "error_summary_to_stages_patch",
+    "get_circuit_breaker",
+    # Extensions
+    "ExtensionRegistry",
+    "ExtensionHelper",
+    "TypedExtension",
 ]

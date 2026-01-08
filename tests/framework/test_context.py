@@ -2,7 +2,6 @@
 
 Tests:
 - PipelineContext class
-- extract_quality_mode function
 - extract_service function
 """
 
@@ -13,7 +12,6 @@ import pytest
 
 from stageflow.events import NoOpEventSink
 from stageflow.stages.context import (
-    extract_quality_mode,
     extract_service,
     PipelineContext,
 )
@@ -66,57 +64,6 @@ class TestExtractService:
         assert extract_service("") == ""
 
 
-# === Test extract_quality_mode ===
-
-class TestExtractQualityMode:
-    """Tests for extract_quality_mode function."""
-
-    def test_none_topology(self):
-        """Test with None topology."""
-        assert extract_quality_mode(None) is None
-
-    def test_chat_fast(self):
-        """Test chat_fast topology."""
-        assert extract_quality_mode("chat_fast") == "fast"
-
-    def test_voice_accurate(self):
-        """Test voice_accurate topology."""
-        assert extract_quality_mode("voice_accurate") == "accurate"
-
-    def test_fast_kernel(self):
-        """Test kernel topology extracts prefix."""
-        assert extract_quality_mode("fast_kernel") == "fast"
-
-    def test_accurate_kernel(self):
-        """Test accurate kernel."""
-        assert extract_quality_mode("accurate_kernel") == "accurate"
-
-    def test_balanced_mode(self):
-        """Test balanced mode."""
-        assert extract_quality_mode("chat_balanced") == "balanced"
-
-    def test_practice_mode(self):
-        """Test practice mode."""
-        assert extract_quality_mode("voice_practice") == "practice"
-
-    def test_simple_service_name(self):
-        """Test simple service name returns None."""
-        assert extract_quality_mode("chat") is None
-
-    def test_empty_string(self):
-        """Test empty string."""
-        assert extract_quality_mode("") is None
-
-    def test_short_kernel(self):
-        """Test short kernel name like _kernel."""
-        assert extract_quality_mode("_kernel") is None
-
-    def test_very_short_kernel(self):
-        """Test very short kernel name."""
-        result = extract_quality_mode("_kern")
-        assert result is None
-
-
 # === Test PipelineContext ===
 
 class TestPipelineContext:
@@ -133,7 +80,7 @@ class TestPipelineContext:
             interaction_id=uuid4(),
         )
         assert ctx.topology is None
-        assert ctx.behavior is None
+        assert ctx.execution_mode is None
         assert ctx.service == "pipeline"
         assert ctx.data == {}
         assert ctx.canceled is False
@@ -153,8 +100,8 @@ class TestPipelineContext:
         )
         assert ctx.topology == "chat_fast"
 
-    def test_with_behavior(self):
-        """Test with behavior."""
+    def test_with_execution_mode(self):
+        """Test with execution_mode."""
         ctx = PipelineContext(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -162,9 +109,9 @@ class TestPipelineContext:
             user_id=uuid4(),
             org_id=uuid4(),
             interaction_id=uuid4(),
-            behavior="practice",
+            execution_mode="practice",
         )
-        assert ctx.behavior == "practice"
+        assert ctx.execution_mode == "practice"
 
     def test_with_configuration(self):
         """Test with configuration."""
@@ -235,7 +182,7 @@ class TestPipelineContext:
 
     def test_artifacts_list(self):
         """Test artifacts list."""
-        from stageflow.core.stages import StageArtifact
+        from stageflow.core import StageArtifact
         artifacts = [StageArtifact(type="audio", payload={"format": "mp3"})]
         ctx = PipelineContext(
             pipeline_run_id=uuid4(),
@@ -340,7 +287,7 @@ class TestPipelineContext:
             org_id=org_id,
             interaction_id=uuid4(),
             topology="chat_fast",
-            behavior="practice",
+            execution_mode="practice",
         )
 
         emitted = []
@@ -358,7 +305,7 @@ class TestPipelineContext:
         assert data["user_id"] == str(user_id)
         assert data["org_id"] == str(org_id)
         assert data["topology"] == "chat_fast"
-        assert data["behavior"] == "practice"
+        assert data["execution_mode"] == "practice"
 
     def test_record_stage_event_includes_pipeline_run_id(self):
         """Test pipeline_run_id is included when present."""
@@ -488,7 +435,7 @@ class TestPipelineContext:
             org_id=org_id,
             interaction_id=int_id,
             topology="chat_fast",
-            behavior="practice",
+            execution_mode="practice",
             data={"key": "value"},
         )
 
@@ -501,7 +448,7 @@ class TestPipelineContext:
         assert result["org_id"] == str(org_id)
         assert result["interaction_id"] == str(int_id)
         assert result["topology"] == "chat_fast"
-        assert result["behavior"] == "practice"
+        assert result["execution_mode"] == "practice"
         assert result["data"] == {"key": "value"}
         assert result["canceled"] is False
         assert result["artifacts_count"] == 0
@@ -524,7 +471,7 @@ class TestPipelineContext:
 
     def test_to_dict_counts_artifacts(self):
         """Test to_dict includes artifact count."""
-        from stageflow.core.stages import StageArtifact
+        from stageflow.core import StageArtifact
         ctx = PipelineContext(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -622,7 +569,7 @@ class TestPipelineContextEdgeCases:
             {"type": f"type_{i}", "payload": {"id": i}}
             for i in range(100)
         ]
-        from stageflow.core.stages import StageArtifact
+        from stageflow.core import StageArtifact
         ctx = PipelineContext(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),

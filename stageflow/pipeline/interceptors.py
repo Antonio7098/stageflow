@@ -98,24 +98,9 @@ class InterceptorContext:
         return self._ctx.topology
 
     @property
-    def behavior(self):
-        """Access behavior."""
-        return self._ctx.behavior
-
-    @property
-    def quality_mode(self):
-        """Access quality mode (derived from topology)."""
-        topology = self._ctx.topology
-        if topology is None:
-            return None
-        # Handle kernel names like "fast_kernel", "accurate_kernel"
-        if topology.endswith("_kernel"):
-            return topology[:-7]  # Remove "_kernel" suffix
-        # Handle pipeline names like "chat_fast", "voice_accurate"
-        parts = topology.rsplit("_", 1)
-        if len(parts) == 2 and parts[1] in ("fast", "balanced", "accurate", "practice"):
-            return parts[1]
-        return None
+    def execution_mode(self):
+        """Access execution_mode."""
+        return self._ctx.execution_mode
 
     def add_observation(self, key: str, value: Any) -> None:
         """Interceptors can add observations for other interceptors."""

@@ -2,7 +2,7 @@
 
 import pytest
 
-from stageflow.core.stages import StageOutput
+from stageflow.core import StageOutput
 from stageflow.pipeline.spec import PipelineSpec, PipelineValidationError, StageRunner
 from stageflow.stages.context import PipelineContext
 
