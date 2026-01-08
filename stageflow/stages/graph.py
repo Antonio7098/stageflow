@@ -302,7 +302,13 @@ class UnifiedStageGraph:
 
         # Handle conditional stages
         if spec.conditional:
+            # Check both ctx._outputs (emitted outputs) and inputs.prior_outputs (dependency outputs)
             skip_reason = ctx.get_output_data("skip_reason")
+            if skip_reason is None:
+                # Also check prior_outputs from dependencies
+                inputs = ctx.config.get("inputs")
+                if inputs is not None:
+                    skip_reason = inputs.get("skip_reason")
             if skip_reason:
                 logger.info(
                     f"Skipping conditional stage: {spec.name}",

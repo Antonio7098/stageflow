@@ -125,6 +125,14 @@ class Pipeline:
                     return await stage_instance.execute(ctx)
 
                 callable_runner = runner_wrapper
+            elif hasattr(spec.runner, 'execute'):
+                # It's a stage instance with an execute method
+                stage_instance = spec.runner
+
+                async def runner_wrapper(ctx, stage=stage_instance):
+                    return await stage.execute(ctx)
+
+                callable_runner = runner_wrapper
             else:
                 # It's already a callable
                 callable_runner = spec.runner

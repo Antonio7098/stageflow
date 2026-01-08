@@ -1,0 +1,294 @@
+"""Pipeline builder for code-defined DAG composition with validation.
+
+This module provides an enhanced Pipeline class with DAG validation,
+cycle detection, and composition capabilities.
+"""
+
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+from stageflow.pipeline.spec import PipelineSpec, PipelineValidationError, StageRunner
+
+if TYPE_CHECKING:
+    from stageflow.pipeline.dag import StageGraph
+
+
+@dataclass
+class PipelineBuilder:
+    """Code-defined pipeline with typed composition and validation.
+
+    Provides a fluent API for adding stages, composing pipelines,
+    and building executable StageGraph instances with full DAG validation.
+
+    Attributes:
+        name: Pipeline name for identification
+        stages: Mapping of stage name -> PipelineSpec
+    """
+
+    name: str = "pipeline"
+    stages: dict[str, PipelineSpec] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate pipeline after initialization."""
+        if self.stages:
+            self._validate()
+
+    def _validate(self) -> None:
+        """Ensure DAG validity: all dependencies exist, no cycles.
+
+        Raises:
+            PipelineValidationError: If validation fails
+        """
+        # Check all dependencies reference existing stages
+        for stage_name, spec in self.stages.items():
+            for dep in spec.dependencies:
+                if dep not in self.stages:
+                    raise PipelineValidationError(
+                        f"Stage '{stage_name}' depends on '{dep}' which does not exist",
+                        stages=[stage_name, dep],
+                    )
+
+        # Check for cycles using Kahn's algorithm (topological sort)
+        self._detect_cycles()
+
+    def _detect_cycles(self) -> None:
+        """Detect cycles in the pipeline DAG using Kahn's algorithm.
+
+        Raises:
+            PipelineValidationError: If a cycle is detected
+        """
+        if not self.stages:
+            return
+
+        # Build in-degree map
+        in_degree: dict[str, int] = {name: 0 for name in self.stages}
+        for spec in self.stages.values():
+            for dep in spec.dependencies:
+                if dep in in_degree:
+                    in_degree[spec.name] = in_degree.get(spec.name, 0)
+                    # dep -> spec.name edge means spec.name depends on dep
+                    # We count incoming edges to spec.name
+
+        # Recalculate: in_degree[stage] = number of stages it depends on
+        in_degree = {name: len(set(spec.dependencies)) for name, spec in self.stages.items()}
+
+        # Initialize queue with nodes that have no dependencies
+        queue: deque[str] = deque()
+        for name, count in in_degree.items():
+            if count == 0:
+                queue.append(name)
+
+        sorted_count = 0
+        while queue:
+            node = queue.popleft()
+            sorted_count += 1
+
+            # For each stage that depends on this node, reduce in-degree
+            for name, spec in self.stages.items():
+                if node in spec.dependencies:
+                    in_degree[name] -= 1
+                    if in_degree[name] == 0:
+                        queue.append(name)
+
+        if sorted_count != len(self.stages):
+            # Find stages involved in cycle
+            cycle_stages = [name for name, count in in_degree.items() if count > 0]
+            raise PipelineValidationError(
+                f"Pipeline contains a cycle involving stages: {cycle_stages}",
+                stages=cycle_stages,
+            )
+
+    def with_stage(
+        self,
+        name: str,
+        runner: type[StageRunner] | StageRunner,
+        dependencies: tuple[str, ...] | list[str] | None = None,
+        inputs: tuple[str, ...] | list[str] | None = None,
+        outputs: tuple[str, ...] | list[str] | None = None,
+        conditional: bool = False,
+        args: dict[str, Any] | None = None,
+    ) -> PipelineBuilder:
+        """Add a stage to this pipeline (fluent builder).
+
+        Args:
+            name: Unique stage name within the pipeline
+            runner: Stage class or instance implementing StageRunner
+            dependencies: Names of stages that must complete first
+            inputs: Keys this stage reads from context
+            outputs: Keys this stage writes to context
+            conditional: If True, stage may be skipped based on context
+            args: Additional arguments for the stage
+
+        Returns:
+            New PipelineBuilder with the added stage (immutable pattern)
+        """
+        deps = tuple(dependencies) if dependencies else ()
+        ins = tuple(inputs) if inputs else ()
+        outs = tuple(outputs) if outputs else ()
+
+        spec = PipelineSpec(
+            name=name,
+            runner=runner,
+            dependencies=deps,
+            inputs=ins,
+            outputs=outs,
+            conditional=conditional,
+            args=args or {},
+        )
+
+        # Create new dict with existing stages plus new one
+        new_stages = dict(self.stages)
+        new_stages[name] = spec
+
+        return PipelineBuilder(name=self.name, stages=new_stages)
+
+    def compose(self, other: PipelineBuilder) -> PipelineBuilder:
+        """Merge stages from another pipeline, resolving dependencies.
+
+        Args:
+            other: Another PipelineBuilder to merge
+
+        Returns:
+            New PipelineBuilder with merged stages
+
+        Raises:
+            PipelineValidationError: If stage names conflict with different specs
+        """
+        merged_stages = dict(self.stages)
+
+        for name, spec in other.stages.items():
+            if name in merged_stages:
+                existing = merged_stages[name]
+                # Check if specs are equivalent (same runner, dependencies, etc.)
+                if (
+                    existing.runner != spec.runner
+                    or existing.dependencies != spec.dependencies
+                    or existing.conditional != spec.conditional
+                ):
+                    raise PipelineValidationError(
+                        f"Stage '{name}' exists in both pipelines with different specs",
+                        stages=[name],
+                    )
+            else:
+                merged_stages[name] = spec
+
+        composed = PipelineBuilder(
+            name=f"{self.name}+{other.name}",
+            stages=merged_stages,
+        )
+        # Validation happens in __post_init__
+        return composed
+
+    def build(self) -> StageGraph:
+        """Generate executable DAG for the orchestrator.
+
+        Creates a StageGraph from the pipeline specifications.
+        Validates that at least one stage exists.
+
+        Returns:
+            StageGraph ready for orchestration
+
+        Raises:
+            ValueError: If pipeline is empty
+        """
+        if not self.stages:
+            raise ValueError("Cannot build empty pipeline")
+
+        from stageflow.pipeline.dag import StageGraph, StageSpec
+
+        # Convert PipelineSpec to StageSpec for StageGraph
+        graph_specs: list[StageSpec] = []
+
+        for spec in self.stages.values():
+            # Create a runner callable that instantiates and executes the stage
+            runner = spec.runner
+            if isinstance(runner, type):
+                # It's a class, create wrapper that instantiates it
+                stage_class = runner
+
+                async def create_runner(ctx, cls=stage_class, stage_args=spec.args):
+                    instance = cls(**stage_args) if stage_args else cls()
+                    return await instance.execute(ctx)
+
+                callable_runner = create_runner
+            else:
+                # It's already an instance
+                stage_instance = runner
+
+                async def create_runner(ctx, stage=stage_instance):
+                    return await stage.execute(ctx)
+
+                callable_runner = create_runner
+
+            graph_spec = StageSpec(
+                name=spec.name,
+                runner=callable_runner,
+                dependencies=spec.dependencies,
+                conditional=spec.conditional,
+            )
+            graph_specs.append(graph_spec)
+
+        return StageGraph(specs=graph_specs)
+
+    def get_stage(self, name: str) -> PipelineSpec | None:
+        """Get a stage specification by name.
+
+        Args:
+            name: Stage name to look up
+
+        Returns:
+            PipelineSpec if found, None otherwise
+        """
+        return self.stages.get(name)
+
+    def has_stage(self, name: str) -> bool:
+        """Check if a stage exists in the pipeline.
+
+        Args:
+            name: Stage name to check
+
+        Returns:
+            True if stage exists
+        """
+        return name in self.stages
+
+    def stage_names(self) -> list[str]:
+        """Get stage names in topological order.
+
+        Returns:
+            List of stage names sorted topologically
+        """
+        if not self.stages:
+            return []
+
+        # Topological sort using Kahn's algorithm
+        in_degree = {name: len(set(spec.dependencies)) for name, spec in self.stages.items()}
+        queue: deque[str] = deque()
+        result: list[str] = []
+
+        for name, count in in_degree.items():
+            if count == 0:
+                queue.append(name)
+
+        while queue:
+            node = queue.popleft()
+            result.append(node)
+
+            for name, spec in self.stages.items():
+                if node in spec.dependencies:
+                    in_degree[name] -= 1
+                    if in_degree[name] == 0:
+                        queue.append(name)
+
+        return result
+
+    def __repr__(self) -> str:
+        return f"PipelineBuilder(name={self.name!r}, stages={list(self.stages.keys())})"
+
+
+__all__ = [
+    "PipelineBuilder",
+]

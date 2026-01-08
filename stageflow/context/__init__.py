@@ -1,5 +1,6 @@
 """Stageflow context module - execution context types."""
 
+from stageflow.context.bag import ContextBag, DataConflictError
 from stageflow.context.snapshot import (
     ContextSnapshot,
     DocumentEnrichment,
@@ -11,11 +12,13 @@ from stageflow.context.snapshot import (
 )
 
 __all__ = [
+    "ContextBag",
     "ContextSnapshot",
-    "Message",
-    "RoutingDecision",
-    "ProfileEnrichment",
-    "MemoryEnrichment",
-    "SkillsEnrichment",
+    "DataConflictError",
     "DocumentEnrichment",
+    "MemoryEnrichment",
+    "Message",
+    "ProfileEnrichment",
+    "RoutingDecision",
+    "SkillsEnrichment",
 ]

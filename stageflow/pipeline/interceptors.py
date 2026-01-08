@@ -113,7 +113,7 @@ class InterceptorContext:
             return topology[:-7]  # Remove "_kernel" suffix
         # Handle pipeline names like "chat_fast", "voice_accurate"
         parts = topology.rsplit("_", 1)
-        if len(parts) == 2 and parts[1] in ("fast", "accurate"):
+        if len(parts) == 2 and parts[1] in ("fast", "balanced", "accurate", "practice"):
             return parts[1]
         return None
 
@@ -331,15 +331,32 @@ class TimeoutInterceptor(BaseInterceptor):
         ctx.data.pop(f"_timeout.{stage_name}", None)
 
 
-def get_default_interceptors() -> list[BaseInterceptor]:
-    """Get the default set of interceptors for all stages."""
-    return [
+def get_default_interceptors(include_auth: bool = False) -> list[BaseInterceptor]:
+    """Get the default set of interceptors for all stages.
+    
+    Args:
+        include_auth: If True, include AuthInterceptor and OrgEnforcementInterceptor.
+                      Default False for backwards compatibility.
+    
+    Returns:
+        List of interceptors sorted by priority
+    """
+    interceptors: list[BaseInterceptor] = [
         TimeoutInterceptor(),  # Priority 5 - runs first
         CircuitBreakerInterceptor(),  # Priority 10
         TracingInterceptor(),  # Priority 20
         MetricsInterceptor(),  # Priority 40
         LoggingInterceptor(),  # Priority 50
     ]
+    
+    if include_auth:
+        from stageflow.auth.interceptors import AuthInterceptor, OrgEnforcementInterceptor
+        interceptors = [
+            AuthInterceptor(),  # Priority 1
+            OrgEnforcementInterceptor(),  # Priority 2
+        ] + interceptors
+    
+    return interceptors
 
 
 async def run_with_interceptors(
