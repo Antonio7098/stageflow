@@ -15,7 +15,7 @@ Subpipelines allow a stage to spawn a child pipeline run. This is useful for:
 ```
 Parent Pipeline
 ┌─────────────────────────────────────────────────────────────┐
-│  [stage_a] → [stage_b] → [tool_executor] → [stage_c]       │
+│  [stage_a] → [stage_b] → [tool_executor] → [stage_c]        │
 │                               │                             │
 │                               ▼                             │
 │                    ┌─────────────────────┐                  │
@@ -186,6 +186,72 @@ Events from child pipelines include parent references:
 }
 ```
 
+## Observability and Metrics
+
+### ChildRunTracker Metrics
+
+The `ChildRunTracker` provides comprehensive metrics for subpipeline orchestration:
+
+```python
+from stageflow.pipeline.subpipeline import get_child_tracker
+
+# Get current metrics
+tracker = get_child_tracker()
+metrics = await tracker.get_metrics()
+
+print(f"Active children: {metrics['active_children']}")
+print(f"Max depth seen: {metrics['max_depth_seen']}")
+print(f"Total registrations: {metrics['registration_count']}")
+```
+
+### Automatic Metrics Logging
+
+The `ChildTrackerMetricsInterceptor` automatically logs metrics for child pipeline runs:
+
+```python
+# Included in default interceptors
+from stageflow import get_default_interceptors
+
+interceptors = get_default_interceptors()
+# Contains ChildTrackerMetricsInterceptor at priority 45
+```
+
+**Metrics logged**:
+- Registration/unregistration counts
+- Lookup operations (get_children, get_parent)
+- Tree traversal operations
+- Maximum concurrent children
+- Maximum nesting depth
+- Active relationships
+
+### Performance Monitoring
+
+Monitor subpipeline performance with the metrics:
+
+```json
+{
+  "component": "ChildRunTracker",
+  "pipeline_run_id": "123e4567-e89b-12d3-a456-426614174000",
+  "is_child_run": true,
+  "registration_count": 15,
+  "unregistration_count": 12,
+  "lookup_count": 45,
+  "tree_traversal_count": 8,
+  "cleanup_count": 12,
+  "max_concurrent_children": 5,
+  "max_depth_seen": 3,
+  "active_parents": 3,
+  "active_children": 3,
+  "total_relationships": 3
+}
+```
+
+Use these metrics to:
+- Detect excessive subpipeline nesting
+- Monitor cleanup efficiency
+- Track lookup performance
+- Identify memory usage patterns
+
 ## Error Handling
 
 ### Child Failures
@@ -328,6 +394,245 @@ class DelegatingAgentStage:
         
         return StageOutput.ok(response=result)
 ```
+
+## SubpipelineSpawner API
+
+```python
+from stageflow.pipeline.subpipeline import (
+    SubpipelineSpawner,
+    get_subpipeline_spawner,
+    set_subpipeline_spawner,
+)
+```
+
+The `SubpipelineSpawner` handles spawning and managing child pipeline runs with proper correlation and cancellation support.
+
+### Constructor
+
+```python
+spawner = SubpipelineSpawner(
+    child_tracker=None,  # Optional custom tracker
+    emit_events=True,    # Emit subpipeline events
+    max_depth=5,         # Maximum nesting depth (default: 5)
+)
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `max_depth` | `int` | Maximum allowed subpipeline nesting depth |
+
+### Methods
+
+#### `spawn(pipeline_name, ctx, correlation_id, parent_stage_id, runner, *, topology=None, execution_mode=None) -> SubpipelineResult`
+
+Spawn a child pipeline run.
+
+```python
+result = await spawner.spawn(
+    pipeline_name="tool_execution",
+    ctx=parent_ctx,
+    correlation_id=action_id,
+    parent_stage_id="tool_executor",
+    runner=my_pipeline_runner,
+    topology="tool_fast",
+)
+```
+
+#### `cancel_with_children(run_id, reason="user_requested", contexts=None) -> list[UUID]`
+
+Cancel a run and all its children (depth-first cascading).
+
+```python
+canceled_ids = await spawner.cancel_with_children(
+    run_id=parent_run_id,
+    reason="timeout",
+    contexts=active_contexts,  # Optional: mark contexts as canceled
+)
+```
+
+#### `is_canceled(run_id) -> bool`
+
+Check if a run has been canceled.
+
+### Depth Limiting
+
+The spawner enforces a maximum nesting depth to prevent runaway recursion:
+
+```python
+from stageflow.pipeline.subpipeline import (
+    SubpipelineSpawner,
+    MaxDepthExceededError,
+    DEFAULT_MAX_SUBPIPELINE_DEPTH,  # 5
+)
+
+# Custom depth limit
+spawner = SubpipelineSpawner(max_depth=3)
+
+try:
+    result = await spawner.spawn(...)
+except MaxDepthExceededError as e:
+    print(f"Depth {e.current_depth} exceeds max {e.max_depth}")
+    print(f"Parent run: {e.parent_run_id}")
+```
+
+### Global Instance
+
+```python
+# Get the global spawner
+spawner = get_subpipeline_spawner()
+
+# Set a custom spawner
+set_subpipeline_spawner(my_spawner)
+```
+
+---
+
+## ChildRunTracker API
+
+```python
+from stageflow.pipeline.subpipeline import (
+    ChildRunTracker,
+    get_child_tracker,
+    set_child_tracker,
+)
+```
+
+Thread-safe tracking of parent-child relationships for cancellation propagation.
+
+### Methods
+
+#### `register_child(parent_id, child_id) -> None`
+
+Register a child run under a parent.
+
+#### `unregister_child(parent_id, child_id) -> None`
+
+Unregister a child run from its parent.
+
+#### `get_children(parent_id) -> set[UUID]`
+
+Get all child run IDs for a parent.
+
+#### `get_parent(child_id) -> UUID | None`
+
+Get the parent run ID for a child.
+
+#### `get_all_descendants(run_id) -> set[UUID]`
+
+Get all descendant run IDs (children, grandchildren, etc.).
+
+#### `get_root_run(run_id) -> UUID`
+
+Get the root run ID by traversing up the parent chain.
+
+#### `cleanup_run(run_id) -> None`
+
+Clean up tracking data for a completed run.
+
+---
+
+## SubpipelineResult
+
+```python
+from stageflow.pipeline.subpipeline import SubpipelineResult
+```
+
+Result from executing a subpipeline.
+
+### Attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `success` | `bool` | Whether the child pipeline completed successfully |
+| `child_run_id` | `UUID` | The child pipeline run ID |
+| `data` | `dict \| None` | Output data from the child pipeline |
+| `error` | `str \| None` | Error message if failed |
+| `duration_ms` | `float` | Execution time in milliseconds |
+
+```python
+result = await spawner.spawn(...)
+if result.success:
+    print(f"Child {result.child_run_id} completed in {result.duration_ms}ms")
+    print(f"Data: {result.data}")
+else:
+    print(f"Child failed: {result.error}")
+```
+
+---
+
+## Subpipeline Events
+
+```python
+from stageflow.pipeline.subpipeline import (
+    PipelineSpawnedChildEvent,
+    PipelineChildCompletedEvent,
+    PipelineChildFailedEvent,
+    PipelineCanceledEvent,
+)
+```
+
+### Event Types
+
+| Event Type | Description |
+|------------|-------------|
+| `pipeline.spawned_child` | Emitted when a child pipeline is spawned |
+| `pipeline.child_completed` | Emitted when a child pipeline completes successfully |
+| `pipeline.child_failed` | Emitted when a child pipeline fails |
+| `pipeline.canceled` | Emitted when a pipeline is canceled |
+
+### PipelineSpawnedChildEvent
+
+```python
+{
+    "parent_run_id": "uuid-string",
+    "child_run_id": "uuid-string",
+    "parent_stage_id": "tool_executor",
+    "pipeline_name": "tool_pipeline",
+    "correlation_id": "action-uuid",
+    "timestamp": "2024-01-15T10:30:00Z",
+}
+```
+
+### PipelineChildCompletedEvent
+
+```python
+{
+    "parent_run_id": "uuid-string",
+    "child_run_id": "uuid-string",
+    "pipeline_name": "tool_pipeline",
+    "duration_ms": 150.5,
+    "timestamp": "2024-01-15T10:30:00Z",
+}
+```
+
+### PipelineChildFailedEvent
+
+```python
+{
+    "parent_run_id": "uuid-string",
+    "child_run_id": "uuid-string",
+    "pipeline_name": "tool_pipeline",
+    "error_message": "Stage validation failed",
+    "duration_ms": 50.2,
+    "timestamp": "2024-01-15T10:30:00Z",
+}
+```
+
+### PipelineCanceledEvent
+
+```python
+{
+    "pipeline_run_id": "uuid-string",
+    "parent_run_id": "uuid-string",  # null if root
+    "reason": "user_requested",
+    "cascade_depth": 0,  # 0 for root, 1 for child, etc.
+    "timestamp": "2024-01-15T10:30:00Z",
+}
+```
+
+---
 
 ## Best Practices
 

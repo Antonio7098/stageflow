@@ -222,7 +222,6 @@ class TestContextSnapshot:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test_topology",
-            channel="test_channel",
             execution_mode="test",
         )
 
@@ -442,7 +441,6 @@ class TestContextSnapshotSerialization:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
         result = snapshot.to_dict()
@@ -457,7 +455,6 @@ class TestContextSnapshotSerialization:
         restored = ContextSnapshot.from_dict(data)
 
         assert restored.topology == full_snapshot.topology
-        assert restored.channel == full_snapshot.channel
         assert restored.execution_mode == full_snapshot.execution_mode
 
     def test_from_dict_handles_messages(self, full_snapshot):
@@ -538,7 +535,6 @@ class TestContextSnapshotEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
             messages=[],
         )
@@ -554,7 +550,6 @@ class TestContextSnapshotEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
             documents=[],
         )
@@ -570,7 +565,6 @@ class TestContextSnapshotEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
             metadata={"nested": {"deep": {"value": 1}}},
         )
@@ -586,7 +580,6 @@ class TestContextSnapshotEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
             messages=[
                 Message(role="user", content="日本語テスト 🎉 ñ"),
@@ -604,9 +597,7 @@ class TestContextSnapshotEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology=None,
-            channel=None,
             execution_mode=None,
         )
         assert snapshot.topology is None
-        assert snapshot.channel is None
         assert snapshot.execution_mode is None

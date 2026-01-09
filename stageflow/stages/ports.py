@@ -1,7 +1,7 @@
 """StagePorts - Injected capabilities for stages (callbacks, services, db).
 
-This module defines StagePorts, an immutable dataclass that provides typed access
-to services and callbacks that stages need.
+This module defines typed ports for different domains, following the
+Interface Segregation Principle. Stages only receive the ports they need.
 """
 
 from __future__ import annotations
@@ -13,146 +13,164 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
-class StagePorts:
-    """Injected capabilities for stages (callbacks, services, db).
+class CorePorts:
+    """Core capabilities needed by most stages.
 
-    This is an immutable (frozen) dataclass that provides typed access to
-    capabilities that stages need. All fields are read-only after creation.
-
-    Attributes:
-        db: Database session for persistence operations (generic type).
-        db_lock: Optional lock for preventing concurrent DB access.
-        call_logger_db: Database session for provider call logging.
-        send_status: Callback for sending status updates (stage, state, data).
-        send_token: Callback for sending streamed LLM tokens.
-        send_audio_chunk: Callback for sending TTS audio chunks.
+    These are the fundamental capabilities that most stages need:
+    - Database access
+    - Status updates
+    - Basic logging
     """
 
-    # Generic database session - type depends on implementation
+    # Database and persistence
     db: Any = None
     db_lock: Lock | None = None
     call_logger_db: Any = None
 
+    # Core callbacks
     send_status: Callable[[str, str, dict[str, Any] | None], Awaitable[None]] | None = None
-    send_token: Callable[[str], Awaitable[None]] | None = None
-    send_audio_chunk: Callable[[bytes, str, int, bool], Awaitable[None]] | None = None
-    send_transcript: Callable[[Any, str, float, int], Awaitable[None]] | None = (
-        None  # msg_id, transcript, confidence, duration_ms
-    )
-
-    llm_chunk_queue: Any = None
-    chat_service: Any = None
-    llm_provider: Any = None
-    tts_provider: Any = None
-
-    recording: Any = None
-    audio_data: bytes | None = None
-    audio_format: str | None = None
-    tts_text_queue: Any = None
-    stt_provider: Any = None
     call_logger: Any = None
     retry_fn: Any = None
 
 
-def create_stage_ports(
+@dataclass(frozen=True, slots=True)
+class LLMPorts:
+    """Ports for LLM-powered stages.
+
+    Provides access to language models and related services.
+    """
+
+    llm_provider: Any = None
+    chat_service: Any = None
+    llm_chunk_queue: Any = None
+    send_token: Callable[[str], Awaitable[None]] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AudioPorts:
+    """Ports for audio processing stages.
+
+    Provides access to audio providers and streaming capabilities.
+    """
+
+    tts_provider: Any = None
+    stt_provider: Any = None
+    send_audio_chunk: Callable[[bytes, str, int, bool], Awaitable[None]] | None = None
+    send_transcript: Callable[[Any, str, float, int], Awaitable[None]] | None = None
+    audio_data: bytes | None = None
+    audio_format: str | None = None
+    tts_text_queue: Any = None
+    recording: Any = None
+
+
+
+
+# Core ports factory
+def create_core_ports(
     *,
     db: Any = None,
     db_lock: Lock | None = None,
     call_logger_db: Any = None,
     send_status: Callable[[str, str, dict[str, Any] | None], Awaitable[None]] | None = None,
-    send_token: Callable[[str], Awaitable[None]] | None = None,
-    send_audio_chunk: Callable[[bytes, str, int, bool], Awaitable[None]] | None = None,
-    send_transcript: Callable[[str, str, float, int], Awaitable[None]] | None = None,
-    llm_chunk_queue: Any = None,
-    chat_service: Any = None,
-    llm_provider: Any = None,
-    tts_provider: Any = None,
-    recording: Any = None,
-    audio_data: bytes | None = None,
-    audio_format: str | None = None,
-    tts_text_queue: Any = None,
-    stt_provider: Any = None,
     call_logger: Any = None,
     retry_fn: Any = None,
-) -> StagePorts:
-    """Factory function to create StagePorts with all fields.
-
-    This is the recommended way to create StagePorts instances.
-
+) -> CorePorts:
+    """Create CorePorts with essential capabilities.
+    
     Args:
-        db: Database session for persistence operations.
-        db_lock: Optional lock for preventing concurrent DB access.
-        call_logger_db: Database session for provider call logging.
-        send_status: Callback for status updates.
-        send_token: Callback for streaming tokens.
-        send_audio_chunk: Callback for streaming audio chunks.
-        send_transcript: Callback for sending STT transcript to client.
-        llm_chunk_queue: Queue for LLM chunks in streaming pipeline.
-        chat_service: Chat service for building context and running LLM.
-        llm_provider: LLM provider for text generation.
-        tts_provider: TTS provider for text-to-speech synthesis.
-        recording: Recording metadata.
-        audio_data: Raw audio bytes.
-        audio_format: Audio format string.
-        tts_text_queue: Queue for text chunks to be synthesized by TTS.
-        stt_provider: STT provider for speech-to-text transcription.
-        call_logger: Logger for tracking provider API calls.
-
+        db: Database session for persistence operations
+        db_lock: Optional lock for preventing concurrent DB access
+        call_logger_db: Database session for provider call logging
+        send_status: Callback for status updates
+        call_logger: Logger for tracking provider API calls
+        retry_fn: Retry function for failed operations
+        
     Returns:
-        StagePorts instance with all fields set.
+        CorePorts instance
     """
-    return StagePorts(
+    return CorePorts(
         db=db,
         db_lock=db_lock,
         call_logger_db=call_logger_db,
         send_status=send_status,
-        send_token=send_token,
-        send_audio_chunk=send_audio_chunk,
-        send_transcript=send_transcript,
-        llm_chunk_queue=llm_chunk_queue,
-        chat_service=chat_service,
-        llm_provider=llm_provider,
-        tts_provider=tts_provider,
-        recording=recording,
-        audio_data=audio_data,
-        audio_format=audio_format,
-        tts_text_queue=tts_text_queue,
-        stt_provider=stt_provider,
         call_logger=call_logger,
         retry_fn=retry_fn,
     )
 
 
-def create_stage_ports_from_data_dict(data: dict[str, Any]) -> StagePorts:
-    """Create StagePorts from the legacy data dict pattern.
-
-    This is a migration helper that extracts values from the old mutable
-    data dict and creates a proper StagePorts instance.
-
+# LLM ports factory
+def create_llm_ports(
+    *,
+    llm_provider: Any = None,
+    chat_service: Any = None,
+    llm_chunk_queue: Any = None,
+    send_token: Callable[[str], Awaitable[None]] | None = None,
+) -> LLMPorts:
+    """Create LLMPorts for language model operations.
+    
     Args:
-        data: The legacy ctx.data dict containing all stage data.
-
+        llm_provider: LLM provider for text generation
+        chat_service: Chat service for building context and running LLM
+        llm_chunk_queue: Queue for LLM chunks in streaming pipeline
+        send_token: Callback for streaming tokens
+        
     Returns:
-        StagePorts instance populated from the data dict.
+        LLMPorts instance
     """
-    return StagePorts(
-        db=data.get("db"),
-        db_lock=data.get("db_lock"),
-        call_logger_db=data.get("call_logger_db"),
-        send_status=data.get("send_status"),
-        send_token=data.get("send_token"),
-        send_audio_chunk=data.get("send_audio_chunk"),
-        send_transcript=data.get("send_transcript"),
-        llm_chunk_queue=data.get("llm_chunk_queue"),
-        chat_service=data.get("chat_service"),
-        recording=data.get("recording"),
-        audio_data=data.get("audio_data"),
-        audio_format=data.get("audio_format"),
+    return LLMPorts(
+        llm_provider=llm_provider,
+        chat_service=chat_service,
+        llm_chunk_queue=llm_chunk_queue,
+        send_token=send_token,
     )
 
 
+# Audio ports factory
+def create_audio_ports(
+    *,
+    tts_provider: Any = None,
+    stt_provider: Any = None,
+    send_audio_chunk: Callable[[bytes, str, int, bool], Awaitable[None]] | None = None,
+    send_transcript: Callable[[Any, str, float, int], Awaitable[None]] | None = None,
+    audio_data: bytes | None = None,
+    audio_format: str | None = None,
+    tts_text_queue: Any = None,
+    recording: Any = None,
+) -> AudioPorts:
+    """Create AudioPorts for audio processing operations.
+    
+    Args:
+        tts_provider: TTS provider for text-to-speech synthesis
+        stt_provider: STT provider for speech-to-text transcription
+        send_audio_chunk: Callback for streaming audio chunks
+        send_transcript: Callback for sending STT transcript
+        audio_data: Raw audio bytes
+        audio_format: Audio format string
+        tts_text_queue: Queue for text chunks to be synthesized by TTS
+        recording: Recording metadata
+        
+    Returns:
+        AudioPorts instance
+    """
+    return AudioPorts(
+        tts_provider=tts_provider,
+        stt_provider=stt_provider,
+        send_audio_chunk=send_audio_chunk,
+        send_transcript=send_transcript,
+        audio_data=audio_data,
+        audio_format=audio_format,
+        tts_text_queue=tts_text_queue,
+        recording=recording,
+    )
+
+
+
+
 __all__ = [
-    "StagePorts",
-    "create_stage_ports",
-    "create_stage_ports_from_data_dict",
+    "CorePorts",
+    "LLMPorts",
+    "AudioPorts",
+    "create_core_ports",
+    "create_llm_ports",
+    "create_audio_ports",
 ]

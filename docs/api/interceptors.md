@@ -175,6 +175,16 @@ Creates OpenTelemetry-compatible span context.
 
 **Priority:** 20
 
+### ChildTrackerMetricsInterceptor
+
+```python
+from stageflow import ChildTrackerMetricsInterceptor
+```
+
+Logs `ChildRunTracker` metrics for subpipeline orchestration observability.
+
+**Priority:** 45
+
 ### MetricsInterceptor
 
 ```python

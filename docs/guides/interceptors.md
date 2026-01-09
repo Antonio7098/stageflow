@@ -1,5 +1,7 @@
 # Interceptors
 
+Interceptors run around stage execution and receive the **PipelineContext**, which gives them access to run identity, topology, shared data, and cancellation state.
+
 Interceptors are middleware that wrap stage execution to provide cross-cutting concerns like logging, metrics, timeouts, and authentication. This guide covers how to use and create interceptors.
 
 ## What Are Interceptors?
@@ -59,6 +61,17 @@ tracing = TracingInterceptor()
 # Adds span context to ctx.data for downstream tracing
 ```
 
+### ChildTrackerMetricsInterceptor
+
+Logs `ChildRunTracker` metrics for subpipeline orchestration:
+
+```python
+from stageflow import ChildTrackerMetricsInterceptor
+
+tracker_metrics = ChildTrackerMetricsInterceptor()
+# Logs registration counts, lookup operations, tree traversals, etc.
+```
+
 ### MetricsInterceptor
 
 Records stage execution metrics:
@@ -90,7 +103,7 @@ from stageflow import get_default_interceptors
 
 interceptors = get_default_interceptors()
 # Returns: [TimeoutInterceptor, CircuitBreakerInterceptor, 
-#           TracingInterceptor, MetricsInterceptor, LoggingInterceptor]
+#           TracingInterceptor, MetricsInterceptor, ChildTrackerMetricsInterceptor, LoggingInterceptor]
 
 # Include auth interceptors
 interceptors = get_default_interceptors(include_auth=True)
@@ -109,6 +122,7 @@ Interceptors run in **priority order** (lower = runs first, outer wrapper):
 | CircuitBreakerInterceptor | 10 | |
 | TracingInterceptor | 20 | |
 | MetricsInterceptor | 40 | |
+| ChildTrackerMetricsInterceptor | 45 | |
 | LoggingInterceptor | 50 | Innermost |
 
 Lower priority interceptors wrap higher priority ones, so they see the full execution including any modifications by inner interceptors.
@@ -183,6 +197,7 @@ Skip stage execution by returning an `InterceptorResult`:
 
 ```python
 async def before(self, stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+    # Here `ctx` is a PipelineContext, and `ctx.data` is the shared mutable dictionary for this pipeline run.
     # Check some condition
     if ctx.data.get("skip_all_stages"):
         return InterceptorResult(

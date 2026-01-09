@@ -213,7 +213,107 @@ pipeline = pipeline_registry.get("my_pipeline")
 
 ---
 
+## PipelineBuilder
+
+```python
+from stageflow.pipeline import PipelineBuilder
+```
+
+Code-defined pipeline with typed composition and full DAG validation.
+
+### Constructor
+
+```python
+PipelineBuilder(name: str = "pipeline", stages: dict[str, PipelineSpec] = None)
+```
+
+### Methods
+
+#### `with_stage(name, runner, dependencies=None, inputs=None, outputs=None, conditional=False, args=None) -> PipelineBuilder`
+
+Add a stage to the pipeline (fluent builder, immutable).
+
+**Parameters:**
+- `name`: `str` — Unique stage name
+- `runner`: `type[StageRunner] | StageRunner` — Stage class or instance
+- `dependencies`: `tuple[str, ...] | None` — Stage dependencies
+- `inputs`: `tuple[str, ...] | None` — Keys this stage reads from context
+- `outputs`: `tuple[str, ...] | None` — Keys this stage writes to context
+- `conditional`: `bool` — Whether stage can be skipped
+- `args`: `dict[str, Any] | None` — Arguments passed to stage constructor
+
+```python
+builder = (
+    PipelineBuilder(name="my_pipeline")
+    .with_stage("input", InputStage)
+    .with_stage("process", ProcessStage, dependencies=("input",))
+)
+```
+
+#### `compose(other: PipelineBuilder) -> PipelineBuilder`
+
+Merge stages from another pipeline builder.
+
+#### `build() -> StageGraph`
+
+Generate executable DAG. Validates the pipeline and raises on errors.
+
+**Raises:**
+- `CycleDetectedError` — If pipeline contains a cycle
+- `PipelineValidationError` — If dependencies reference non-existent stages
+- `ValueError` — If pipeline is empty
+
+#### `stage_names() -> list[str]`
+
+Get stage names in topological order.
+
+---
+
 ## Exceptions
+
+### PipelineValidationError
+
+```python
+from stageflow import PipelineValidationError
+```
+
+Raised when pipeline validation fails.
+
+**Attributes:**
+- `stages`: `list[str]` — Stages involved in the error
+
+```python
+try:
+    pipeline.build()
+except PipelineValidationError as e:
+    print(f"Validation failed: {e}")
+    print(f"Involved stages: {e.stages}")
+```
+
+### CycleDetectedError
+
+```python
+from stageflow import CycleDetectedError
+```
+
+Raised when a cycle is detected in the pipeline DAG. Subclass of `PipelineValidationError`.
+
+**Attributes:**
+- `cycle_path`: `list[str]` — Stages forming the cycle (e.g., `['A', 'B', 'C', 'A']`)
+- `stages`: `list[str]` — All stages involved in cycles
+
+```python
+try:
+    pipeline = (
+        PipelineBuilder()
+        .with_stage("a", StageA, dependencies=("c",))
+        .with_stage("b", StageB, dependencies=("a",))
+        .with_stage("c", StageC, dependencies=("b",))  # Cycle: a -> b -> c -> a
+    )
+except CycleDetectedError as e:
+    print(f"Cycle detected: {' -> '.join(e.cycle_path)}")
+    # Output: "Cycle detected: a -> b -> c -> a"
+```
 
 ### StageExecutionError
 

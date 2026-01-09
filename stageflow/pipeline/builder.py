@@ -10,7 +10,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from stageflow.pipeline.spec import PipelineSpec, PipelineValidationError, StageRunner
+from stageflow.pipeline.spec import CycleDetectedError, PipelineSpec, PipelineValidationError, StageRunner
 
 if TYPE_CHECKING:
     from stageflow.pipeline.dag import StageGraph
@@ -55,51 +55,76 @@ class PipelineBuilder:
         self._detect_cycles()
 
     def _detect_cycles(self) -> None:
-        """Detect cycles in the pipeline DAG using Kahn's algorithm.
+        """Detect cycles in the pipeline DAG using DFS with cycle path extraction.
 
         Raises:
-            PipelineValidationError: If a cycle is detected
+            CycleDetectedError: If a cycle is detected, with the cycle path
         """
         if not self.stages:
             return
 
-        # Build in-degree map
-        in_degree: dict[str, int] = {name: 0 for name in self.stages}
-        for spec in self.stages.values():
-            for dep in spec.dependencies:
-                if dep in in_degree:
-                    in_degree[spec.name] = in_degree.get(spec.name, 0)
-                    # dep -> spec.name edge means spec.name depends on dep
-                    # We count incoming edges to spec.name
+        # Use DFS to detect cycles and extract the cycle path
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color: dict[str, int] = {name: WHITE for name in self.stages}
+        parent: dict[str, str | None] = {name: None for name in self.stages}
 
-        # Recalculate: in_degree[stage] = number of stages it depends on
-        in_degree = {name: len(set(spec.dependencies)) for name, spec in self.stages.items()}
+        def dfs(node: str, path: list[str]) -> list[str] | None:
+            """DFS that returns cycle path if found, None otherwise."""
+            color[node] = GRAY
+            path.append(node)
 
-        # Initialize queue with nodes that have no dependencies
-        queue: deque[str] = deque()
-        for name, count in in_degree.items():
-            if count == 0:
-                queue.append(name)
-
-        sorted_count = 0
-        while queue:
-            node = queue.popleft()
-            sorted_count += 1
-
-            # For each stage that depends on this node, reduce in-degree
+            # Visit all nodes that depend on this node (reverse edges for cycle detection)
             for name, spec in self.stages.items():
-                if node in spec.dependencies:
-                    in_degree[name] -= 1
-                    if in_degree[name] == 0:
-                        queue.append(name)
+                if node in spec.dependencies:  # name depends on node
+                    if color[name] == GRAY:
+                        # Found cycle - extract path from name back to name
+                        cycle_start = path.index(name) if name in path else 0
+                        cycle_path = path[cycle_start:] + [name]
+                        return cycle_path
+                    elif color[name] == WHITE:
+                        parent[name] = node
+                        result = dfs(name, path)
+                        if result:
+                            return result
 
-        if sorted_count != len(self.stages):
-            # Find stages involved in cycle
-            cycle_stages = [name for name, count in in_degree.items() if count > 0]
-            raise PipelineValidationError(
-                f"Pipeline contains a cycle involving stages: {cycle_stages}",
-                stages=cycle_stages,
-            )
+            path.pop()
+            color[node] = BLACK
+            return None
+
+        # Also check forward direction: for each stage, check its dependencies
+        def dfs_forward(node: str, path: list[str]) -> list[str] | None:
+            """DFS following dependency edges."""
+            color[node] = GRAY
+            path.append(node)
+
+            spec = self.stages[node]
+            for dep in spec.dependencies:
+                if dep not in self.stages:
+                    continue  # Skip missing deps, handled elsewhere
+                if color[dep] == GRAY:
+                    # Found cycle
+                    cycle_start = path.index(dep)
+                    cycle_path = path[cycle_start:] + [dep]
+                    return cycle_path
+                elif color[dep] == WHITE:
+                    result = dfs_forward(dep, path)
+                    if result:
+                        return result
+
+            path.pop()
+            color[node] = BLACK
+            return None
+
+        # Reset and run forward DFS
+        color = {name: WHITE for name in self.stages}
+        for name in self.stages:
+            if color[name] == WHITE:
+                cycle_path = dfs_forward(name, [])
+                if cycle_path:
+                    raise CycleDetectedError(
+                        cycle_path=cycle_path,
+                        stages=list(set(cycle_path)),
+                    )
 
     def with_stage(
         self,

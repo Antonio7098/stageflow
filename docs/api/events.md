@@ -142,6 +142,30 @@ Emit an event through the current sink.
 | `approval.requested` | Approval requested |
 | `approval.decided` | Approval granted/denied |
 
+### Subpipeline Events
+
+| Event | Description |
+|-------|-------------|
+| `pipeline.spawned_child` | Child pipeline spawned from parent stage |
+| `pipeline.child_completed` | Child pipeline completed successfully |
+| `pipeline.child_failed` | Child pipeline failed with error |
+| `pipeline.canceled` | Pipeline was canceled (with cascade depth) |
+
+**Example subpipeline event data:**
+```python
+# pipeline.spawned_child
+{
+    "parent_run_id": "...",
+    "child_run_id": "...",
+    "parent_stage_id": "tool_executor",
+    "pipeline_name": "tool_pipeline",
+    "correlation_id": "...",
+    "timestamp": "2024-01-15T10:30:00Z",
+}
+```
+
+See [Subpipeline Runs](../advanced/subpipelines.md) for full event schemas.
+
 ---
 
 ## Custom Event Sink

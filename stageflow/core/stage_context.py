@@ -19,6 +19,7 @@ from .timer import PipelineTimer
 if TYPE_CHECKING:
     from stageflow.context import ContextSnapshot
     from stageflow.protocols import EventSink
+    from stageflow.stages.inputs import StageInputs
 
 logger = logging.getLogger("stageflow.core.stage_context")
 
@@ -60,6 +61,21 @@ class StageContext:
     def config(self) -> dict[str, Any]:
         """Stage configuration (read-only)."""
         return self._config
+
+    @property
+    def inputs(self) -> StageInputs | None:
+        """Type-safe access to StageInputs from upstream stages.
+        
+        Returns the StageInputs object if available in config, None otherwise.
+        This is the preferred way to access upstream stage outputs.
+        
+        Example:
+            async def execute(self, ctx: StageContext) -> StageOutput:
+                if ctx.inputs:
+                    transcript = ctx.inputs.get("transcript")
+                    route = ctx.inputs.get_from("router", "route")
+        """
+        return self._config.get("inputs")
 
     @property
     def started_at(self) -> datetime:
@@ -158,9 +174,20 @@ class StageContext:
         return datetime.now(UTC)
 
     def emit_event(self, type: str, data: dict[str, Any]) -> None:
-        """Emit an event during execution."""
+        """Emit an event during execution.
+        
+        Events are enriched with correlation IDs (pipeline_run_id, request_id)
+        for observability and tracing.
+        """
+        # Enrich event data with correlation IDs
+        enriched_data = {
+            "pipeline_run_id": str(self.pipeline_run_id) if self.pipeline_run_id else None,
+            "request_id": str(self.request_id) if self.request_id else None,
+            "execution_mode": self.execution_mode,
+            **data,
+        }
         self._outputs.append(
-            StageOutput(status=StageStatus.OK, events=[StageEvent(type=type, data=data)])
+            StageOutput(status=StageStatus.OK, events=[StageEvent(type=type, data=enriched_data)])
         )
 
     def add_artifact(self, type: str, payload: dict[str, Any]) -> None:

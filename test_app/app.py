@@ -150,12 +150,12 @@ async def run_pipeline_async(
             }
 
             from stageflow.stages.inputs import create_stage_inputs
-            from stageflow.stages.ports import StagePorts
+            from stageflow.stages.ports import CorePorts
 
             inputs = create_stage_inputs(
                 snapshot=snapshot,
                 prior_outputs=prior_outputs,
-                ports=StagePorts(),
+                ports=CorePorts(),
             )
 
             stage_ctx = create_stage_context(

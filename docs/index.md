@@ -60,10 +60,11 @@ results = await graph.run(ctx)
 ### API Reference
 - [**Core Types**](api/core.md) — Stage, StageOutput, StageContext, StageKind
 - [**Pipeline**](api/pipeline.md) — Pipeline builder and StageGraph
-- [**Context**](api/context.md) — ContextSnapshot, ContextBag, enrichments
+- [**Context**](api/context.md) — ContextSnapshot, ContextBag, StageInputs, StagePorts
 - [**Interceptors**](api/interceptors.md) — BaseInterceptor and built-in interceptors
 - [**Tools**](api/tools.md) — Tool definitions, registry, and executor
 - [**Events**](api/events.md) — EventSink and event types
+- [**Protocols**](api/protocols.md) — ExecutionContext, RunStore, ConfigProvider, CorrelationIds
 - [**Observability**](api/observability.md) — Logging protocols and utilities
 - [**Auth**](api/auth.md) — AuthContext, OrgContext, and auth interceptors
 
@@ -74,6 +75,56 @@ results = await graph.run(ctx)
 - [**Error Handling**](advanced/errors.md) — Error taxonomy and recovery strategies
 - [**Testing Strategies**](advanced/testing.md) — Unit, integration, and contract testing
 - [**Extensions**](advanced/extensions.md) — Add application-specific data to contexts
+
+## Root Exports Index
+
+The following symbols are exported from `stageflow` and can be imported directly:
+
+| Symbol | Category | Documentation |
+|--------|----------|---------------|
+| `Stage`, `StageKind`, `StageStatus`, `StageOutput` | Core | [Core Types](api/core.md) |
+| `StageContext`, `StageArtifact`, `StageEvent` | Core | [Core Types](api/core.md) |
+| `PipelineTimer`, `create_stage_context` | Core | [Core Types](api/core.md) |
+| `Pipeline`, `UnifiedStageSpec` | Pipeline | [Pipeline](api/pipeline.md) |
+| `StageGraph`, `StageSpec`, `StageExecutionError` | Pipeline | [Pipeline](api/pipeline.md) |
+| `PipelineRegistry`, `pipeline_registry` | Pipeline | [Pipeline](api/pipeline.md) |
+| `PipelineContext`, `StageResult`, `StageError` | Context | [Context](api/context.md) |
+| `extract_service` | Context | [Context](api/context.md) |
+| `BaseInterceptor`, `InterceptorResult`, `InterceptorContext` | Interceptors | [Interceptors](api/interceptors.md) |
+| `ErrorAction`, `get_default_interceptors`, `run_with_interceptors` | Interceptors | [Interceptors](api/interceptors.md) |
+| `TimeoutInterceptor`, `CircuitBreakerInterceptor` | Interceptors | [Interceptors](api/interceptors.md) |
+| `LoggingInterceptor`, `MetricsInterceptor`, `ChildTrackerMetricsInterceptor`, `TracingInterceptor` | Interceptors | [Interceptors](api/interceptors.md) |
+| `EventSink`, `NoOpEventSink`, `LoggingEventSink` | Events | [Events](api/events.md) |
+| `get_event_sink`, `set_event_sink`, `clear_event_sink` | Events | [Events](api/events.md) |
+| `RunStore`, `ConfigProvider`, `CorrelationIds` | Protocols | [Protocols](api/protocols.md) |
+| `CircuitBreaker`, `CircuitBreakerOpenError` | Observability | [Observability](api/observability.md) |
+| `PipelineRunLogger`, `ProviderCallLogger` | Observability | [Observability](api/observability.md) |
+| `summarize_pipeline_error`, `get_circuit_breaker` | Observability | [Observability](api/observability.md) |
+| `ExtensionRegistry`, `ExtensionHelper`, `TypedExtension` | Extensions | [Extensions](advanced/extensions.md) |
+
+**Context module** (`from stageflow.context import ...`):
+
+| Symbol | Documentation |
+|--------|---------------|
+| `ContextSnapshot`, `ContextBag`, `DataConflictError` | [Context](api/context.md) |
+| `Message`, `RoutingDecision` | [Context](api/context.md) |
+| `ProfileEnrichment`, `MemoryEnrichment`, `DocumentEnrichment` | [Context](api/context.md) |
+
+**Stages module** (`from stageflow.stages.inputs import ...`):
+
+| Symbol | Documentation |
+|--------|---------------|
+| `StageInputs`, `create_stage_inputs` | [Context](api/context.md#stageinputs) |
+| `StagePorts`, `create_stage_ports` | [Context](api/context.md#stageports) |
+
+**Subpipeline module** (`from stageflow.pipeline.subpipeline import ...`):
+
+| Symbol | Documentation |
+|--------|---------------|
+| `SubpipelineSpawner`, `SubpipelineResult` | [Subpipelines](advanced/subpipelines.md) |
+| `ChildRunTracker`, `get_child_tracker` | [Subpipelines](advanced/subpipelines.md) |
+| `PipelineSpawnedChildEvent`, `PipelineChildCompletedEvent` | [Subpipelines](advanced/subpipelines.md) |
+| `PipelineChildFailedEvent`, `PipelineCanceledEvent` | [Subpipelines](advanced/subpipelines.md) |
 
 ## Philosophy
 

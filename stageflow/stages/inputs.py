@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from stageflow.core import StageOutput
 
-from stageflow.stages.ports import StagePorts
+from stageflow.stages.ports import CorePorts, LLMPorts, AudioPorts
 
 if TYPE_CHECKING:
     from stageflow.context import ContextSnapshot
@@ -64,7 +64,7 @@ class StageInputs:
 
     snapshot: ContextSnapshot
     prior_outputs: dict[str, StageOutput] = field(default_factory=dict)
-    ports: StagePorts = field(default_factory=StagePorts)
+    ports: CorePorts | LLMPorts | AudioPorts | None = field(default_factory=lambda: None)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a value from any prior stage's output data.
@@ -131,7 +131,7 @@ def create_stage_inputs(
     snapshot: ContextSnapshot,
     *,
     prior_outputs: dict[str, StageOutput] | None = None,
-    ports: StagePorts | None = None,
+    ports: CorePorts | LLMPorts | AudioPorts | None = None,
 ) -> StageInputs:
     """Factory function to create StageInputs.
 
@@ -148,7 +148,7 @@ def create_stage_inputs(
     return StageInputs(
         snapshot=snapshot,
         prior_outputs=prior_outputs or {},
-        ports=ports or StagePorts(),
+        ports=ports,
     )
 
 

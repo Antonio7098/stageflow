@@ -24,6 +24,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger("stageflow.subpipeline")
 
 
+# Constants
+DEFAULT_MAX_SUBPIPELINE_DEPTH = 5
+
+
+class MaxDepthExceededError(Exception):
+    """Raised when subpipeline nesting exceeds the maximum allowed depth.
+    
+    Attributes:
+        current_depth: The depth at which the spawn was attempted
+        max_depth: The configured maximum depth
+        parent_run_id: The parent pipeline run ID
+    """
+
+    def __init__(self, current_depth: int, max_depth: int, parent_run_id: UUID | None) -> None:
+        self.current_depth = current_depth
+        self.max_depth = max_depth
+        self.parent_run_id = parent_run_id
+        super().__init__(
+            f"Subpipeline depth {current_depth} exceeds maximum allowed depth {max_depth}. "
+            f"Parent run: {parent_run_id}"
+        )
+
+
 # Subpipeline Events
 
 
@@ -153,6 +176,15 @@ class ChildRunTracker:
         self._children: dict[UUID, set[UUID]] = {}
         self._parents: dict[UUID, UUID] = {}
         self._lock = asyncio.Lock()
+        self._metrics_lock = asyncio.Lock()
+        # Metrics tracking
+        self._registration_count = 0
+        self._unregistration_count = 0
+        self._lookup_count = 0
+        self._tree_traversal_count = 0
+        self._cleanup_count = 0
+        self._max_concurrent_children = 0
+        self._max_depth_seen = 0
 
     async def register_child(self, parent_id: UUID, child_id: UUID) -> None:
         """Register a child run under a parent.
@@ -166,6 +198,14 @@ class ChildRunTracker:
                 self._children[parent_id] = set()
             self._children[parent_id].add(child_id)
             self._parents[child_id] = parent_id
+            
+            # Update metrics
+            current_children_count = len(self._children[parent_id])
+            if current_children_count > self._max_concurrent_children:
+                self._max_concurrent_children = current_children_count
+        
+        async with self._metrics_lock:
+            self._registration_count += 1
 
     async def unregister_child(self, parent_id: UUID, child_id: UUID) -> None:
         """Unregister a child run from its parent.
@@ -180,6 +220,9 @@ class ChildRunTracker:
                 if not self._children[parent_id]:
                     del self._children[parent_id]
             self._parents.pop(child_id, None)
+        
+        async with self._metrics_lock:
+            self._unregistration_count += 1
 
     async def get_children(self, parent_id: UUID) -> set[UUID]:
         """Get all child run IDs for a parent.
@@ -191,6 +234,8 @@ class ChildRunTracker:
             Set of child run IDs
         """
         async with self._lock:
+            async with self._metrics_lock:
+                self._lookup_count += 1
             return self._children.get(parent_id, set()).copy()
 
     async def get_parent(self, child_id: UUID) -> UUID | None:
@@ -203,6 +248,8 @@ class ChildRunTracker:
             Parent run ID or None if not a child
         """
         async with self._lock:
+            async with self._metrics_lock:
+                self._lookup_count += 1
             return self._parents.get(child_id)
 
     async def get_all_descendants(self, run_id: UUID) -> set[UUID]:
@@ -225,6 +272,9 @@ class ChildRunTracker:
                     if child not in descendants:
                         descendants.add(child)
                         to_process.append(child)
+        
+        async with self._metrics_lock:
+            self._tree_traversal_count += 1
 
         return descendants
 
@@ -238,9 +288,17 @@ class ChildRunTracker:
             The root run ID (top-most parent)
         """
         current = run_id
+        depth = 0
         async with self._lock:
             while current in self._parents:
                 current = self._parents[current]
+                depth += 1
+        
+        async with self._metrics_lock:
+            self._lookup_count += 1
+            if depth > self._max_depth_seen:
+                self._max_depth_seen = depth
+        
         return current
 
     async def cleanup_run(self, run_id: UUID) -> None:
@@ -254,6 +312,40 @@ class ChildRunTracker:
                     del self._children[parent]
             # Remove any children tracking
             self._children.pop(run_id, None)
+        
+        async with self._metrics_lock:
+            self._cleanup_count += 1
+
+    async def get_metrics(self) -> dict[str, Any]:
+        """Get current tracker metrics.
+        
+        Returns:
+            Dictionary containing all tracked metrics
+        """
+        async with self._metrics_lock:
+            return {
+                "registration_count": self._registration_count,
+                "unregistration_count": self._unregistration_count,
+                "lookup_count": self._lookup_count,
+                "tree_traversal_count": self._tree_traversal_count,
+                "cleanup_count": self._cleanup_count,
+                "max_concurrent_children": self._max_concurrent_children,
+                "max_depth_seen": self._max_depth_seen,
+                "active_parents": len(self._children),
+                "active_children": len(self._parents),
+                "total_relationships": self._registration_count - self._unregistration_count,
+            }
+
+    async def reset_metrics(self) -> None:
+        """Reset all metrics counters to zero."""
+        async with self._metrics_lock:
+            self._registration_count = 0
+            self._unregistration_count = 0
+            self._lookup_count = 0
+            self._tree_traversal_count = 0
+            self._cleanup_count = 0
+            self._max_concurrent_children = 0
+            self._max_depth_seen = 0
 
 
 # Global child run tracker
@@ -288,17 +380,36 @@ class SubpipelineSpawner:
     - Tracking child runs for cancellation
     - Emitting subpipeline events
     - Cascading cancellation to children
+    - Enforcing maximum nesting depth
+    
+    Attributes:
+        max_depth: Maximum allowed nesting depth (default: 5)
     """
 
     def __init__(
         self,
         child_tracker: ChildRunTracker | None = None,
         emit_events: bool = True,
+        max_depth: int = DEFAULT_MAX_SUBPIPELINE_DEPTH,
     ) -> None:
         self._tracker = child_tracker or get_child_tracker()
         self._emit_events = emit_events
+        self._max_depth = max_depth
         self._canceled_runs: set[UUID] = set()
         self._lock = asyncio.Lock()
+        self._run_depths: dict[UUID, int] = {}  # Track depth of each run
+
+    @property
+    def max_depth(self) -> int:
+        """Maximum allowed subpipeline nesting depth."""
+        return self._max_depth
+
+    async def _get_current_depth(self, parent_run_id: UUID | None) -> int:
+        """Get the current nesting depth for a parent run."""
+        if parent_run_id is None:
+            return 0
+        async with self._lock:
+            return self._run_depths.get(parent_run_id, 0)
 
     async def spawn(
         self,
@@ -324,9 +435,34 @@ class SubpipelineSpawner:
 
         Returns:
             SubpipelineResult with child run outcome
+            
+        Raises:
+            MaxDepthExceededError: If spawning would exceed max_depth
         """
         child_run_id = uuid4()
         parent_run_id = ctx.pipeline_run_id
+        
+        # Check and enforce depth limit
+        current_depth = await self._get_current_depth(parent_run_id)
+        if current_depth >= self._max_depth:
+            logger.error(
+                f"Max subpipeline depth exceeded: {current_depth} >= {self._max_depth}",
+                extra={
+                    "parent_run_id": str(parent_run_id),
+                    "current_depth": current_depth,
+                    "max_depth": self._max_depth,
+                },
+            )
+            raise MaxDepthExceededError(
+                current_depth=current_depth,
+                max_depth=self._max_depth,
+                parent_run_id=parent_run_id,
+            )
+        
+        # Track the new child's depth
+        child_depth = current_depth + 1
+        async with self._lock:
+            self._run_depths[child_run_id] = child_depth
 
         # Create child context
         child_ctx = ctx.fork(
@@ -377,6 +513,9 @@ class SubpipelineSpawner:
         finally:
             if parent_run_id:
                 await self._tracker.unregister_child(parent_run_id, child_run_id)
+            # Clean up depth tracking
+            async with self._lock:
+                self._run_depths.pop(child_run_id, None)
 
     async def cancel_with_children(
         self,
@@ -519,6 +658,10 @@ def clear_subpipeline_spawner() -> None:
 
 
 __all__ = [
+    # Constants
+    "DEFAULT_MAX_SUBPIPELINE_DEPTH",
+    # Errors
+    "MaxDepthExceededError",
     # Events
     "PipelineSpawnedChildEvent",
     "PipelineChildCompletedEvent",

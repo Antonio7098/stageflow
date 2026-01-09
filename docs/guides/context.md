@@ -6,29 +6,85 @@ Understanding how data flows through stageflow pipelines is essential for buildi
 
 Stageflow uses a layered context system:
 
-1. **ContextSnapshot** — Immutable input data for the entire pipeline
-2. **StageContext** — Per-stage execution wrapper with output collection
-3. **StageInputs** — Access to upstream stage outputs
-4. **ContextBag** — Thread-safe output storage with conflict detection
+1. **PipelineContext** — Execution context for a pipeline run, shared across stages and used by the engine and interceptors
+2. **ContextSnapshot** — Immutable input data derived from the pipeline context and passed through the run
+3. **StageContext** — Per-stage execution wrapper with output collection
+4. **StageInputs** — Access to upstream stage outputs
+5. **ContextBag** — Thread-safe output storage with conflict detection
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     ContextSnapshot                          │
+│                      PipelineContext                        │
+│  (run identity, topology, shared data, artifacts, events)   │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     ContextSnapshot                         │
 │  (immutable: user_id, input_text, messages, enrichments)    │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
+                             │
+                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                      StageContext                            │
+│                      StageContext                           │
 │  (per-stage: snapshot access, config, output methods)       │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
+                             │
+                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                      StageInputs                             │
+│                      StageInputs                            │
 │  (upstream outputs: get("key"), get_from("stage", "key"))   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+## PipelineContext
+
+`PipelineContext` is the execution context for a single pipeline run.
+
+It is:
+
+- Shared across all stages in the run
+- Owned/managed by the engine and interceptors (you rarely construct it by hand)
+- The place where:
+  - run identity (pipeline_run_id, request_id, session_id, user_id, org_id, interaction_id)
+  - topology and execution_mode
+  - shared `data` dict
+  - artifacts and observability metadata
+  - event sink
+  - subpipeline correlation (parent_run_id, parent_stage_id, correlation_id)
+  
+  live for the lifetime of the run.
+
+A simplified view of the important fields:
+
+```python
+from stageflow.stages.context import PipelineContext
+
+ctx = PipelineContext(
+    pipeline_run_id=...,   # run identity
+    request_id=...,
+    session_id=...,
+    user_id=...,
+    org_id=...,
+    interaction_id=...,
+    topology="chat_fast",
+    execution_mode="practice",
+    configuration={},
+    service="pipeline",
+    data={},               # shared mutable data across stages
+    artifacts=[],          # produced StageArtifact objects
+)
+```
+
+### How it relates to other context types
+
+- The **engine** uses `PipelineContext` as the authoritative state for a run.
+- A **`ContextSnapshot`** is an immutable view derived from that state and passed into stages via `StageContext`.
+- A **`StageContext`** wraps a `ContextSnapshot` plus per-stage config and output buffer.
+- **Interceptors** receive the `PipelineContext` directly and can:
+  - Read IDs, topology, execution_mode, and shared `data`
+  - Attach transient flags into `ctx.data` (e.g. rate limiting, caching hints)
+- Tools and agents often see a **dict view** of `PipelineContext` created via `PipelineContext.to_dict()`.
 
 ## ContextSnapshot
 
@@ -147,22 +203,40 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     elapsed = timer.elapsed_ms()
 ```
 
-### Accessing Upstream Outputs
+### Accessing Upstream Outputs via StageInputs
+
+Stages receive upstream outputs through `StageInputs`, an immutable view of prior stage outputs:
 
 ```python
+from stageflow.stages.inputs import StageInputs
+
 async def execute(self, ctx: StageContext) -> StageOutput:
-    inputs = ctx.config.get("inputs")
+    inputs: StageInputs = ctx.config.get("inputs")
     
     if inputs:
-        # Get any key from upstream outputs
+        # Get any key from upstream outputs (searches all prior stages)
         processed_text = inputs.get("text")
         
-        # Get from a specific stage
+        # Get from a specific stage (preferred - explicit dependency)
         route = inputs.get_from("router", "route", default="general")
         
-        # Access snapshot through inputs
+        # Check if a stage has produced output
+        if inputs.has_output("validator"):
+            validation = inputs.get_output("validator")
+        
+        # Access the original snapshot through inputs
         user_id = inputs.snapshot.user_id
+        
+        # Access injected services through ports
+        if inputs.ports.db:
+            await inputs.ports.db.save(...)
 ```
+
+**Key `StageInputs` methods:**
+- `get(key, default=None)` — Search all prior outputs for a key
+- `get_from(stage_name, key, default=None)` — Get from specific stage (preferred)
+- `has_output(stage_name)` — Check if stage produced output
+- `get_output(stage_name)` — Get complete `StageOutput` object
 
 ### Emitting Events
 

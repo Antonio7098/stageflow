@@ -26,7 +26,7 @@ Execute the tool.
 
 **Parameters:**
 - `input`: `ToolInput` — Wrapped action with context
-- `ctx`: `dict` — Pipeline context as dictionary
+- `ctx`: `dict` — Pipeline context as dictionary. This is typically produced via `PipelineContext.to_dict()` by the engine.
 
 **Returns:** `ToolOutput` with success status and data
 

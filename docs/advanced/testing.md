@@ -408,9 +408,152 @@ def test_pipeline_dependencies_exist():
             assert dep in stage_names, f"Missing dependency: {dep}"
 ```
 
+## Testing Utilities
+
+Stageflow provides built-in testing utilities in `stageflow.testing`:
+
+### create_test_snapshot
+
+Create a `ContextSnapshot` with sensible defaults:
+
+```python
+from stageflow.testing import create_test_snapshot
+
+# Minimal - all UUIDs auto-generated
+snapshot = create_test_snapshot()
+
+# With specific values
+snapshot = create_test_snapshot(
+    input_text="Hello, world!",
+    user_id=uuid4(),
+    execution_mode="practice",
+)
+```
+
+### create_test_stage_context
+
+Create a `StageContext` for testing stages:
+
+```python
+from stageflow.testing import create_test_stage_context
+from stageflow import StageOutput
+
+# Simple context
+ctx = create_test_stage_context(input_text="Test input")
+
+# With prior stage outputs
+ctx = create_test_stage_context(
+    prior_outputs={
+        "stage_a": StageOutput.ok(value=42),
+        "router": StageOutput.ok(route="general"),
+    },
+)
+
+# Access inputs via the new type-safe property
+value = ctx.inputs.get("value")  # Returns 42
+route = ctx.inputs.get_from("router", "route")  # Returns "general"
+```
+
+### create_test_pipeline_context
+
+Create a `PipelineContext` for testing interceptors:
+
+```python
+from stageflow.testing import create_test_pipeline_context
+
+ctx = create_test_pipeline_context(
+    user_id=uuid4(),
+    data={"key": "value"},
+    topology="chat_fast",
+)
+```
+
+### Snapshot Validation
+
+Validate snapshots to catch issues early:
+
+```python
+from stageflow.testing import (
+    validate_snapshot,
+    validate_snapshot_strict,
+    snapshot_from_dict_strict,
+)
+
+# Check validity with detailed errors
+result = validate_snapshot(snapshot, require_user_id=True)
+if not result:
+    for error in result.errors:
+        print(f"{error.field}: {error.message}")
+
+# Raise on invalid (for tests)
+snapshot = validate_snapshot_strict(snapshot, require_user_id=True)
+
+# Create from dict with validation
+snapshot = snapshot_from_dict_strict(
+    json_data,
+    require_pipeline_run_id=True,
+)
+```
+
+---
+
 ## Fixtures and Helpers
 
-### Common Fixtures
+### Using Testing Utilities in Fixtures
+
+```python
+# conftest.py
+import pytest
+from uuid import uuid4
+from stageflow.testing import (
+    create_test_snapshot,
+    create_test_stage_context,
+    create_test_pipeline_context,
+)
+
+
+@pytest.fixture
+def user_id():
+    return uuid4()
+
+
+@pytest.fixture
+def session_id():
+    return uuid4()
+
+
+@pytest.fixture
+def snapshot(user_id, session_id):
+    return create_test_snapshot(
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+
+@pytest.fixture
+def ctx(snapshot):
+    return create_test_stage_context(snapshot=snapshot)
+
+
+@pytest.fixture
+def ctx_with_input():
+    def _create(input_text: str, **kwargs):
+        return create_test_stage_context(
+            input_text=input_text,
+            **kwargs,
+        )
+    return _create
+
+
+@pytest.fixture
+def pipeline_ctx(user_id, session_id):
+    return create_test_pipeline_context(
+        user_id=user_id,
+        session_id=session_id,
+    )
+```
+
+### Legacy Fixtures (Manual Creation)
 
 ```python
 # conftest.py

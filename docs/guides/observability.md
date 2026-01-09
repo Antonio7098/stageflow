@@ -202,6 +202,56 @@ logging.getLogger().addHandler(handler)
 
 ## Metrics
 
+### ChildTrackerMetricsInterceptor
+
+The built-in `ChildTrackerMetricsInterceptor` records subpipeline orchestration metrics:
+
+```python
+from stageflow import ChildTrackerMetricsInterceptor
+
+# Automatically included in default interceptors
+# Logs metrics for ChildRunTracker operations
+```
+
+**Metrics tracked**:
+- Registration/unregistration counts
+- Lookup operations (get_children, get_parent)
+- Tree traversal operations
+- Cleanup operations
+- Maximum concurrent children seen
+- Maximum nesting depth seen
+- Active parent/child relationships
+
+**Output format**:
+```json
+{
+  "component": "ChildRunTracker",
+  "pipeline_run_id": "...",
+  "is_child_run": true,
+  "registration_count": 15,
+  "unregistration_count": 12,
+  "lookup_count": 45,
+  "tree_traversal_count": 8,
+  "cleanup_count": 12,
+  "max_concurrent_children": 5,
+  "max_depth_seen": 3,
+  "active_parents": 3,
+  "active_children": 3,
+  "total_relationships": 3
+}
+```
+
+### Direct access to metrics
+```python
+from stageflow.pipeline.subpipeline import get_child_tracker
+
+tracker = get_child_tracker()
+metrics = await tracker.get_metrics()
+
+# Reset counters if needed
+await tracker.reset_metrics()
+```
+
 ### MetricsInterceptor
 
 The built-in `MetricsInterceptor` records:

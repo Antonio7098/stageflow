@@ -417,7 +417,12 @@ class TestStageContext:
         assert len(outputs) == 1
         assert len(outputs[0].events) == 1
         assert outputs[0].events[0].type == "test_event"
-        assert outputs[0].events[0].data == {"key": "value"}
+        # Events are enriched with correlation IDs
+        event_data = outputs[0].events[0].data
+        assert event_data["key"] == "value"
+        assert "pipeline_run_id" in event_data
+        assert "request_id" in event_data
+        assert "execution_mode" in event_data
 
     def test_emit_multiple_events(self, mock_snapshot):
         """Test emitting multiple events."""
@@ -505,7 +510,6 @@ class TestCreateStageContext:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
 

@@ -211,24 +211,114 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     documents = ctx.snapshot.documents
 ```
 
-### From Upstream Stages
+### From Upstream Stages (StageInputs)
 
-Access outputs from dependency stages via `inputs`:
+Access outputs from dependency stages via `StageInputs`:
 
 ```python
+from stageflow.stages.inputs import StageInputs
+
 async def execute(self, ctx: StageContext) -> StageOutput:
-    inputs = ctx.config.get("inputs")
+    inputs: StageInputs = ctx.config.get("inputs")
     
     if inputs:
-        # Get specific key from any upstream stage
+        # Get specific key from any upstream stage (searches all)
         processed_text = inputs.get("text")
         
-        # Get from a specific stage
+        # Get from a specific stage (preferred - explicit dependency)
         router_decision = inputs.get_from("router", "route", default="general")
+        
+        # Check if a stage has output
+        if inputs.has_output("validator"):
+            validator_output = inputs.get_output("validator")
         
         # Access the snapshot through inputs
         user_id = inputs.snapshot.user_id
+        
+        # Access injected services through ports
+        if inputs.ports.llm_provider:
+            response = await inputs.ports.llm_provider.chat(...)
 ```
+
+### Injected Services (Modular Ports)
+
+Stages can access injected services through modular ports:
+
+```python
+from stageflow.stages.ports import CorePorts, LLMPorts, AudioPorts
+
+async def execute(self, ctx: StageContext) -> StageOutput:
+    inputs = ctx.config.get("inputs")
+    
+    # Access specific port types
+    core_ports: CorePorts = inputs.ports.core if inputs.ports else CorePorts()
+    llm_ports: LLMPorts = inputs.ports.llm if inputs.ports else LLMPorts()
+    audio_ports: AudioPorts = inputs.ports.audio if inputs.ports else AudioPorts()
+    
+    # Database access (CorePorts)
+    if core_ports.db:
+        await core_ports.db.save_interaction(...)
+    
+    # LLM operations (LLMPorts)
+    if llm_ports.llm_provider:
+        response = await llm_ports.llm_provider.chat(messages)
+    
+    # Token streaming (LLMPorts)
+    if llm_ports.send_token:
+        await llm_ports.send_token("Hello")
+    
+    # Audio streaming (AudioPorts)
+    if audio_ports.send_audio_chunk:
+        await audio_ports.send_audio_chunk(audio_bytes, "wav", 0, False)
+    
+    # Status updates (CorePorts)
+    if core_ports.send_status:
+        await core_ports.send_status("stage_name", "completed", {"data": result})
+```
+
+### Creating Ports
+
+When creating stages, inject the specific ports needed:
+
+```python
+from stageflow.stages.ports import (
+    create_core_ports,
+    create_llm_ports,
+    create_audio_ports,
+    create_stage_inputs,
+)
+
+# Create modular ports
+inputs = create_stage_inputs(
+    snapshot=snapshot,
+    prior_outputs=prev_outputs,
+    ports=CorePorts(
+        db=db_session,
+        send_status=status_callback,
+    ),
+)
+
+# For LLM stage
+inputs = create_stage_inputs(
+    snapshot=snapshot,
+    prior_outputs=prev_outputs,
+    ports=LLMPorts(
+        llm_provider=my_llm,
+        send_token=token_callback,
+    ),
+)
+
+# For audio stage
+inputs = create_stage_inputs(
+    snapshot=snapshot,
+    prior_outputs=prev_outputs,
+    ports=AudioPorts(
+        tts_provider=my_tts,
+        stt_provider=my_stt,
+    ),
+)
+```
+
 
 ### From Stage Configuration
 

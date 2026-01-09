@@ -81,6 +81,18 @@ from stageflow.pipeline.dag import (
     StageGraph,
     StageSpec,
 )
+from stageflow.pipeline.spec import (
+    CycleDetectedError,
+    PipelineValidationError,
+)
+from stageflow.pipeline.subpipeline import (
+    ChildRunTracker,
+    MaxDepthExceededError,
+    SubpipelineResult,
+    SubpipelineSpawner,
+    get_child_tracker,
+    get_subpipeline_spawner,
+)
 
 # Interceptors
 from stageflow.pipeline.interceptors import (
@@ -91,6 +103,7 @@ from stageflow.pipeline.interceptors import (
     InterceptorResult,
     LoggingInterceptor,
     MetricsInterceptor,
+    ChildTrackerMetricsInterceptor,
     TimeoutInterceptor,
     TracingInterceptor,
     get_default_interceptors,
@@ -105,6 +118,18 @@ from stageflow.stages.context import (
 from stageflow.stages.result import (
     StageError,
     StageResult,
+)
+from stageflow.stages.inputs import (
+    StageInputs,
+    create_stage_inputs,
+)
+from stageflow.stages.ports import (
+    CorePorts,
+    LLMPorts,
+    AudioPorts,
+    create_core_ports,
+    create_llm_ports,
+    create_audio_ports,
 )
 
 # Protocols
@@ -164,6 +189,7 @@ __all__ = [
     "ErrorAction",
     "LoggingInterceptor",
     "MetricsInterceptor",
+    "ChildTrackerMetricsInterceptor",
     "TracingInterceptor",
     "CircuitBreakerInterceptor",
     "TimeoutInterceptor",
@@ -193,4 +219,23 @@ __all__ = [
     "ExtensionRegistry",
     "ExtensionHelper",
     "TypedExtension",
+    # Stage inputs/ports
+    "StageInputs",
+    "create_stage_inputs",
+    "CorePorts",
+    "LLMPorts",
+    "AudioPorts",
+    "create_core_ports",
+    "create_llm_ports",
+    "create_audio_ports",
+    # Pipeline validation
+    "CycleDetectedError",
+    "PipelineValidationError",
+    # Subpipeline
+    "SubpipelineSpawner",
+    "SubpipelineResult",
+    "ChildRunTracker",
+    "MaxDepthExceededError",
+    "get_child_tracker",
+    "get_subpipeline_spawner",
 ]

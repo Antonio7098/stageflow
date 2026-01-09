@@ -153,6 +153,43 @@ class BaseInterceptor(ABC):
         return ErrorAction.FAIL
 
 
+class ChildTrackerMetricsInterceptor(BaseInterceptor):
+    """Interceptor for logging ChildRunTracker metrics."""
+
+    name: str = "child_tracker_metrics"
+    priority: int = 45  # Runs after regular metrics but before logging
+
+    async def before(self, _stage_name: str, ctx: PipelineContext) -> None:
+        """No-op before method - this interceptor only tracks after execution."""
+        pass
+
+    async def after(self, _stage_name: str, result: StageResult, ctx: PipelineContext) -> None:
+        """Log ChildRunTracker metrics after stage execution."""
+        import logging
+        
+        # Only log metrics for stages that might spawn children
+        if hasattr(ctx, 'is_child_run') and ctx.is_child_run:
+            logger = logging.getLogger("stageflow.child_tracker_metrics")
+            
+            try:
+                from stageflow.pipeline.subpipeline import get_child_tracker
+                tracker = get_child_tracker()
+                metrics = await tracker.get_metrics()
+                
+                logger.info(
+                    "ChildRunTracker metrics",
+                    extra={
+                        "component": "ChildRunTracker",
+                        "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
+                        "is_child_run": getattr(ctx, 'is_child_run', False),
+                        **metrics
+                    }
+                )
+            except Exception as e:
+                # Don't let metrics logging break stage execution
+                logger.warning(f"Failed to log ChildRunTracker metrics: {e}")
+
+
 class LoggingInterceptor(BaseInterceptor):
     """Interceptor for structured JSON logging."""
 
@@ -317,29 +354,37 @@ class TimeoutInterceptor(BaseInterceptor):
 
 
 def get_default_interceptors(include_auth: bool = False) -> list[BaseInterceptor]:
-    """Get the default set of interceptors for all stages.
+    """Get the default set of interceptors for pipeline execution.
     
     Args:
-        include_auth: If True, include AuthInterceptor and OrgEnforcementInterceptor.
-                      Default False for backwards compatibility.
-    
+        include_auth: Whether to include authentication interceptors
+        
     Returns:
-        List of interceptors sorted by priority
+        List of interceptors in priority order (low to high)
     """
-    interceptors: list[BaseInterceptor] = [
+    interceptors = [
         TimeoutInterceptor(),  # Priority 5 - runs first
         CircuitBreakerInterceptor(),  # Priority 10
         TracingInterceptor(),  # Priority 20
         MetricsInterceptor(),  # Priority 40
+        ChildTrackerMetricsInterceptor(),  # Priority 45
         LoggingInterceptor(),  # Priority 50
     ]
     
     if include_auth:
-        from stageflow.auth.interceptors import AuthInterceptor, OrgEnforcementInterceptor
-        interceptors = [
-            AuthInterceptor(),  # Priority 1
-            OrgEnforcementInterceptor(),  # Priority 2
-        ] + interceptors
+        # Add auth interceptors with appropriate priorities
+        from stageflow.auth.interceptors import (
+            OrganizationInterceptor,
+            RegionInterceptor,
+            RateLimitInterceptor,
+            PolicyGatewayInterceptor,
+        )
+        interceptors.extend([
+            OrganizationInterceptor(),  # Priority 30
+            RegionInterceptor(),  # Priority 35
+            RateLimitInterceptor(),  # Priority 37
+            PolicyGatewayInterceptor(),  # Priority 39
+        ])
     
     return interceptors
 
@@ -502,6 +547,7 @@ __all__ = [
     "BaseInterceptor",
     "LoggingInterceptor",
     "MetricsInterceptor",
+    "ChildTrackerMetricsInterceptor",
     "TracingInterceptor",
     "CircuitBreakerInterceptor",
     "TimeoutInterceptor",

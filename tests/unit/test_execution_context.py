@@ -25,7 +25,6 @@ class TestExecutionContextProtocol:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test_topology",
-            channel="test_channel",
             execution_mode="practice",
         )
         ctx = StageContext(snapshot=snapshot)
@@ -95,7 +94,6 @@ class TestStageContextExecutionContext:
             org_id=None,
             interaction_id=None,
             topology=None,
-            channel=None,
             execution_mode=None,
         )
         ctx = StageContext(snapshot=snapshot)
@@ -112,7 +110,6 @@ class TestStageContextExecutionContext:
             org_id=None,
             interaction_id=None,
             topology=None,
-            channel=None,
             execution_mode=None,
         )
         ctx = StageContext(snapshot=snapshot)
@@ -128,7 +125,6 @@ class TestStageContextExecutionContext:
             org_id=None,
             interaction_id=None,
             topology=None,
-            channel=None,
             execution_mode="doc_edit",
         )
         ctx = StageContext(snapshot=snapshot)
@@ -145,7 +141,6 @@ class TestStageContextExecutionContext:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="chat_fast",
-            channel="test_channel",
             execution_mode="practice",
         )
         ctx = StageContext(snapshot=snapshot)
@@ -176,7 +171,6 @@ class TestStageContextExecutionContext:
             org_id=None,
             interaction_id=None,
             topology=None,
-            channel=None,
             execution_mode="practice",
         )
         ctx = StageContext(
@@ -201,7 +195,6 @@ class TestStageContextExecutionContext:
             org_id=None,
             interaction_id=None,
             topology=None,
-            channel=None,
             execution_mode=None,
         )
         ctx = StageContext(snapshot=snapshot)
@@ -310,7 +303,6 @@ class TestAdaptContext:
             org_id=None,
             interaction_id=None,
             topology=None,
-            channel=None,
             execution_mode=None,
         )
         ctx = StageContext(snapshot=snapshot)

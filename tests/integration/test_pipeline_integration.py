@@ -20,7 +20,6 @@ from stageflow.core import (
 )
 from stageflow.pipeline.dag import UnifiedStageGraph, UnifiedStageSpec
 from stageflow.stages.inputs import StageInputs, create_stage_inputs
-from stageflow.stages.ports import StagePorts
 
 
 # === Test Fixtures ===
@@ -40,7 +39,7 @@ def create_snapshot(
         topology=topology,
         
         execution_mode="test",
-        extra={"key": "value"}
+        extensions={"key": "value"}
     )
 
 

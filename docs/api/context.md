@@ -302,36 +302,212 @@ Execution context shared between stages (used by StageGraph internally).
 
 ### Attributes
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `pipeline_run_id` | `UUID \| None` | Pipeline run identifier |
-| `request_id` | `UUID \| None` | Request identifier |
-| `session_id` | `UUID \| None` | Session identifier |
-| `user_id` | `UUID \| None` | User identifier |
-| `org_id` | `UUID \| None` | Organization identifier |
-| `topology` | `str \| None` | Pipeline topology |
-| `execution_mode` | `str \| None` | Execution mode |
-| `data` | `dict[str, Any]` | Shared data dictionary |
-| `canceled` | `bool` | Cancellation flag |
-| `artifacts` | `list[Artifact]` | Produced artifacts |
+| Attribute        | Type                    | Description                                  |
+|------------------|-------------------------|----------------------------------------------|
+| `pipeline_run_id` | `UUID \| None`        | Pipeline run identifier                      |
+| `request_id`    | `UUID \| None`          | Request identifier                           |
+| `session_id`    | `UUID \| None`          | Session identifier                           |
+| `user_id`       | `UUID \| None`          | User identifier                              |
+| `org_id`        | `UUID \| None`          | Organization identifier                      |
+| `interaction_id` | `UUID \| None`         | Interaction identifier                       |
+| `topology`      | `str \| None`           | Pipeline topology name                       |
+| `configuration` | `dict[str, Any]`        | Static configuration for this topology       |
+| `execution_mode`| `str \| None`           | Execution mode (e.g. `"practice"`)          |
+| `service`       | `str`                   | Logical service name (e.g. `"pipeline"`)    |
+| `event_sink`    | `EventSink`             | Sink used for emitting events                |
+| `data`          | `dict[str, Any]`        | Shared data dictionary across stages         |
+| `db`            | `Any`                   | Database/session handle (implementation-dependent) |
+| `canceled`      | `bool`                  | Cancellation flag                            |
+| `artifacts`     | `list[Artifact]`        | Produced artifacts                           |
+| `_stage_metadata` | `dict[str, dict]`     | Per-stage observability metadata             |
+| `parent_run_id` | `UUID \| None`          | Parent pipeline run ID (for subpipelines)    |
+| `parent_stage_id` | `str \| None`        | Name of stage that spawned this child run    |
+| `correlation_id` | `UUID \| None`        | Correlation/action ID that triggered child   |
+| `_parent_data`  | `FrozenDict[str, Any] \| None` | Read-only snapshot of parent `data`   |
 
 ### Methods
 
 #### `record_stage_event(stage, status, payload=None) -> None`
 
-Emit a timestamped stage event.
+Emit a timestamped stage event enriched with run identity and configuration.
 
-#### `fork(child_run_id, parent_stage_id, correlation_id, ...) -> PipelineContext`
+#### `set_stage_metadata(stage: str, metadata: dict[str, Any]) -> None`
 
-Create a child context for a subpipeline run.
+Store per-stage metadata for observability/analytics.
+
+#### `get_stage_metadata(stage: str) -> dict[str, Any] | None`
+
+Retrieve previously stored metadata for a stage.
+
+#### `to_dict() -> dict[str, Any]`
+
+Convert context to a dict suitable for tool execution and logging.
+
+#### `fork(child_run_id, parent_stage_id, correlation_id, *, topology=None, execution_mode=None) -> PipelineContext`
+
+Create a child context for a subpipeline run:
+
+- New `pipeline_run_id` (child_run_id)
+- Inherits auth fields and configuration
+- Fresh `data` and `artifacts`
+- `parent_run_id`, `parent_stage_id`, `correlation_id` set
+- `_parent_data` is a frozen copy of the parent `data`
 
 #### `mark_canceled() -> None`
 
 Mark this context as canceled.
 
-#### `to_dict() -> dict[str, Any]`
+#### `is_canceled -> bool` (property)
 
-Convert context to dict.
+Check if this context has been canceled.
+
+#### `try_emit_event(type: str, data: dict[str, Any]) -> None`
+
+Emit an event via the `event_sink` (non-blocking) with run-level enrichment.
+
+#### `now() -> datetime` (classmethod)
+
+Return current UTC timestamp for consistent timing.
+
+---
+
+## StageInputs
+
+```python
+from stageflow.stages.inputs import StageInputs, create_stage_inputs
+```
+
+Immutable view of prior stage outputs available to a stage. This is the canonical input type for stages following the immutable data flow pattern.
+
+### Attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `snapshot` | `ContextSnapshot` | Original immutable snapshot (run identity, messages, etc.) |
+| `prior_outputs` | `dict[str, StageOutput]` | Outputs from declared dependency stages only |
+| `ports` | `StagePorts` | Injected capabilities (db, callbacks, services) |
+
+### Methods
+
+#### `get(key: str, default=None) -> Any`
+
+Get a value from any prior stage's output data. Searches through all `prior_outputs` in insertion order.
+
+```python
+inputs = ctx.config.get("inputs")
+transcript = inputs.get("transcript")  # First match from any stage
+```
+
+#### `get_from(stage_name: str, key: str, default=None) -> Any`
+
+Get a specific value from a specific stage's output. Preferred method for explicit dependencies.
+
+```python
+route = inputs.get_from("router", "route", default="general")
+```
+
+#### `has_output(stage_name: str) -> bool`
+
+Check if a stage has produced output.
+
+#### `get_output(stage_name: str) -> StageOutput | None`
+
+Get a stage's complete `StageOutput` object.
+
+### Factory Function
+
+```python
+from stageflow.stages.inputs import create_stage_inputs
+
+inputs = create_stage_inputs(
+    snapshot=snapshot,
+    prior_outputs={"stage_a": stage_a_output},
+    ports=my_ports,
+)
+```
+
+---
+
+## Modular Ports
+
+Stageflow provides modular ports following the Interface Segregation Principle. Stages only receive the ports they need.
+
+### CorePorts
+
+```python
+from stageflow.stages.ports import CorePorts, create_core_ports
+```
+
+Essential capabilities needed by most stages.
+
+**Attributes:**
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `db` | `Any` | Database session for persistence operations |
+| `db_lock` | `Lock \| None` | Optional lock for preventing concurrent DB access |
+| `call_logger_db` | `Any` | Database session for provider call logging |
+| `send_status` | `Callable` | Callback for sending status updates |
+| `call_logger` | `Any` | Logger for tracking provider API calls |
+| `retry_fn` | `Any` | Retry function for failed operations |
+
+```python
+ports = create_core_ports(
+    db=my_db_session,
+    send_status=my_status_callback,
+)
+```
+
+### LLMPorts
+
+```python
+from stageflow.stages.ports import LLMPorts, create_llm_ports
+```
+
+Ports for LLM-powered stages.
+
+**Attributes:**
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `llm_provider` | `Any` | LLM provider for text generation |
+| `chat_service` | `Any` | Chat service for building context |
+| `llm_chunk_queue` | `Any` | Queue for LLM chunks in streaming |
+| `send_token` | `Callable` | Callback for streaming tokens |
+
+```python
+ports = create_llm_ports(
+    llm_provider=my_llm,
+    send_token=token_callback,
+)
+```
+
+### AudioPorts
+
+```python
+from stageflow.stages.ports import AudioPorts, create_audio_ports
+```
+
+Ports for audio processing stages.
+
+**Attributes:**
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `tts_provider` | `Any` | TTS provider for text-to-speech |
+| `stt_provider` | `Any` | STT provider for speech-to-text |
+| `send_audio_chunk` | `Callable` | Callback for streaming audio |
+| `send_transcript` | `Callable` | Callback for sending transcript |
+| `audio_data` | `bytes \| None` | Raw audio bytes |
+| `audio_format` | `str \| None` | Audio format |
+| `tts_text_queue` | `Any` | Queue for text to synthesize |
+| `recording` | `Any` | Recording metadata |
+
+```python
+ports = create_audio_ports(
+    tts_provider=my_tts,
+    stt_provider=my_stt,
+    send_audio_chunk=audio_callback,
+)
+```
+
 
 ---
 

@@ -1,9 +1,12 @@
 """Comprehensive tests for stageflow.stages.ports and stageflow.stages.inputs.
 
 Tests:
-- StagePorts dataclass
-- create_stage_ports factory function
-- create_stage_ports_from_data_dict
+- CorePorts dataclass
+- LLMPorts dataclass
+- AudioPorts dataclass
+- create_core_ports factory function
+- create_llm_ports factory function
+- create_audio_ports factory function
 - StageInputs dataclass
 - create_stage_inputs factory function
 """
@@ -26,276 +29,184 @@ from stageflow.stages.inputs import (
     StageInputs,
 )
 from stageflow.stages.ports import (
-    create_stage_ports,
-    create_stage_ports_from_data_dict,
-    StagePorts,
+    create_core_ports,
+    create_llm_ports,
+    create_audio_ports,
+    CorePorts,
+    LLMPorts,
+    AudioPorts,
 )
 
 
-# === Test StagePorts ===
+# === Test CorePorts ===
 
-class TestStagePorts:
-    """Tests for StagePorts dataclass."""
+class TestCorePorts:
+    """Tests for CorePorts dataclass."""
 
     def test_default_values(self):
-        """Test StagePorts default values."""
-        ports = StagePorts()
+        """Test CorePorts default values."""
+        ports = CorePorts()
         assert ports.db is None
         assert ports.db_lock is None
         assert ports.call_logger_db is None
         assert ports.send_status is None
-        assert ports.send_token is None
-        assert ports.send_audio_chunk is None
-        assert ports.send_transcript is None
-        assert ports.llm_chunk_queue is None
-        assert ports.chat_service is None
-        assert ports.llm_provider is None
-        assert ports.tts_provider is None
-        assert ports.recording is None
-        assert ports.audio_data is None
-        assert ports.audio_format is None
-        assert ports.tts_text_queue is None
-        assert ports.stt_provider is None
         assert ports.call_logger is None
         assert ports.retry_fn is None
 
-    def test_with_db(self):
-        """Test StagePorts with db."""
-        db = {"connection": "test"}
-        ports = StagePorts(db=db)
-        assert ports.db == db
-
-    def test_with_callbacks(self):
-        """Test StagePorts with callback functions."""
-
-        async def send_status(stage, status, data):
-            pass
-
-        async def send_token(token):
-            pass
-
-        ports = StagePorts(
-            send_status=send_status,
-            send_token=send_token,
+    def test_with_values(self):
+        """Test CorePorts with values."""
+        db_mock = object()
+        status_cb = lambda stage, state, data: None
+        
+        ports = CorePorts(
+            db=db_mock,
+            send_status=status_cb,
         )
-        assert ports.send_status == send_status
-        assert ports.send_token == send_token
+        assert ports.db is db_mock
+        assert ports.send_status is status_cb
 
-    def test_with_providers(self):
-        """Test StagePorts with providers."""
-        llm = {"generate": lambda x: "response"}
-        tts = {"synthesize": lambda x: b"audio"}
-        stt = {"transcribe": lambda x: "text"}
+    def test_frozen_immutable(self):
+        """Test CorePorts is frozen/immutable."""
+        ports = CorePorts()
+        with pytest.raises(FrozenInstanceError):
+            ports.db = object()
 
-        ports = StagePorts(
-            llm_provider=llm,
-            tts_provider=tts,
-            stt_provider=stt,
+    def test_slots_optimization(self):
+        """Test CorePorts uses __slots__ for memory efficiency."""
+        ports = CorePorts()
+        assert hasattr(ports, '__slots__')
+        # Frozen dataclasses with slots prevent attribute addition
+        try:
+            ports.new_attribute = "test"
+            assert False, "Should have raised an exception"
+        except (AttributeError, FrozenInstanceError, TypeError):
+            pass  # Expected for frozen dataclass with slots
+
+
+# === Test LLMPorts ===
+
+class TestLLMPorts:
+    """Tests for LLMPorts dataclass."""
+
+    def test_default_values(self):
+        """Test LLMPorts default values."""
+        ports = LLMPorts()
+        assert ports.llm_provider is None
+        assert ports.chat_service is None
+        assert ports.llm_chunk_queue is None
+        assert ports.send_token is None
+
+    def test_with_values(self):
+        """Test LLMPorts with values."""
+        llm_mock = object()
+        token_cb = lambda token: None
+        
+        ports = LLMPorts(
+            llm_provider=llm_mock,
+            send_token=token_cb,
         )
-        assert ports.llm_provider == llm
-        assert ports.tts_provider == tts
-        assert ports.stt_provider == stt
+        assert ports.llm_provider is llm_mock
+        assert ports.send_token is token_cb
+
+    def test_frozen_immutable(self):
+        """Test LLMPorts is frozen/immutable."""
+        ports = LLMPorts()
+        with pytest.raises(FrozenInstanceError):
+            ports.llm_provider = object()
+
+
+# === Test AudioPorts ===
+
+class TestAudioPorts:
+    """Tests for AudioPorts dataclass."""
+
+    def test_default_values(self):
+        """Test AudioPorts default values."""
+        ports = AudioPorts()
+        assert ports.tts_provider is None
+        assert ports.stt_provider is None
+        assert ports.send_audio_chunk is None
+        assert ports.send_transcript is None
+        assert ports.audio_data is None
+        assert ports.audio_format is None
+        assert ports.tts_text_queue is None
+        assert ports.recording is None
+
+    def test_with_values(self):
+        """Test AudioPorts with values."""
+        tts_mock = object()
+        audio_cb = lambda chunk, fmt, idx, last: None
+        
+        ports = AudioPorts(
+            tts_provider=tts_mock,
+            send_audio_chunk=audio_cb,
+        )
+        assert ports.tts_provider is tts_mock
+        assert ports.send_audio_chunk is audio_cb
 
     def test_with_audio_data(self):
-        """Test StagePorts with audio data."""
+        """Test AudioPorts with audio data."""
         audio = b"\x00\x01\x02\x03"
-        ports = StagePorts(
+        ports = AudioPorts(
             audio_data=audio,
             audio_format="wav",
         )
         assert ports.audio_data == audio
         assert ports.audio_format == "wav"
 
-    def test_is_frozen(self):
-        """Test StagePorts is frozen."""
-        ports = StagePorts()
+    def test_frozen_immutable(self):
+        """Test AudioPorts is frozen/immutable."""
+        ports = AudioPorts()
         with pytest.raises(FrozenInstanceError):
-            ports.db = "modified"
+            ports.tts_provider = object()
 
-    def test_has_slots(self):
-        """Test StagePorts uses slots."""
-        assert hasattr(StagePorts, "__slots__")
 
-    def test_with_all_fields(self):
-        """Test StagePorts with all fields set."""
-        db = {"conn": "test"}
-        lock = asyncio.Lock()
-        cl_db = {"log": "test"}
+# === Test Factory Functions ===
 
-        async def status_cb(stage, status, data):
-            pass
+class TestPortFactories:
+    """Tests for port factory functions."""
 
-        async def token_cb(token):
-            pass
-
-        async def audio_cb(chunk, format, index, final):
-            pass
-
-        async def transcript_cb(msg_id, transcript, confidence, duration):
-            pass
-
-        llm_queue = asyncio.Queue()
-        chat_svc = {"chat": "service"}
-        llm = {"generate": lambda: "text"}
-        tts = {"synthesize": lambda: b"audio"}
-        rec = {"recording": "meta"}
-        audio = b"data"
-        tts_queue = asyncio.Queue()
-        stt = {"transcribe": lambda x: "text"}
-        call_log = {"log": "call"}
-        retry = lambda: "retry"
-
-        ports = StagePorts(
-            db=db,
-            db_lock=lock,
-            call_logger_db=cl_db,
+    def test_create_core_ports(self):
+        """Test create_core_ports factory."""
+        db_mock = object()
+        status_cb = lambda stage, state, data: None
+        
+        ports = create_core_ports(
+            db=db_mock,
             send_status=status_cb,
-            send_token=token_cb,
-            send_audio_chunk=audio_cb,
-            send_transcript=transcript_cb,
-            llm_chunk_queue=llm_queue,
-            chat_service=chat_svc,
-            llm_provider=llm,
-            tts_provider=tts,
-            recording=rec,
-            audio_data=audio,
-            audio_format="mp3",
-            tts_text_queue=tts_queue,
-            stt_provider=stt,
-            call_logger=call_log,
-            retry_fn=retry,
         )
-
-        assert ports.db == db
-        assert ports.db_lock is lock
-        assert ports.call_logger_db == cl_db
+        assert isinstance(ports, CorePorts)
+        assert ports.db is db_mock
         assert ports.send_status is status_cb
-        assert ports.send_token is token_cb
-        assert ports.send_audio_chunk is audio_cb
-        assert ports.send_transcript is transcript_cb
-        assert ports.llm_chunk_queue is llm_queue
-        assert ports.chat_service == chat_svc
-        assert ports.llm_provider == llm
-        assert ports.tts_provider == tts
-        assert ports.recording == rec
-        assert ports.audio_data == audio
-        assert ports.audio_format == "mp3"
-        assert ports.tts_text_queue is tts_queue
-        assert ports.stt_provider == stt
-        assert ports.call_logger == call_log
-        assert ports.retry_fn is retry
 
-
-# === Test create_stage_ports ===
-
-class TestCreateStagePorts:
-    """Tests for create_stage_ports factory function."""
-
-    def test_empty_creation(self):
-        """Test creating empty StagePorts."""
-        ports = create_stage_ports()
-        assert isinstance(ports, StagePorts)
-        assert ports.db is None
-
-    def test_with_db(self):
-        """Test creating with db."""
-        db = {"connection": "test"}
-        ports = create_stage_ports(db=db)
-        assert ports.db == db
-
-    def test_with_callbacks(self):
-        """Test creating with callbacks."""
-        async def send_status(stage, status, data):
-            pass
-
-        ports = create_stage_ports(send_status=send_status)
-        assert ports.send_status is send_status
-
-    def test_with_multiple_fields(self):
-        """Test creating with multiple fields."""
-        db = {"conn": "test"}
-        llm = {"generate": lambda: "text"}
-
-        ports = create_stage_ports(
-            db=db,
-            llm_provider=llm,
-            audio_format="wav",
+    def test_create_llm_ports(self):
+        """Test create_llm_ports factory."""
+        llm_mock = object()
+        token_cb = lambda token: None
+        
+        ports = create_llm_ports(
+            llm_provider=llm_mock,
+            send_token=token_cb,
         )
-        assert ports.db == db
-        assert ports.llm_provider == llm
-        assert ports.audio_format == "wav"
+        assert isinstance(ports, LLMPorts)
+        assert ports.llm_provider is llm_mock
+        assert ports.send_token is token_cb
 
-
-# === Test create_stage_ports_from_data_dict ===
-
-class TestCreateStagePortsFromDataDict:
-    """Tests for create_stage_ports_from_data_dict function."""
-
-    def test_empty_dict(self):
-        """Test with empty dict."""
-        ports = create_stage_ports_from_data_dict({})
-        assert isinstance(ports, StagePorts)
-        assert ports.db is None
-
-    def test_extracts_db(self):
-        """Test extracting db from data dict."""
-        data = {"db": {"connection": "test"}}
-        ports = create_stage_ports_from_data_dict(data)
-        assert ports.db == {"connection": "test"}
-
-    def test_extracts_callbacks(self):
-        """Test extracting callbacks from data dict."""
-
-        async def send_status(stage, status, data):
-            pass
-
-        data = {"send_status": send_status}
-        ports = create_stage_ports_from_data_dict(data)
-        assert ports.send_status is send_status
-
-    def test_extracts_audio_data(self):
-        """Test extracting audio data."""
-        data = {
-            "audio_data": b"\x00\x01\x02",
-            "audio_format": "mp3",
-        }
-        ports = create_stage_ports_from_data_dict(data)
-        assert ports.audio_data == b"\x00\x01\x02"
-        assert ports.audio_format == "mp3"
-
-    def test_extracts_multiple_fields(self):
-        """Test extracting multiple fields."""
-        data = {
-            "db": {"conn": "test"},
-            "db_lock": asyncio.Lock(),
-            "send_status": lambda *args: None,
-            "send_token": lambda x: None,
-            "send_audio_chunk": lambda *args: None,
-            "llm_chunk_queue": asyncio.Queue(),
-            "chat_service": {"service": "test"},
-            "recording": {"meta": "test"},
-            "audio_data": b"data",
-            "audio_format": "wav",
-        }
-        ports = create_stage_ports_from_data_dict(data)
-
-        assert ports.db == {"conn": "test"}
-        assert ports.db_lock is not None
-        assert ports.send_status is not None
-        assert ports.send_token is not None
-        assert ports.send_audio_chunk is not None
-        assert ports.llm_chunk_queue is not None
-        assert ports.chat_service == {"service": "test"}
-        assert ports.recording == {"meta": "test"}
-        assert ports.audio_data == b"data"
-        assert ports.audio_format == "wav"
-
-    def test_missing_keys_return_none(self):
-        """Test that missing keys return None."""
-        data = {"only_this": "exists"}
-        ports = create_stage_ports_from_data_dict(data)
-        assert ports.db is None
-        assert ports.send_status is None
+    def test_create_audio_ports(self):
+        """Test create_audio_ports factory."""
+        tts_mock = object()
+        audio_cb = lambda chunk, fmt, idx, last: None
+        audio = b"test audio"
+        
+        ports = create_audio_ports(
+            tts_provider=tts_mock,
+            send_audio_chunk=audio_cb,
+            audio_data=audio,
+        )
+        assert isinstance(ports, AudioPorts)
+        assert ports.tts_provider is tts_mock
+        assert ports.send_audio_chunk is audio_cb
+        assert ports.audio_data == audio
 
 
 # === Test StageInputs ===
@@ -303,10 +214,9 @@ class TestCreateStagePortsFromDataDict:
 class TestStageInputs:
     """Tests for StageInputs dataclass."""
 
-    @pytest.fixture
-    def snapshot(self):
-        """Create a test ContextSnapshot."""
-        return ContextSnapshot(
+    def test_default_values(self):
+        """Test StageInputs default values."""
+        snapshot = ContextSnapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
             session_id=uuid4(),
@@ -316,127 +226,180 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-
-    def test_default_values(self, snapshot):
-        """Test StageInputs default values."""
+        
         inputs = StageInputs(snapshot=snapshot)
-        assert inputs.snapshot == snapshot
+        assert inputs.snapshot is snapshot
         assert inputs.prior_outputs == {}
-        assert isinstance(inputs.ports, StagePorts)
+        assert inputs.ports is None
 
-    def test_with_prior_outputs(self, snapshot):
-        """Test StageInputs with prior outputs."""
-        outputs = {
-            "stage_a": StageOutput.ok(data={"key": "value"}),
-            "stage_b": StageOutput.ok(data={"other": "data"}),
+    def test_with_values(self):
+        """Test StageInputs with values."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
+        prior_outputs = {
+            "stage_a": StageOutput.ok(data={"value": 42}),
+            "stage_b": StageOutput.ok(data={"text": "hello"}),
         }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        assert len(inputs.prior_outputs) == 2
+        
+        ports = CorePorts(db=object())
+        
+        inputs = StageInputs(
+            snapshot=snapshot,
+            prior_outputs=prior_outputs,
+            ports=ports,
+        )
+        assert inputs.snapshot is snapshot
+        assert inputs.prior_outputs == prior_outputs
+        assert inputs.ports is ports
 
-    def test_with_custom_ports(self, snapshot):
-        """Test StageInputs with custom ports."""
-        ports = create_stage_ports(db={"test": "db"})
-        inputs = StageInputs(snapshot=snapshot, ports=ports)
-        assert inputs.ports.db == {"test": "db"}
-
-    def test_is_frozen(self, snapshot):
-        """Test StageInputs is frozen."""
+    def test_frozen_immutable(self):
+        """Test StageInputs is frozen/immutable."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
         inputs = StageInputs(snapshot=snapshot)
         with pytest.raises(FrozenInstanceError):
-            inputs.snapshot = "modified"
+            inputs.snapshot = object()
 
-    def test_has_slots(self, snapshot):
-        """Test StageInputs uses slots."""
-        assert hasattr(StageInputs, "__slots__")
-
-    def test_get_finds_value(self, snapshot):
-        """Test get() finds value in prior outputs."""
-        outputs = {
-            "stage_a": StageOutput.ok(data={"key": "value"}),
-            "stage_b": StageOutput.ok(data={"other": "data"}),
-        }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        assert inputs.get("key") == "value"
-        assert inputs.get("other") == "data"
-
-    def test_get_returns_default(self, snapshot):
-        """Test get() returns default when key not found."""
+    def test_slots_optimization(self):
+        """Test StageInputs uses __slots__ for memory efficiency."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
         inputs = StageInputs(snapshot=snapshot)
-        assert inputs.get("missing") is None
+        assert hasattr(inputs, '__slots__')
+        # Frozen dataclasses with slots prevent attribute addition
+        try:
+            inputs.new_attribute = "test"
+            assert False, "Should have raised an exception"
+        except (AttributeError, FrozenInstanceError, TypeError):
+            pass  # Expected for frozen dataclass with slots
+
+    def test_get(self):
+        """Test StageInputs.get method."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
+        prior_outputs = {
+            "stage_a": StageOutput.ok(data={"value": 42, "shared": "from_a"}),
+            "stage_b": StageOutput.ok(data={"text": "hello", "shared": "from_b"}),
+        }
+        
+        inputs = StageInputs(
+            snapshot=snapshot,
+            prior_outputs=prior_outputs,
+        )
+        
+        # Test getting specific values
+        assert inputs.get("value") == 42
+        assert inputs.get("text") == "hello"
         assert inputs.get("missing", "default") == "default"
+        
+        # Test that it returns first match (insertion order)
+        assert inputs.get("shared") == "from_a"
 
-    def test_get_searches_all_outputs(self, snapshot):
-        """Test get() searches all prior outputs in order."""
-        outputs = {
-            "stage_a": StageOutput.ok(data={"found": "first"}),
-            "stage_b": StageOutput.ok(data={"found": "second"}),
+    def test_get_from(self):
+        """Test StageInputs.get_from method."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
+        prior_outputs = {
+            "stage_a": StageOutput.ok(data={"value": 42}),
+            "stage_b": StageOutput.ok(data={"text": "hello"}),
         }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        # First one wins
-        assert inputs.get("found") == "first"
-
-    def test_get_from_specific_stage(self, snapshot):
-        """Test get_from() gets value from specific stage."""
-        outputs = {
-            "stage_a": StageOutput.ok(data={"key": "from_a"}),
-            "stage_b": StageOutput.ok(data={"key": "from_b"}),
-        }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        assert inputs.get_from("stage_a", "key") == "from_a"
-        assert inputs.get_from("stage_b", "key") == "from_b"
-
-    def test_get_from_missing_stage(self, snapshot):
-        """Test get_from() returns default for missing stage."""
-        inputs = StageInputs(snapshot=snapshot)
+        
+        inputs = StageInputs(
+            snapshot=snapshot,
+            prior_outputs=prior_outputs,
+        )
+        
+        # Test getting from specific stage
+        assert inputs.get_from("stage_a", "value") == 42
+        assert inputs.get_from("stage_b", "text") == "hello"
+        
+        # Test missing stage
         assert inputs.get_from("missing", "key") is None
         assert inputs.get_from("missing", "key", "default") == "default"
-
-    def test_get_from_missing_key(self, snapshot):
-        """Test get_from() returns default for missing key."""
-        outputs = {
-            "stage_a": StageOutput.ok(data={"other": "value"}),
-        }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
+        
+        # Test missing key
         assert inputs.get_from("stage_a", "missing") is None
         assert inputs.get_from("stage_a", "missing", "default") == "default"
 
-    def test_has_output_true(self, snapshot):
-        """Test has_output() returns True for existing stage."""
-        outputs = {
-            "stage_a": StageOutput.ok(),
-        }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        assert inputs.has_output("stage_a") is True
-
-    def test_has_output_false(self, snapshot):
-        """Test has_output() returns False for missing stage."""
-        inputs = StageInputs(snapshot=snapshot)
-        assert inputs.has_output("missing") is False
-
-    def test_get_output(self, snapshot):
-        """Test get_output() returns StageOutput."""
-        output = StageOutput.ok(data={"key": "value"})
-        outputs = {"stage_a": output}
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        result = inputs.get_output("stage_a")
-        assert result is output
-        assert result.data["key"] == "value"
-
-    def test_get_output_missing(self, snapshot):
-        """Test get_output() returns None for missing."""
-        inputs = StageInputs(snapshot=snapshot)
+    def test_get_output(self):
+        """Test StageInputs.get_output method."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
+        output = StageOutput.ok(data={"value": 42})
+        prior_outputs = {"stage_a": output}
+        
+        inputs = StageInputs(
+            snapshot=snapshot,
+            prior_outputs=prior_outputs,
+        )
+        
+        # Test getting output
+        assert inputs.get_output("stage_a") is output
         assert inputs.get_output("missing") is None
 
 
-# === Test create_stage_inputs ===
+# === Test StageInputs Factory ===
 
-class TestCreateStageInputs:
+class TestStageInputsFactory:
     """Tests for create_stage_inputs factory function."""
 
-    @pytest.fixture
-    def snapshot(self):
-        """Create a test ContextSnapshot."""
-        return ContextSnapshot(
+    def test_create_stage_inputs_minimal(self):
+        """Test create_stage_inputs with minimal arguments."""
+        snapshot = ContextSnapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
             session_id=uuid4(),
@@ -446,50 +409,58 @@ class TestCreateStageInputs:
             topology="test",
             execution_mode="test",
         )
-
-    def test_creates_inputs(self, snapshot):
-        """Test factory creates StageInputs."""
+        
         inputs = create_stage_inputs(snapshot=snapshot)
         assert isinstance(inputs, StageInputs)
-        assert inputs.snapshot == snapshot
+        assert inputs.snapshot is snapshot
+        assert inputs.prior_outputs == {}
+        assert inputs.ports is None
 
-    def test_with_prior_outputs(self, snapshot):
-        """Test with prior outputs."""
-        outputs = {"stage_a": StageOutput.ok(data={"key": "value"})}
-        inputs = create_stage_inputs(snapshot=snapshot, prior_outputs=outputs)
-        assert inputs.prior_outputs == outputs
+    def test_create_stage_inputs_with_all(self):
+        """Test create_stage_inputs with all arguments."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
+        prior_outputs = {"stage_a": StageOutput.ok(data={"value": 42})}
+        ports = LLMPorts(llm_provider=object())
+        
+        inputs = create_stage_inputs(
+            snapshot=snapshot,
+            prior_outputs=prior_outputs,
+            ports=ports,
+        )
+        assert isinstance(inputs, StageInputs)
+        assert inputs.snapshot is snapshot
+        assert inputs.prior_outputs == prior_outputs
+        assert inputs.ports is ports
 
-    def test_with_ports(self, snapshot):
-        """Test with custom ports."""
-        ports = create_stage_ports(db={"test": "db"})
+    def test_create_stage_inputs_with_core_ports(self):
+        """Test create_stage_inputs with CorePorts."""
+        snapshot = ContextSnapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test",
+            execution_mode="test",
+        )
+        
+        ports = CorePorts(db=object())
         inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
-        assert inputs.ports.db == {"test": "db"}
+        assert inputs.ports is ports
 
-    def test_defaults_to_empty(self, snapshot):
-        """Test defaults to empty dict and default ports."""
-        inputs = create_stage_inputs(snapshot=snapshot)
-        assert inputs.prior_outputs == {}
-        assert isinstance(inputs.ports, StagePorts)
-        assert inputs.ports.db is None
-
-
-# === Edge Cases ===
-
-class TestPortsInputsEdgeCases:
-    """Edge case tests for StagePorts and StageInputs."""
-
-    def test_stage_ports_with_none_callbacks(self):
-        """Test StagePorts with None callback fields."""
-        ports = StagePorts(
-            send_status=None,
-            send_token=None,
-            send_audio_chunk=None,
-        )
-        assert ports.send_status is None
-        assert ports.send_token is None
-
-    def test_stage_inputs_with_empty_prior_outputs(self):
-        """Test StageInputs with empty prior_outputs dict."""
+    def test_create_stage_inputs_with_llm_ports(self):
+        """Test create_stage_inputs with LLMPorts."""
         snapshot = ContextSnapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -500,12 +471,13 @@ class TestPortsInputsEdgeCases:
             topology="test",
             execution_mode="test",
         )
-        inputs = StageInputs(snapshot=snapshot, prior_outputs={})
-        assert inputs.prior_outputs == {}
-        assert inputs.get("any_key") is None
+        
+        ports = LLMPorts(llm_provider=object())
+        inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
+        assert inputs.ports is ports
 
-    def test_stage_inputs_with_none_prior_outputs(self):
-        """Test StageInputs with None prior_outputs."""
+    def test_create_stage_inputs_with_audio_ports(self):
+        """Test create_stage_inputs with AudioPorts."""
         snapshot = ContextSnapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -516,101 +488,7 @@ class TestPortsInputsEdgeCases:
             topology="test",
             execution_mode="test",
         )
-        inputs = create_stage_inputs(snapshot=snapshot, prior_outputs=None)
-        assert inputs.prior_outputs == {}
-
-    def test_stage_inputs_get_with_nested_keys(self):
-        """Test get() with nested key access."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-        outputs = {
-            "stage_a": StageOutput.ok(data={"nested": {"key": "value"}}),
-        }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        # get() doesn't do nested access, just key lookup
-        assert inputs.get("nested") is not None
-        assert isinstance(inputs.get("nested"), dict)
-
-    def test_stage_ports_with_callable_fields(self):
-        """Test StagePorts with callable fields."""
-        def my_retry():
-            return "retry"
-
-        ports = StagePorts(retry_fn=my_retry)
-        assert ports.retry_fn is my_retry
-
-    def test_stage_ports_with_asyncio_queue(self):
-        """Test StagePorts with asyncio.Queue."""
-        queue = asyncio.Queue()
-        ports = StagePorts(llm_chunk_queue=queue)
-        assert ports.llm_chunk_queue is queue
-
-    def test_stage_ports_with_asyncio_lock(self):
-        """Test StagePorts with asyncio.Lock."""
-        lock = asyncio.Lock()
-        ports = StagePorts(db_lock=lock)
-        assert ports.db_lock is lock
-
-    def test_create_stage_ports_preserves_none(self):
-        """Test create_stage_ports preserves None values."""
-        ports = create_stage_ports(
-            db=None,
-            send_status=None,
-            llm_provider=None,
-        )
-        assert ports.db is None
-        assert ports.send_status is None
-        assert ports.llm_provider is None
-
-    def test_stage_inputs_with_many_prior_outputs(self):
-        """Test StageInputs with many prior outputs."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-        outputs = {
-            f"stage_{i}": StageOutput.ok(data={"n": i})
-            for i in range(100)
-        }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-
-        # Should find values
-        assert inputs.get("n") == 0  # First one wins
-        assert inputs.has_output("stage_50") is True
-        assert inputs.get_output("stage_99").data["n"] == 99
-
-    def test_stage_inputs_get_order_preserved(self):
-        """Test that get() respects output insertion order."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-        # Create outputs dict (preserves insertion order in Python 3.7+)
-        outputs = {
-            "first": StageOutput.ok(data={"key": "first"}),
-            "second": StageOutput.ok(data={"key": "second"}),
-            "third": StageOutput.ok(data={"key": "third"}),
-        }
-        inputs = StageInputs(snapshot=snapshot, prior_outputs=outputs)
-        # First one wins
-        assert inputs.get("key") == "first"
+        
+        ports = AudioPorts(tts_provider=object())
+        inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
+        assert inputs.ports is ports

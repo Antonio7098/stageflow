@@ -449,12 +449,7 @@ class UnifiedStageGraph:
         }
 
         inputs = ctx.config.get("inputs")
-        if inputs is not None:
-            from stageflow.stages.ports import StagePorts
-            ports = inputs.ports
-        else:
-            from stageflow.stages.ports import create_stage_ports_from_data_dict
-            ports = create_stage_ports_from_data_dict(ctx.config.get("data", {}))
+        ports = inputs.ports if inputs else None
 
         from stageflow.stages.inputs import StageInputs, create_stage_inputs
 
@@ -505,6 +500,18 @@ class UnifiedStageGraph:
                         "reason": skip_reason,
                     },
                 )
+                # Emit stage.skipped event for observability
+                event_sink = ctx.config.get("event_sink")
+                if event_sink:
+                    event_sink.try_emit(
+                        type=f"stage.{spec.name}.skipped",
+                        data={
+                            "stage": spec.name,
+                            "reason": skip_reason,
+                            "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
+                            "request_id": str(ctx.request_id) if ctx.request_id else None,
+                        },
+                    )
                 return StageOutput.skip(reason=skip_reason)
 
         try:
@@ -523,6 +530,21 @@ class UnifiedStageGraph:
                     "duration_ms": duration_ms,
                 },
             )
+            
+            # Emit stage.skipped event if stage returned SKIP status
+            if result.status == StageStatus.SKIP:
+                event_sink = ctx.config.get("event_sink")
+                if event_sink:
+                    event_sink.try_emit(
+                        type=f"stage.{spec.name}.skipped",
+                        data={
+                            "stage": spec.name,
+                            "reason": result.data.get("reason", "Stage returned skip"),
+                            "duration_ms": duration_ms,
+                            "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
+                            "request_id": str(ctx.request_id) if ctx.request_id else None,
+                        },
+                    )
 
             if result.status == StageStatus.FAIL:
                 logger.error(

@@ -22,6 +22,26 @@ class PipelineValidationError(Exception):
         self.stages = stages or []
 
 
+class CycleDetectedError(PipelineValidationError):
+    """Raised when a cycle is detected in the pipeline DAG.
+    
+    Provides detailed information about the cycle for debugging.
+    
+    Attributes:
+        cycle_path: List of stage names forming the cycle (e.g., ['A', 'B', 'C', 'A'])
+        stages: All stages involved in cycles
+    """
+
+    def __init__(self, cycle_path: list[str], stages: list[str] | None = None) -> None:
+        self.cycle_path = cycle_path
+        cycle_str = " -> ".join(cycle_path)
+        message = f"Pipeline contains a cycle: {cycle_str}"
+        super().__init__(message, stages=stages or cycle_path)
+
+    def __repr__(self) -> str:
+        return f"CycleDetectedError(cycle_path={self.cycle_path})"
+
+
 @runtime_checkable
 class StageRunner(Protocol):
     """Protocol for stage runners.
@@ -91,6 +111,7 @@ class PipelineSpec:
 
 
 __all__ = [
+    "CycleDetectedError",
     "PipelineSpec",
     "PipelineValidationError",
     "StageRunner",

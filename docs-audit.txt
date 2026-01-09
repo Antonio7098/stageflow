@@ -1,0 +1,619 @@
+I have completed a comprehensive audit of the docs and stageflow directories. My audit focused on identifying gaps between the implementation and the documentation, as well as areas where internal code documentation (docstrings, types) is lacking.
+
+Documentation Audit Summary
+Overall, the documentation is of high quality, covering most core concepts with both API references and guides. However, there are significant gaps where the documentation has diverged from the implementation or lacks depth for advanced features.
+
+1. Divergence Gaps (High Priority)
+Stage Interface Conflict: The code implementation uses execute(ctx: StageContext) (in stage_protocol.py), but several guides and interfaces still refer to run(ctx: PipelineContext). This will cause immediate failures for anyone following the documentation.
+Context Type Ambiguity: There is confusion between StageContext and PipelineContext. StageContext is intended for stages, while PipelineContext is used by the engine/interceptors. The docs often swap these or fail to explain the relationship (e.g., StageContext wraps a ContextSnapshot).
+Tool Executor Versioning: The codebase contains executor.py (v1) and executor_v2.py, but the documentation mostly refers to a generic ToolExecutor or AdvancedToolExecutor without clearly stating which implementation is current or how they differ.
+2. Missing API Documentation
+Subpipelines: stageflow/pipeline/subpipeline.py contains significant logic for nested execution, but this is not documented in the API reference or guides.
+Event Sink Implementation: While EventSink is mentioned, the specific behavior of LoggingEventSink vs NoOpEventSink and how to globally configure them via set_event_sink is thin.
+Projectors: The stageflow/projector/ directory appears to be a new or undocumented architectural pattern for state projection.
+3. Guide & Concept Gaps
+Error Recovery Guide: While StageExecutionError is documented, there is no guide on best practices for recovery, retries (beyond the RetryableStage protocol), or handling partial pipeline failures.
+Testing Guide: There is no dedicated guide on how to test stages and pipelines, despite the ContextSnapshot being specifically designed for serializability and replay.
+Extension System Depth: The extensions.py system is powerful but only briefly mentioned. A guide on building "Typed Extensions" for large applications is missing.
+Code Audit Summary
+The codebase is generally well-structured, but internal documentation and type safety can be improved.
+
+1. Missing Docstrings
+Internal Pipeline Logic: Files like builder.py, spec.py, and subpipeline.py lack class and method-level docstrings for complex internal logic.
+Auth Interceptors: The auth/interceptors.py file is quite large but lacks detailed documentation on the specific logic for organization enforcement and token validation.
+2. Type Hinting Gaps
+Protocols vs Implementations: Some protocols in protocols.py use Any where more specific types or generic TypeVars could be used.
+Circular Import Workarounds: The use of TYPE_CHECKING blocks is consistent, but some type hints in dag.py are missing for the more complex async task management logic.
+Recommended Actions
+Sync Stage Interface: Update all documentation to consistently use execute(ctx: StageContext).
+Clarify Context Hierarchy: Add a dedicated section in docs/guides/context.md explaining the flow from PipelineContext -> ContextSnapshot -> StageContext.
+Document Subpipelines: Create docs/guides/subpipelines.md to explain how to nest DAGs.
+Audit Tooling Docs: Ensure docs/api/tools.md matches the AdvancedToolExecutor implementation in executor_v2.py.
+Would you like me to start addressing any of these specific gaps
+
+ocumentation Audit Findings
+Overall Assessment
+The Stageflow documentation is comprehensive and well-structured, covering installation, core concepts, guides, API references, examples, and advanced topics. The docs align closely with the exported public API in stageflow/init.py, with detailed coverage of pipelines, stages, interceptors, tools, auth, observability, and context.
+
+Identified Gaps
+Undocumented Modules:
+agent module: Re-exports context types (e.g., ContextSnapshot, Message) but lacks dedicated API or guide documentation. Appears to be a thin wrapper or legacy import.
+projector module: Provides WebSocket projection services (e.g., WSMessageProjector, WSStatusUpdatePayload) but is undocumented. Used in test_app for UI updates, suggesting it's demo-specific rather than core library.
+utils module: Exports FrozenDict and FrozenList utilities but is undocumented. Likely internal helpers.
+Missing API Details in docs/api/tools.md:
+Adapters: DictContextAdapter, adapt_context not covered.
+Events: ApprovalDecidedEvent, ApprovalRequestedEvent, ToolEventBase not listed in the events section.
+Potential Enhancements (not strict gaps, but areas for completeness):
+No troubleshooting/FAQ section.
+No contribution guidelines or changelog.
+Examples assume familiarity with async Python; could benefit from basic async setup notes.
+Recommendations
+Consider documenting agent if it's intended for public use, or remove if internal.
+Exclude projector and utils from user docs if they are not public APIs.
+Update api/tools.md to include omitted adapters and events.
+Add a FAQ or troubleshooting guide for common issues.
+Task completed: Audit identifies minimal gaps; docs are largely complete for the public codebase.
+
+Generate comprehensive audit report with recommendations
+
+Stageflow Documentation Audit Report
+Executive Summary
+I've completed a comprehensive audit of both the documentation (docs) and codebase (stageflow). The documentation is generally well-structured and covers most core concepts, but there are significant gaps in several important areas.
+
+Critical Missing Documentation
+1. StagePorts - COMPLETELY MISSING
+What it is: Immutable dataclass providing typed access to services, callbacks, and database sessions for stages
+Location: stageflow/stages/ports.py (159 lines)
+Why important: This is the primary dependency injection mechanism for stages
+Impact: Developers have no guidance on how to use ports, services, or callbacks
+2. StageInputs - MINIMALLY DOCUMENTED
+What it is: Immutable view of prior stage outputs available to a stage
+Location: stageflow/stages/inputs.py (159 lines)
+Current coverage: Brief mention in context guide
+Gap: No API reference, no usage examples, no explanation of the immutable data flow pattern
+3. Projector Module - COMPLETELY MISSING
+What it is: WebSocket projection service for real-time updates
+Location: stageflow/projector/ (2 files)
+Why important: Real-time UI updates and status projections
+Impact: No documentation for WebSocket integration or real-time features
+4. Utils Module - COMPLETELY MISSING
+What it is: FrozenDict and FrozenList for immutable data structures
+Location: stageflow/utils/frozen.py (131 lines)
+Current coverage: Brief mention in subpipelines guide
+Gap: No API reference, no usage patterns
+Moderate Gaps
+5. Tools Approval System - PARTIALLY DOCUMENTED
+What it is: HITL (Human-in-the-Loop) approval for risky tool actions
+Location: stageflow/tools/approval.py (338 lines)
+Current coverage: Mentioned in tools guide but no detailed API
+Gap: Missing API reference for ApprovalRequest, ApprovalStatus, etc.
+6. Pipeline Registry - MINIMALLY DOCUMENTED
+What it is: Pipeline registration and lookup system
+Location: stageflow/pipeline/registry.py
+Current coverage: Brief mention in index
+Gap: No guide on how to register and use pipelines
+7. Advanced Tool Features - INCOMPLETE
+Missing: Tool adapters, events, error handling, v2 executor
+Impact: Advanced tool usage patterns not documented
+Minor Gaps
+8. Agent Module Confusion
+Issue: stageflow/agent/init.py just re-exports context types
+Problem: Creates confusion about whether there's a separate agent system
+Recommendation: Either document properly or remove the module
+9. Protocol Documentation
+Missing: Detailed docs for ConfigProvider, CorrelationIds, RunStore
+Current: Brief mentions in API reference
+Need: Usage examples and implementation guidance
+Documentation Structure Issues
+10. API Reference Inconsistencies
+Some API docs are comprehensive (context, interceptors)
+Others are minimal (observability, auth)
+Need: Standardize API reference format
+11. Missing Cross-References
+StageInputs/StagePorts not referenced from main guides
+No "Putting It All Together" examples
+Need: Better navigation between related concepts
+Recommendations (Priority Order)
+HIGH PRIORITY
+Document StagePorts (Critical)
+Add API reference page
+Add to context guide
+Include dependency injection examples
+Document StageInputs (Critical)
+Add comprehensive API reference
+Add immutable data flow examples
+Show migration from mutable patterns
+Document Projector Module (High)
+Add WebSocket integration guide
+Document real-time status updates
+Include examples for web applications
+MEDIUM PRIORITY
+Complete Tools Documentation
+Add approval system API reference
+Document tool adapters and events
+Cover v2 executor features
+Standardize API References
+Ensure all modules have consistent format
+Add missing observability/auth details
+Document protocols properly
+Add Pipeline Registry Guide
+How to register pipelines
+Dynamic pipeline lookup
+Best practices
+LOW PRIORITY
+Utils Documentation
+Add FrozenDict/FrozenList API reference
+Document immutability patterns
+Improve Cross-References
+Add "See Also" sections
+Create architecture overview diagram
+Add integration examples
+Documentation Quality Assessment
+Well Documented: Core concepts, basic pipeline building, interceptors, context basics
+Adequately Documented: Tools (basics), events, examples
+Poorly Documented: StagePorts, StageInputs, projector, utils, advanced features
+Not Documented: Agent module (confusing), several utility modules
+Next Steps
+The most critical missing piece is StagePorts documentation, as it's the primary way stages access external services. I recommend starting there, followed by StageInputs to complete the immutable data flow story.
+
+The audit is complete. The most critical finding is that StagePorts and StageInputs - two fundamental components for stage dependency injection and immutable data flow - have essentially no documentation despite being core to the framework's architecture. The projector module for WebSocket integration is also completely undocumented.
+
+Would you like me to start filling any of these gaps, beginning with the highest priority items?
+
+. High-level mapping: code vs docs
+1.1 Main public surface (from stageflow/init.py)
+Exported concepts:
+
+Core
+Stage, StageKind, StageStatus, StageOutput, StageContext, StageArtifact, StageEvent, PipelineTimer, create_stage_context
+Pipeline
+Pipeline, UnifiedStageSpec, StageGraph, StageSpec, StageExecutionError, PipelineRegistry, pipeline_registry
+Interceptors
+BaseInterceptor, InterceptorResult, InterceptorContext, ErrorAction, LoggingInterceptor, MetricsInterceptor, TracingInterceptor, CircuitBreakerInterceptor, TimeoutInterceptor, get_default_interceptors, run_with_interceptors
+Context & results
+PipelineContext, StageResult, StageError, extract_service
+Events & observability
+EventSink, NoOpEventSink, LoggingEventSink, get_event_sink, set_event_sink, clear_event_sink,
+CircuitBreaker, CircuitBreakerOpenError, PipelineRunLogger, ProviderCallLogger, summarize_pipeline_error, error_summary_to_string, error_summary_to_stages_patch, get_circuit_breaker
+Protocols
+RunStore, ConfigProvider, CorrelationIds
+Extensions
+ExtensionRegistry, ExtensionHelper, TypedExtension
+1.2 Existing docs coverage
+Getting started: concepts, installation, quickstart.
+Guides: stages, pipelines, context, interceptors, tools, observability, authentication.
+API: core, pipeline, context, interceptors, tools, events, observability, auth.
+Advanced: composition, subpipelines, custom-interceptors, errors, extensions, testing.
+Examples: simple / transform-chain / parallel / chat / full / agent-tools.
+These cover the core mental model and most exported symbols.
+
+2. Clear gaps / mismatches
+2.1 stageflow.stages package
+Code:
+
+stages/init.py, context.py, errors.py, inputs.py, ports.py, result.py
+Docs:
+
+No API doc dedicated to stageflow.stages.*.
+Guides talk about “building stages”, but not the “stages runtime” helpers.
+Gaps
+
+Missing API surface description for:
+StageResult vs StageOutput (you export both).
+StageError details vs generic Exception.
+Helper types in stages.context, stages.inputs, stages.ports (e.g. strongly-typed input/port abstractions if present).
+No guidance on when to use StageResult vs returning StageOutput directly.
+Suggested docs
+
+New API page: docs/api/stages.md
+Explain StageResult, StageError, ports/inputs abstractions, and how interceptors wrap these.
+Guide addition: short sub-section in guides/stages.md:
+“Internal stages runtime vs your own Stage implementation.”
+2.2 stageflow.agent package
+Code:
+
+agent/init.py (and likely agent-related conveniences).
+Docs:
+
+Guides/examples talk about agents and tools, but there is no dedicated API or guide for stageflow.agent itself.
+Gaps
+
+Missing explanation of:
+What stageflow.agent provides beyond generic Stage.
+When to use agent-specific primitives vs plain tools + stages.
+If agent exposes specific helper protocols or wrappers, they’re not discoverable from docs.
+Suggested docs
+
+New guide: guides/agents.md
+Positioning: “How agent stages differ from normal stages.”
+New API/section: either a dedicated api/agent.md or an “Agents” section in api/tools.md:
+Document anything re-exported from stageflow.agent.
+2.3 stageflow.projector package
+Code:
+
+projector/init.py, service.py
+Docs:
+
+No guide or API page referencing “projector” or projection concepts.
+Gaps
+
+Users can’t tell:
+What a “projector” is in Stageflow’s domain model.
+How/when to use projector.service with pipelines or context.
+If this is experimental or application-specific, that’s also undocumented.
+Suggested docs
+
+Clarify intent and stability:
+Either document it as a first-class feature (new advanced/projector.md or “Projections” section under advanced/extensions.md),
+Or explicitly mark it as internal/experimental somewhere (e.g. in an “Internal Modules” appendix or code comments referenced from docs).
+2.4 Protocols & integration points (RunStore, ConfigProvider, CorrelationIds)
+Code:
+
+stageflow.protocols defines storage/config/integration boundaries and is exported from root.
+Docs:
+
+Mentioned lightly in observability/auth docs, but there is no dedicated explanation of:
+Responsibilities and lifecycle of RunStore.
+How to implement ConfigProvider.
+How CorrelationIds integrates with logging/tracing.
+Gaps
+
+Lack of “how to integrate Stageflow with your infra” story:
+Where to plug in persistent run storage.
+How to wire providers for model configs per stage/pipeline.
+How to carry correlation IDs from your web framework into Stageflow.
+Suggested docs
+
+New API page: docs/api/protocols.md
+Document each protocol with minimal implementation examples.
+New guide: “Infrastructure integration” section:
+Can be a new guides/integration.md or subsections in guides/observability.md + guides/authentication.md.
+Show how to hook RunStore, ConfigProvider, correlation IDs into an ASGI/Flask/FastAPI app.
+2.5 Utilities & internal helpers (stageflow.utils, event sink details)
+Code:
+
+utils/init.py, utils/frozen.py
+events/sink.py plus events/init.py.
+Docs:
+
+There is an api/events.md and api/observability.md, but:
+frozen and any internal immutability helpers are not documented.
+Frozen data structures’ semantics (e.g. how/when things become immutable) are only implied by docs like “Context snapshots are frozen.”
+Gaps
+
+No explicit explanation of:
+“Frozen” behavior guarantees (do users ever touch these types directly?).
+How event sinks fit into the layering (vs interceptors and loggers).
+Suggested docs
+
+Small appendix / section:
+In api/context.md or advanced/extensions.md, add a short “Immutability & frozen types” section:
+Explain that userland normally doesn’t need stageflow.utils.frozen, but it underpins ContextSnapshot and friends.
+Clarify in api/events.md:
+Relationship between EventSink, LoggingEventSink, NoOpEventSink and observability interceptors/loggers.
+2.6 Root namespace vs docs navigation
+Docs index lists these API areas:
+
+Core
+Pipeline
+Context
+Interceptors
+Tools
+Events
+Observability
+Auth
+From __init__.__all__, missing correspondences:
+
+No top-level API doc for:
+PipelineContext, StageResult, StageError, extract_service (these live under stages).
+UnifiedStageSpec (mentioned in pipeline.md but not very prominent in navigation).
+ExtensionRegistry, ExtensionHelper, TypedExtension (you do have advanced/extensions.md, but it’s not obviously tied to the root exports).
+RunStore, ConfigProvider, CorrelationIds (as above).
+Suggested docs
+
+In each API page, explicitly map to from stageflow import ... where relevant:
+E.g. in api/context.md and advanced/extensions.md show ExtensionRegistry imported from root.
+In api/pipeline.md, call out UnifiedStageSpec and when users may see or need it.
+Add a short “Root API summary” section to docs/api/core.md or a dedicated api/index.md:
+Tables mapping stageflow.<symbol> → primary doc page.
+3. Conceptual / workflow gaps (not specific to a single module)
+3.1 Deployment & runtime integration
+There is good explanation of pipelines, context, interceptors, tools. What’s missing is:
+
+How to run all this inside a real app:
+Quick patterns for integrating with:
+A web server (e.g. FastAPI/Starlette).
+Background workers / queues.
+How to manage long-running runs, cancellation from the outer system, and error reporting back to clients.
+Suggested docs
+
+New guide: guides/runtime-integration.md (or similar):
+Show a minimal FastAPI app that accepts a request, constructs ContextSnapshot, runs a pipeline, and serializes results.
+Show cancellation wiring (external timeout → UnifiedPipelineCancelled).
+3.2 Configuration and environment management
+You mention “ConfigProvider” in code, but docs don’t give a cohesive story for:
+
+How to structure config per environment, per pipeline, per stage.
+How to wire model provider keys (OpenAI/Groq/others) without leaking them into stages.
+Suggested docs
+
+Section in guides/pipelines.md or a new guides/configuration.md:
+Pattern: “stages read from ctx.config, providers & secrets injected via ConfigProvider.”
+3.3 Versioning, stability, and experimental modules
+Some subpackages (agent, projector) look like “add-ons” vs the stable core.
+
+Gaps
+
+No statement of stability / maturity for:
+Tools v1 vs tools.executor_v2.
+projector vs core pipeline.
+Any breaking-change expectations.
+Suggested docs
+
+A short “Stability & versions” section (maybe in README.md or getting-started/concepts.md):
+Mark modules or features as Stable / Beta / Experimental.
+4. Minor / polish gaps
+Cross-linking between docs and tests/examples
+Tests under tests/ and the test_app/ demo look rich but are not referenced from docs.
+Could be used as “see also” for advanced patterns.
+Explicit error taxonomy vs code
+You have advanced/errors.md, which is good.
+Cross-reference more explicitly from api/pipeline.md / api/core.md to error types like StageExecutionError, UnifiedPipelineCancelled, StageError.
+5. Recommended next steps (prioritized)
+Document stages runtime & results (high impact)
+New api/stages.md.
+Update guides/stages.md with a “Stages runtime & StageResult vs StageOutput” section.
+Protocols & infra integration (high impact)
+New api/protocols.md.
+“Infrastructure integration” guide or sections within observability/auth.
+Clarify agent + projector story (medium–high impact)
+Either:
+Promote them to first-class concepts with guides/agents.md and advanced/projector.md,
+Or explicitly mark them as internal/experimental and keep them out of the public surface.
+Root API mapping & stability notes (medium impact)
+Short “Root API index” mapping stageflow.<symbol> → doc pages.
+Stability/experimental labels for modules and features.
+Runtime deployment guide (medium impact)
+Show integration into a real web app, including cancellation and error mapping.
+If you’d like, I can take one of these (e.g. api/stages.md or api/protocols.md) and draft the full content in your existing documentation style.
+
+Feedback submitted
+
+
+
+
+Command Awaiting Approval
+
+
+Audit summary for @docs and @stageflow:
+
+WebSocket projector undocumented
+Implementation of WSMessageProjector, WSOutboundMessage, and validation helpers exists under stageflow/projector but no corresponding guide or API entry. Teams integrating live status streaming or wiring request IDs via websockets have no reference doc, so they must reverse-engineer the service signature and payload structures from code (@stageflow/projector/service.py#1-136). Add a short guide/API page that explains the projector purpose, message contract, and extension points.
+Advanced tool executor docs are stale vs. code
+The docs describe AdvancedToolExecutor as accepting a registry and configurable store_undo_data/require_approval_for_risky flags (@docs/guides/tools.md#169-190), but the current implementation exposes AdvancedToolExecutor(config, undo_store, approval_service) and manages its own tool registry internally (@stageflow/tools/executor_v2.py#80-205). This mismatch makes it unclear how developers should register tools for the v2 executor and which config fields are actually supported. Update the guide and API reference to show the real constructor args, registration flow (register()), and event emission behavior; alternatively, adapt the code to match the documented surface.
+Subpipeline lifecycle events undocumented
+The runtime emits dedicated events for child pipelines—PipelineSpawnedChildEvent, PipelineChildCompletedEvent, PipelineChildFailedEvent, and cancellation cascades—providing rich observability hooks (@stageflow/pipeline/subpipeline.py#27-205). The existing subpipelines guide explains context forking and usage but doesn’t mention these events or how to subscribe to them (@docs/advanced/subpipelines.md#1-402). Document the event types, payload schemas, and when they fire so operators know how to monitor nested runs and correlate parent/child IDs.
+Stage interface contracts lack supporting docs
+There’s a fresh stageflow.pipeline.interfaces module codifying ISP-friendly interfaces like RetryableStage, ConditionalStage, and ObservableStage (@stageflow/pipeline/interfaces.py#1-183). None of the guides or API pages mention these interfaces, so builders may miss out on standardized patterns for retries, conditional execution, or observability hooks. Add an API section (or extend guides/stages.md) describing when to implement each interface and how the orchestrator leverages them.
+Recommended next steps:
+
+Create a “WebSocket Projector” doc (guide or API) covering WS metadata coercion, validation, and integration patterns.
+Refresh the tools guide and API reference to match the actual AdvancedToolExecutor signature/configuration, including registration, undo store wiring, and approval flow hooks.
+Extend the subpipeline guide (or observability docs) with a table of child pipeline events and sample emitted payloads.
+Document the stage interfaces module so contributors know how to expose retries, conditional execution, and observability behavior.
+Let me know if you’d like help drafting any of these doc updates.
+
+Feedback submitted
+
+
+
+
+Command Awaiting Approval
+
+Based on my analysis of the docs/ and stageflow/ directories, here are the documentation gaps I've identified:
+Critical Missing Documentation
+1. WSMessageProjector Service 
+Location: stageflow/projector/service.py (exported as projector in __init__.py)
+- Gap: No documentation exists for the WS message projector service
+- Impact: Users won't understand how to use WebSocket message projection
+- Missing: Guide, API reference, examples
+2. PipelineBuilder API
+Location: stageflow/pipeline/builder.py (PipelineBuilder class)
+- Gap: While Pipeline is documented, PipelineBuilder (with DAG validation, cycle detection, get_stage, has_stage, stage_names methods) is not
+- Impact: Users can't use advanced builder features
+- Missing: API reference, guide, examples
+3. StageInputs Type
+Location: stageflow/stages/inputs.py
+- Gap: StageInputs is used in UnifiedStageGraph._execute_node but has no dedicated documentation
+- Impact: Users don't understand how to access dependency outputs in the new architecture
+- Missing: API reference, usage guide
+4. Utility Modules
+Location: stageflow/utils/frozen.py
+- Gap: FrozenDict and FrozenList have no documentation
+- Impact: Users won't understand read-only data structures used for child pipeline data isolation
+- Missing: API reference
+5. ContextBag
+Location: stageflow/context/bag.py  
+- Gap: Brief mention in context API, but no comprehensive guide
+- Impact: Users don't understand thread-safe output storage with conflict detection
+- Missing: Guide, API reference, usage examples
+Missing API References
+6. Protocols Module
+Location: stageflow/protocols.py
+- Missing docs for:
+  - ExecutionContext protocol
+  - RunStore protocol  
+  - ConfigProvider protocol
+  - CorrelationIds dataclass
+7. StageResult and StageError
+Location: stageflow/stages/result.py
+- Gap: Used by old StageGraph, minimal documentation
+- Impact: Confusion between StageResult (legacy) and StageOutput (new)
+8. extract_service Utility
+Location: stageflow/stages/context.py
+- Gap: No documentation for extract_service() function
+- Impact: Users don't understand service extraction from topology strings
+Missing Guides
+9. StagePorts Guide
+Location: stageflow/stages/ports.py
+- Gap: Documented in context API but needs dedicated guide
+- Impact: Users unclear on how to inject capabilities into stages
+- Needed: Usage patterns, dependency injection examples
+10. Correlation IDs Guide
+- Gap: CorrelationIds dataclass exists but no guide
+- Impact: Distributed tracing patterns not documented
+- Needed: Best practices for correlation across services
+Incomplete Documentation
+11. Advanced Interceptors
+- Gap: Mentions custom-interceptors.md which exists, but needs more examples
+- Status: Document exists but could be expanded
+12. Subpipeline Integration
+- Gap: SubpipelineResult, SubpipelineSpawner, ChildRunTracker types mentioned in __all__ but not documented
+- Impact: Users don't understand spawner pattern
+- Needed: Usage guide for set_subpipeline_spawner, get_child_tracker
+13. Tools Adapters
+Location: stageflow/tools/adapters.py (DictContextAdapter, adapt_context)
+- Gap: Exported but no documentation
+- Impact: Users don't understand context adaptation for tools
+Summary by Priority
+| Priority | Gap | Module | Missing |
+|----------|------|---------|----------|
+| HIGH | WSMessageProjector | projector/ | Guide, API ref, examples |
+| HIGH | PipelineBuilder | pipeline/builder.py | API ref, guide |
+| HIGH | StageInputs | stages/inputs.py | API ref, guide |
+| HIGH | ContextBag | context/bag.py | Guide, examples |
+| MEDIUM | Utilities (FrozenDict/List) | utils/frozen.py | API ref |
+| MEDIUM | Protocols | protocols.py | API ref |
+| MEDIUM | StagePorts | stages/ports.py | Guide |
+| LOW | StageResult | stages/result.py | API ref |
+| LOW | extract_service | stages/context.py | API ref |
+
+  Summary
+
+  The stageflow project has comprehensive documentation coverage but has significant gaps compared to the actual codebase. The docs describe a simplified architecture while the implementation has evolved with additional components.
+
+  ---
+  Critical Gaps
+
+  1. Subpipeline System (undocumented)
+
+  Missing docs in docs/advanced/subpipelines.md:
+  - ChildRunTracker - Global tracker for parent-child cancellation
+  - SubpipelineSpawner - Spawns/manages child pipeline runs
+  - SubpipelineResult - Captures child run outcomes
+  - get_child_tracker(), set_child_tracker(), clear_child_tracker()
+  - get_subpipeline_spawner(), set_subpipeline_spawner(), clear_subpipeline_spawner()
+  - Pipeline events: pipeline.spawned_child, pipeline.child_completed, pipeline.child_failed, pipeline.canceled
+
+  2. PipelineBuilder (undocumented)
+
+  Location: stageflow/pipeline/builder.py
+  - New fluent builder with DAG validation and cycle detection
+  - Methods: with_stage(), compose(), build(), get_stage(), has_stage(), stage_names()
+  - Cycle detection using Kahn's algorithm
+  - PipelineSpec with inputs/outputs tuples for data flow tracking
+
+  3. UnifiedStageGraph (undocumented)
+
+  Location: stageflow/pipeline/dag.py
+  - Alternative DAG executor using StageContext/StageOutput
+  - UnifiedStageSpec with optional StageKind
+  - UnifiedPipelineCancelled exception
+  - UnifiedStageExecutionError exception
+
+  4. Protocols Module (undocumented)
+
+  Location: stageflow/protocols.py
+  - ExecutionContext - Common interface for PipelineContext/StageContext
+  - RunStore - Pipeline run persistence protocol
+  - ConfigProvider - Configuration access protocol
+  - CorrelationIds - Dataclass for distributed tracing
+
+  5. Extensions System (undocumented)
+
+  Location: stageflow/extensions.py
+  - ExtensionRegistry - Register application-specific extensions
+  - ExtensionHelper - Retrieve typed extensions
+  - TypedExtension protocol for type-safe extensions
+
+  ---
+  Inaccurate Documentation
+
+  1. docs/api/context.md - PipelineContext mismatch
+  Documented: No configuration field
+  Actual: Has configuration: dict[str, Any]
+  ────────────────────────────────────────
+  Documented: No service field
+  Actual: Has service: str = "pipeline"
+  ────────────────────────────────────────
+  Documented: No parent_run_id/parent_stage_id/correlation_id
+  Actual: Has all three for subpipeline support
+  ────────────────────────────────────────
+  Documented: No fork() method
+  Actual: Has comprehensive fork() method
+  ────────────────────────────────────────
+  Documented: No is_child_run property
+  Actual: Has is_child_run property
+  ────────────────────────────────────────
+  Documented: No get_parent_data() method
+  Actual: Has method for parent data access
+  ────────────────────────────────────────
+  Documented: No try_emit_event() method
+  Actual: Has method implementing ExecutionContext protocol
+  2. docs/api/core.md - StageContext incomplete
+  Documented: Only basic context methods
+  Actual: Missing try_emit_event() (mentioned but not in API)
+  ────────────────────────────────────────
+  Documented: No mention of event_sink config
+  Actual: Can be passed via config for observability
+  3. docs/api/pipeline.md - Pipeline class outdated
+  Documented: Pipeline with with_stage(name, runner, kind, dependencies, 
+    conditional)
+  Actual: PipelineBuilder with more comprehensive API
+  ────────────────────────────────────────
+  Documented: No composition validation
+  Actual: Has cycle detection and conflict resolution
+  ────────────────────────────────────────
+  Documented: No inputs/outputs tracking
+  Actual: PipelineSpec.inputs/outputs for data flow
+  4. docs/api/tools.md - AdvancedToolExecutor config mismatch
+  Documented: ToolExecutorConfig attributes: emit_events, store_undo_data,
+    require_approval_for_risky
+  Actual: Actual attributes need verification
+  5. docs/guides/interceptors.md - InterceptorContext reference
+
+  References InterceptorContext but implementation uses InterceptorContext from stageflow.pipeline.interceptors (not in main exports)
+
+  ---
+  Missing API Docs
+
+  1. stageflow/pipeline/__init__.py exports not documented:
+    - PipelineBuilder
+    - PipelineSpec, PipelineValidationError, StageRunner
+    - All subpipeline exports (SubpipelineResult, SubpipelineSpawner, etc.)
+    - PipelineSpawnedChildEvent, PipelineChildCompletedEvent, PipelineChildFailedEvent, PipelineCanceledEvent
+  2. stageflow/__init__.py exports not documented:
+    - extract_service() function
+    - StageError, StageResult (from stages/result.py)
+    - ExecutionContext, ConfigProvider, RunStore, CorrelationIds protocols
+    - Observability: NoOpPipelineRunLogger, NoOpProviderCallLogger
+  3. stageflow/context/__init__.py - Complete exports listed but ContextSnapshot constructor differs from docs
+
+  ---
+  Outdated/Broken References
+
+  1. docs/advanced/subpipelines.md line 402: Links to custom-interceptors.md, errors.md, testing.md but these are in docs/advanced/ not root
+  2. docs/guides/interceptors.md line 437: Links to observability.md which exists, but line 438 links to ../advanced/custom-interceptors.md which exists
+
+  ---
+  Recommendations (Priority Order)
+
+  1. High: Document PipelineBuilder and new DAG validation system
+  2. High: Document SubpipelineSpawner, ChildRunTracker, and child run tracking
+  3. High: Update docs/api/context.md to match actual PipelineContext
+  4. High: Document ExecutionContext protocol and extension protocols
+  5. Medium: Document ExtensionRegistry and extension system
+  6. Medium: Document UnifiedStageGraph vs StageGraph
+  7. Medium: Add missing events to docs/api/events.md (subpipeline events)
+  8. Low: Fix broken internal links in guides
+  9. Low: Add extract_service() to API docs
