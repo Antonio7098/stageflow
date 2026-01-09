@@ -227,7 +227,7 @@ class TestPipelineContext:
         # Mock the event sink
         emitted_events = []
         class MockEventSink:
-            def try_emit(self, *, _type, data):
+            def try_emit(self, *, type, data):
                 emitted_events.append((type, data))
 
         ctx.event_sink = MockEventSink()
@@ -253,7 +253,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, _type, data):
+            def try_emit(self, *, type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()
@@ -289,7 +289,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, _type, data):
+            def try_emit(self, *, type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()
@@ -318,7 +318,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, _type, data):
+            def try_emit(self, *, type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()
@@ -342,7 +342,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, _type, data):
+            def try_emit(self, *, type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()

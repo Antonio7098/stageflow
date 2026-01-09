@@ -57,18 +57,18 @@ class CapturingWideEmitter:
         self.stage_events: list[tuple[str, str]] = []
         self.pipeline_events: list[dict[str, Any]] = []
 
-    def emit_stage_event(self, *, _ctx, result):
+    def emit_stage_event(self, *, ctx, result):
         self.stage_events.append((result.name, result.status))
 
     def emit_pipeline_event(
         self,
         *,
-        _ctx,
+        ctx,
         stage_results,
         pipeline_name,
         status,
         duration_ms,
-        _started_at,
+        started_at,
     ):
         self.pipeline_events.append(
             {

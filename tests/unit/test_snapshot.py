@@ -320,7 +320,7 @@ class TestContextSnapshot:
         with pytest.raises(FrozenInstanceError):
             snapshot.topology = "modified"
 
-    def test_snapshot_has_slots(self, _required_fields):
+    def test_snapshot_has_slots(self):
         """Test ContextSnapshot uses slots."""
         assert hasattr(ContextSnapshot, "__slots__")
 
