@@ -24,11 +24,13 @@ from stageflow import StageKind
 def stage_names(draw: Any) -> str:
     """Generate valid stage names."""
     first_char = draw(st.sampled_from(string.ascii_lowercase))
-    rest = draw(st.text(
-        alphabet=string.ascii_lowercase + string.digits + "_",
-        min_size=2,
-        max_size=20,
-    ))
+    rest = draw(
+        st.text(
+            alphabet=string.ascii_lowercase + string.digits + "_",
+            min_size=2,
+            max_size=20,
+        )
+    )
     return first_char + rest
 
 
@@ -38,10 +40,9 @@ def stage_kinds(draw: Any) -> StageKind:
     return draw(st.sampled_from(list(StageKind)))
 
 
-@st.composite
-def uuids(_draw: Any) -> Any:
+def uuids() -> Any:
     """Generate UUIDs."""
-    return uuid4()
+    return st.builds(uuid4)
 
 
 # Stage specification strategies
@@ -79,36 +80,44 @@ def stage_spec_lists(
     """
     num_stages = draw(st.integers(min_value=min_stages, max_value=max_stages))
 
+    # Generate unique names using st.sets
+    names = list(
+        draw(
+            st.sets(
+                stage_names(),
+                min_size=num_stages,
+                max_size=num_stages,
+            )
+        )
+    )
+
     specs = []
-    used_names: set[str] = set()
 
-    for _i in range(num_stages):
-        # Generate unique name
-        name = draw(stage_names())
-        while name in used_names:
-            name = draw(stage_names())
-        used_names.add(name)
-
+    for i, name in enumerate(names):
         kind = draw(stage_kinds())
 
         # Only depend on earlier stages (ensures no cycles)
         available_deps = [s["name"] for s in specs]
         if available_deps:
             num_deps = draw(st.integers(min_value=0, max_value=min(3, len(available_deps))))
-            deps = draw(st.lists(
-                st.sampled_from(available_deps),
-                min_size=0,
-                max_size=num_deps,
-                unique=True,
-            ))
+            deps = draw(
+                st.lists(
+                    st.sampled_from(available_deps),
+                    min_size=0,
+                    max_size=num_deps,
+                    unique=True,
+                )
+            )
         else:
             deps = []
 
-        specs.append({
-            "name": name,
-            "kind": kind,
-            "dependencies": deps,
-        })
+        specs.append(
+            {
+                "name": name,
+                "kind": kind,
+                "dependencies": deps,
+            }
+        )
 
     return specs
 
@@ -119,30 +128,36 @@ def stage_spec_lists(
 @st.composite
 def context_keys(draw: Any) -> str:
     """Generate valid context keys."""
-    return draw(st.text(
-        alphabet=string.ascii_lowercase + string.digits + "_",
-        min_size=1,
-        max_size=50,
-    ).filter(lambda x: x[0].isalpha()))
+    first_char = draw(st.sampled_from(string.ascii_lowercase))
+    rest = draw(
+        st.text(
+            alphabet=string.ascii_lowercase + string.digits + "_",
+            min_size=0,
+            max_size=49,
+        )
+    )
+    return first_char + rest
 
 
 @st.composite
 def context_values(draw: Any) -> Any:
     """Generate serializable context values."""
-    return draw(st.one_of(
-        st.none(),
-        st.booleans(),
-        st.integers(min_value=-1000000, max_value=1000000),
-        st.floats(allow_nan=False, allow_infinity=False),
-        st.text(min_size=0, max_size=100),
-        st.lists(st.integers(), min_size=0, max_size=10),
-        st.dictionaries(
-            keys=st.text(min_size=1, max_size=20),
-            values=st.one_of(st.integers(), st.text(max_size=20)),
-            min_size=0,
-            max_size=5,
-        ),
-    ))
+    return draw(
+        st.one_of(
+            st.none(),
+            st.booleans(),
+            st.integers(min_value=-1000000, max_value=1000000),
+            st.floats(allow_nan=False, allow_infinity=False),
+            st.text(min_size=0, max_size=100),
+            st.lists(st.integers(), min_size=0, max_size=10),
+            st.dictionaries(
+                keys=st.text(min_size=1, max_size=20),
+                values=st.one_of(st.integers(), st.text(max_size=20)),
+                min_size=0,
+                max_size=5,
+            ),
+        )
+    )
 
 
 # Event strategies
@@ -163,12 +178,14 @@ def events(draw: Any) -> dict[str, Any]:
     return {
         "type": draw(event_types()),
         "timestamp": "2024-01-01T00:00:00Z",
-        "data": draw(st.dictionaries(
-            keys=st.text(min_size=1, max_size=20),
-            values=context_values(),
-            min_size=0,
-            max_size=5,
-        )),
+        "data": draw(
+            st.dictionaries(
+                keys=st.text(min_size=1, max_size=20),
+                values=context_values(),
+                min_size=0,
+                max_size=5,
+            )
+        ),
     }
 
 
@@ -192,25 +209,31 @@ def event_sequences(draw: Any, min_events: int = 1, max_events: int = 20) -> lis
 @st.composite
 def behaviors(draw: Any) -> str:
     """Generate execution behavior/mode strings."""
-    return draw(st.sampled_from([
-        "practice",
-        "roleplay",
-        "doc_edit",
-        "assessment",
-        "conversation",
-        "test",
-    ]))
+    return draw(
+        st.sampled_from(
+            [
+                "practice",
+                "roleplay",
+                "doc_edit",
+                "assessment",
+                "conversation",
+                "test",
+            ]
+        )
+    )
 
 
 @st.composite
 def behavior_tuples(draw: Any, min_size: int = 0, max_size: int = 4) -> tuple[str, ...]:
     """Generate tuples of allowed behaviors."""
-    behaviors_list = draw(st.lists(
-        behaviors(),
-        min_size=min_size,
-        max_size=max_size,
-        unique=True,
-    ))
+    behaviors_list = draw(
+        st.lists(
+            behaviors(),
+            min_size=min_size,
+            max_size=max_size,
+            unique=True,
+        )
+    )
     return tuple(behaviors_list)
 
 

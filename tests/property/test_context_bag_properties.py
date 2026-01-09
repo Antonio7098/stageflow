@@ -22,7 +22,7 @@ class TestContextBagProperties:
     """Property tests for ContextBag."""
 
     @given(context_keys(), context_values())
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_write_then_read_returns_value(self, key: str, value) -> None:
         """Reading after writing always returns the written value."""
         bag = ContextBag()
@@ -32,10 +32,10 @@ class TestContextBagProperties:
             result = bag.read(key)
             assert result == value, f"Expected {value}, got {result}"
 
-        asyncio.get_event_loop().run_until_complete(test())
+        asyncio.run(test())
 
     @given(context_keys(), context_values(), context_values())
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_double_write_same_key_raises(self, key: str, value1, value2) -> None:
         """Writing the same key twice always raises DataConflictError."""
         bag = ContextBag()
@@ -49,13 +49,13 @@ class TestContextBagProperties:
             assert exc_info.value.existing_writer == "stage_a"
             assert exc_info.value.new_writer == "stage_b"
 
-        asyncio.get_event_loop().run_until_complete(test())
+        asyncio.run(test())
 
     @given(
         st.lists(context_keys(), min_size=2, max_size=10, unique=True),
         st.lists(context_values(), min_size=2, max_size=10),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     def test_different_keys_never_conflict(self, keys: list[str], values: list) -> None:
         """Writing different keys never raises."""
         bag = ContextBag()
@@ -70,7 +70,7 @@ class TestContextBagProperties:
                 expected = values[i % len(values)]
                 assert bag.read(key) == expected
 
-        asyncio.get_event_loop().run_until_complete(test())
+        asyncio.run(test())
 
     @given(context_keys())
     @settings(max_examples=50)
@@ -81,7 +81,7 @@ class TestContextBagProperties:
         assert bag.read(key, "default") == "default"
 
     @given(context_keys(), context_values())
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     def test_has_returns_true_after_write(self, key: str, value) -> None:
         """has() returns True after writing a key."""
         bag = ContextBag()
@@ -91,10 +91,10 @@ class TestContextBagProperties:
             await bag.write(key, value, "test_stage")
             assert bag.has(key)
 
-        asyncio.get_event_loop().run_until_complete(test())
+        asyncio.run(test())
 
     @given(context_keys(), context_values())
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     def test_get_writer_returns_stage_name(self, key: str, value) -> None:
         """get_writer() returns the stage that wrote the key."""
         bag = ContextBag()
@@ -105,13 +105,13 @@ class TestContextBagProperties:
             await bag.write(key, value, stage_name)
             assert bag.get_writer(key) == stage_name
 
-        asyncio.get_event_loop().run_until_complete(test())
+        asyncio.run(test())
 
     @given(
         st.lists(context_keys(), min_size=1, max_size=5, unique=True),
         context_values(),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     def test_to_dict_contains_all_written_keys(self, keys: list[str], value) -> None:
         """to_dict() contains all written keys."""
         bag = ContextBag()
@@ -125,4 +125,4 @@ class TestContextBagProperties:
                 assert key in result
                 assert result[key] == value
 
-        asyncio.get_event_loop().run_until_complete(test())
+        asyncio.run(test())
