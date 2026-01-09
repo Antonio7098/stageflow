@@ -45,7 +45,6 @@ class ContextSnapshot:
 
     # === Topology / Configuration / Execution Mode ===
     topology: str | None  # e.g., "fast_kernel", "accurate_kernel"
-    channel: str | None  # e.g., "text_channel", "voice_channel"
     execution_mode: str | None  # e.g., "practice", "roleplay", "doc_edit"
 
     # === Message History ===
@@ -82,7 +81,6 @@ class ContextSnapshot:
             "org_id": str(self.org_id) if self.org_id else None,
             "interaction_id": str(self.interaction_id) if self.interaction_id else None,
             "topology": self.topology,
-            "channel": self.channel,
             "execution_mode": self.execution_mode,
             "messages": [
                 {
@@ -97,7 +95,6 @@ class ContextSnapshot:
                 "agent_id": self.routing_decision.agent_id,
                 "pipeline_name": self.routing_decision.pipeline_name,
                 "topology": self.routing_decision.topology,
-                "channel": self.routing_decision.channel,
                 "reason": self.routing_decision.reason,
             }
             if self.routing_decision
@@ -161,7 +158,6 @@ class ContextSnapshot:
                 agent_id=rd["agent_id"],
                 pipeline_name=rd["pipeline_name"],
                 topology=rd["topology"],
-                channel=rd["channel"],
                 reason=rd.get("reason"),
             )
 
@@ -209,7 +205,6 @@ class ContextSnapshot:
             org_id=UUID(data["org_id"]) if data.get("org_id") else None,
             interaction_id=UUID(data["interaction_id"]) if data.get("interaction_id") else None,
             topology=data.get("topology"),
-            channel=data.get("channel"),
             execution_mode=data.get("execution_mode"),
             messages=messages,
             routing_decision=routing_decision,

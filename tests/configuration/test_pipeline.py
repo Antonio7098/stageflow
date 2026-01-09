@@ -369,7 +369,7 @@ class TestPipeline:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
+            
             execution_mode="test",
         )
 

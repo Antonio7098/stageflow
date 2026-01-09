@@ -83,7 +83,6 @@ snapshot = ContextSnapshot(
     org_id=None,
     interaction_id=uuid4(),
     topology="quickstart",
-    channel="text",
     execution_mode="default",
     input_text="hello world",  # Our input
 )
@@ -167,7 +166,6 @@ async def main():
         org_id=None,
         interaction_id=uuid4(),
         topology="quickstart",
-        channel="text",
         execution_mode="default",
         input_text="hello world",
     )

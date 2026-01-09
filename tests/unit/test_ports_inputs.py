@@ -314,7 +314,6 @@ class TestStageInputs:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
 
@@ -445,7 +444,6 @@ class TestCreateStageInputs:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
 
@@ -500,7 +498,6 @@ class TestPortsInputsEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
         inputs = StageInputs(snapshot=snapshot, prior_outputs={})
@@ -517,7 +514,6 @@ class TestPortsInputsEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
         inputs = create_stage_inputs(snapshot=snapshot, prior_outputs=None)
@@ -533,7 +529,6 @@ class TestPortsInputsEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
         outputs = {
@@ -585,7 +580,6 @@ class TestPortsInputsEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
         outputs = {
@@ -609,7 +603,6 @@ class TestPortsInputsEdgeCases:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            channel="test",
             execution_mode="test",
         )
         # Create outputs dict (preserves insertion order in Python 3.7+)

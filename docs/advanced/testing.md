@@ -42,7 +42,6 @@ def snapshot():
         org_id=None,
         interaction_id=uuid4(),
         topology="test",
-        channel="text",
         execution_mode="test",
         input_text="hello world",
     )
@@ -104,7 +103,6 @@ async def test_profile_enrich_skips_without_user_id():
         org_id=None,
         interaction_id=uuid4(),
         topology="test",
-        channel="text",
         execution_mode="test",
     )
     ctx = StageContext(snapshot=snapshot)
@@ -442,7 +440,6 @@ def base_snapshot(user_id, session_id):
         org_id=uuid4(),
         interaction_id=uuid4(),
         topology="test",
-        channel="text",
         execution_mode="test",
     )
 

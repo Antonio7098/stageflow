@@ -21,7 +21,6 @@ ContextSnapshot(
     org_id: UUID | None,
     interaction_id: UUID | None,
     topology: str | None = None,
-    channel: str | None = None,
     execution_mode: str | None = None,
     messages: list[Message] = [],
     routing_decision: RoutingDecision | None = None,
@@ -47,7 +46,6 @@ ContextSnapshot(
 | `org_id` | `UUID \| None` | Organization identifier |
 | `interaction_id` | `UUID \| None` | Interaction identifier |
 | `topology` | `str \| None` | Pipeline topology name |
-| `channel` | `str \| None` | Input channel |
 | `execution_mode` | `str \| None` | Execution mode |
 | `messages` | `list[Message]` | Conversation history |
 | `routing_decision` | `RoutingDecision \| None` | Routing decision |
@@ -124,7 +122,6 @@ Routing decision made by a router stage.
 | `agent_id` | `str` | Selected agent identifier |
 | `pipeline_name` | `str` | Target pipeline name |
 | `topology` | `str` | Target topology |
-| `channel` | `str` | Target channel |
 | `reason` | `str \| None` | Routing reason |
 
 ```python
@@ -134,7 +131,6 @@ decision = RoutingDecision(
     agent_id="support_agent",
     pipeline_name="support_pipeline",
     topology="support_fast",
-    channel="text",
     reason="User asked for help",
 )
 ```
@@ -362,7 +358,6 @@ snapshot = ContextSnapshot(
     org_id=uuid4(),
     interaction_id=uuid4(),
     topology="chat_fast",
-    channel="text",
     execution_mode="practice",
     input_text="Hello!",
     messages=[

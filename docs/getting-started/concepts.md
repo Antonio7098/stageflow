@@ -136,7 +136,6 @@ snapshot = ContextSnapshot(
     org_id=uuid4(),
     interaction_id=uuid4(),
     topology="chat_fast",
-    channel="text",
     execution_mode="practice",
     input_text="Hello!",
     messages=[...],

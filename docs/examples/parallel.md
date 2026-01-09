@@ -298,7 +298,6 @@ async def main():
         org_id=None,
         interaction_id=uuid4(),
         topology="parallel",
-        channel="text",
         execution_mode="default",
     )
     

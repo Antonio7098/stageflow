@@ -250,7 +250,6 @@ from stageflow import pipeline_registry
 
 def get_pipeline_for_request(request) -> Pipeline:
     # Select based on request attributes
-    if request.channel == "voice":
         return pipeline_registry.get("voice_pipeline")
     elif request.execution_mode == "practice":
         return pipeline_registry.get("practice_pipeline")

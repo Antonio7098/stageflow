@@ -469,7 +469,6 @@ async def main():
         org_id=None,
         interaction_id=uuid4(),
         topology="full",
-        channel="text",
         execution_mode="default",
         input_text="Hello, I need help with Python!",
     )
@@ -492,7 +491,6 @@ async def main():
         org_id=None,
         interaction_id=uuid4(),
         topology="full",
-        channel="text",
         execution_mode="default",
         input_text="How do I hack into systems?",
     )

@@ -20,7 +20,6 @@ Log pipeline run start.
 - `pipeline_run_id`: `UUID` — Run identifier
 - `pipeline_name`: `str` — Pipeline name
 - `topology`: `str | None` — Topology name
-- `channel`: `str | None` — Channel name
 - `execution_mode`: `str | None` — Execution mode
 - `user_id`: `UUID | None` — User identifier
 - `**kwargs` — Additional metadata

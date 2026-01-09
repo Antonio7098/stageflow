@@ -381,7 +381,6 @@ async def main():
             org_id=None,
             interaction_id=uuid4(),
             topology="agent_demo",
-            channel="text",
             execution_mode="default",
             input_text=input_text,
         )

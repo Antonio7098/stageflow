@@ -38,8 +38,9 @@ def create_snapshot(
         org_id=uuid4(),
         interaction_id=uuid4(),
         topology=topology,
-        channel="test",
+        
         execution_mode="test",
+        extra={"key": "value"}
     )
 
 

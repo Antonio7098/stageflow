@@ -255,7 +255,6 @@ async def main():
             org_id=None,
             interaction_id=uuid4(),
             topology="chat",
-            channel="text",
             execution_mode="default",
             input_text=input_text,
         )
@@ -303,7 +302,6 @@ snapshot = ContextSnapshot(
     org_id=None,
     interaction_id=uuid4(),
     topology="chat",
-    channel="text",
     execution_mode="default",
     input_text="Can you explain more?",
     messages=[

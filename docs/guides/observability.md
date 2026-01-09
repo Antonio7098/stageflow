@@ -302,7 +302,6 @@ class PipelineRunLogger(Protocol):
         pipeline_run_id: UUID,
         pipeline_name: str,
         topology: str | None,
-        channel: str | None,
         execution_mode: str | None,
         user_id: UUID | None,
         **kwargs,

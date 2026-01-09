@@ -43,7 +43,7 @@ def create_snapshot() -> ContextSnapshot:
         org_id=uuid4(),
         interaction_id=uuid4(),
         topology="test_topology",
-        channel="test_channel",
+        
         execution_mode="test",
     )
 

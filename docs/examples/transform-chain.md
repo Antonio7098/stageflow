@@ -195,7 +195,6 @@ async def main():
         org_id=None,
         interaction_id=uuid4(),
         topology="transform_chain",
-        channel="text",
         execution_mode="default",
         input_text="Hello, this is a test of the transform chain!",
     )

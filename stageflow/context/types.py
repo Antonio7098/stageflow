@@ -24,5 +24,4 @@ class RoutingDecision:
     agent_id: str
     pipeline_name: str
     topology: str
-    channel: str
     reason: str | None = None

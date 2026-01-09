@@ -71,7 +71,6 @@ async def main():
         org_id=None,
         interaction_id=None,
         topology=None,
-        channel=None,
         execution_mode=None,
     )
     

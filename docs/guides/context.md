@@ -58,7 +58,6 @@ snapshot = ContextSnapshot(
     
     # Configuration
     topology="chat_fast",
-    channel="text",
     execution_mode="practice",
     
     # Input
@@ -99,7 +98,6 @@ snapshot = ContextSnapshot(
 | `org_id` | `UUID` | Organization/tenant identifier |
 | `interaction_id` | `UUID` | Specific interaction identifier |
 | `topology` | `str` | Pipeline topology name |
-| `channel` | `str` | Input channel (text, voice, etc.) |
 | `execution_mode` | `str` | Execution mode (practice, roleplay, etc.) |
 | `input_text` | `str` | Raw user input |
 | `messages` | `list[Message]` | Conversation history |
@@ -470,7 +468,6 @@ decision = RoutingDecision(
     agent_id="support_agent",
     pipeline_name="support_pipeline",
     topology="support_fast",
-    channel="text",
     reason="User asked for help with billing",
 )
 ```

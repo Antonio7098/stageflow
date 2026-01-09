@@ -26,7 +26,6 @@ snapshot = ContextSnapshot(
     org_id=None,
     interaction_id=uuid4(),
     topology="chat",
-    channel="text",
     execution_mode="default",
     extensions={
         "skills": {

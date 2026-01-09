@@ -77,12 +77,10 @@ class TestRoutingDecision:
             agent_id="coach",
             pipeline_name="practice",
             topology="fast_kernel",
-            channel="voice_channel",
         )
         assert decision.agent_id == "coach"
         assert decision.pipeline_name == "practice"
         assert decision.topology == "fast_kernel"
-        assert decision.channel == "voice_channel"
         assert decision.reason is None
 
     def test_routing_decision_with_reason(self):
@@ -91,7 +89,6 @@ class TestRoutingDecision:
             agent_id="interviewer",
             pipeline_name="interview",
             topology="accurate_kernel",
-            channel="text_channel",
             reason="High accuracy required",
         )
         assert decision.reason == "High accuracy required"
@@ -102,7 +99,6 @@ class TestRoutingDecision:
             agent_id="test",
             pipeline_name="test",
             topology="test",
-            channel="test",
         )
         with pytest.raises(FrozenInstanceError):
             decision.agent_id = "modified"
@@ -259,7 +255,6 @@ class TestContextSnapshot:
             agent_id="coach",
             pipeline_name="practice",
             topology="fast_kernel",
-            channel="voice_channel",
         )
         snapshot = ContextSnapshot(routing_decision=decision, **required_fields)
         assert snapshot.routing_decision == decision
@@ -349,7 +344,6 @@ class TestContextSnapshotSerialization:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="chat_fast",
-            channel="voice_channel",
             execution_mode="practice",
             messages=[
                 Message(role="user", content="Hello", timestamp=datetime.now(UTC)),
@@ -359,7 +353,6 @@ class TestContextSnapshotSerialization:
                 agent_id="coach",
                 pipeline_name="practice",
                 topology="fast_kernel",
-                channel="voice_channel",
                 reason="Practice session",
             ),
             profile=ProfileEnrichment(
@@ -394,7 +387,6 @@ class TestContextSnapshotSerialization:
 
         assert isinstance(result, dict)
         assert result["topology"] == "chat_fast"
-        assert result["channel"] == "voice_channel"
         assert result["execution_mode"] == "practice"
 
     def test_to_dict_handles_uuid(self, full_snapshot):
@@ -507,7 +499,6 @@ class TestContextSnapshotSerialization:
 
         # Check all fields
         assert restored.topology == full_snapshot.topology
-        assert restored.channel == full_snapshot.channel
         assert restored.execution_mode == full_snapshot.execution_mode
         assert len(restored.messages) == len(full_snapshot.messages)
         assert restored.input_text == full_snapshot.input_text
@@ -517,7 +508,6 @@ class TestContextSnapshotSerialization:
         """Test from_dict with minimal data."""
         data = {
             "topology": "test",
-            "channel": "test",
             "execution_mode": "test",
         }
         restored = ContextSnapshot.from_dict(data)
