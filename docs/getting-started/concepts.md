@@ -1,0 +1,264 @@
+# Core Concepts
+
+This guide explains the fundamental concepts behind stageflow. Understanding these will help you design better pipelines.
+
+## The Big Picture
+
+Stageflow is a **DAG-based execution framework**. You define stages (nodes) and their dependencies (edges), and the framework handles:
+
+- Running stages in the correct order
+- Parallelizing independent stages
+- Passing data between stages
+- Handling errors and cancellation
+- Providing observability (logging, metrics, tracing)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Pipeline                              │
+│                                                              │
+│   [input_guard] ──┐                                         │
+│                   │                                         │
+│   [profile] ──────┼──> [llm] ──> [output_guard]            │
+│                   │                                         │
+│   [memory] ───────┘                                         │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Stages
+
+A **Stage** is the fundamental unit of work. Every stage:
+
+1. Has a **name** (unique identifier)
+2. Has a **kind** (categorization)
+3. Implements an **execute** method
+
+```python
+from stageflow import StageContext, StageKind, StageOutput
+
+class MyStage:
+    name = "my_stage"
+    kind = StageKind.TRANSFORM
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        # Do work here
+        return StageOutput.ok(result="done")
+```
+
+### Stage Kinds
+
+Stages are categorized by their purpose:
+
+| Kind | Purpose | Examples |
+|------|---------|----------|
+| `TRANSFORM` | Change data form | STT, TTS, LLM, text processing |
+| `ENRICH` | Add context | Profile lookup, memory retrieval |
+| `ROUTE` | Select execution path | Router, dispatcher |
+| `GUARD` | Validate/filter | Input validation, output filtering |
+| `WORK` | Side effects | Persistence, assessment, notifications |
+| `AGENT` | Interactive logic | Chat agents, coaches |
+
+### Stage Output
+
+Every stage returns a `StageOutput`:
+
+```python
+# Success with data
+return StageOutput.ok(key="value", another="data")
+
+# Skip this stage (conditional execution)
+return StageOutput.skip(reason="condition not met")
+
+# Cancel the entire pipeline (graceful stop)
+return StageOutput.cancel(reason="user requested stop")
+
+# Failure
+return StageOutput.fail(error="Something went wrong")
+```
+
+## Pipelines
+
+A **Pipeline** is a collection of stages with their dependencies. Use the fluent builder API:
+
+```python
+from stageflow import Pipeline, StageKind
+
+pipeline = (
+    Pipeline()
+    .with_stage("stage_a", StageA, StageKind.TRANSFORM)
+    .with_stage("stage_b", StageB, StageKind.TRANSFORM)
+    .with_stage(
+        "stage_c",
+        StageC,
+        StageKind.TRANSFORM,
+        dependencies=("stage_a", "stage_b"),  # Waits for both
+    )
+)
+```
+
+### Dependency Rules
+
+- Stages with **no dependencies** run immediately (in parallel if multiple)
+- Stages run as soon as **all dependencies complete**
+- The framework detects cycles and deadlocks
+
+### Building the Graph
+
+Call `build()` to create an executable `StageGraph`:
+
+```python
+graph = pipeline.build()
+results = await graph.run(ctx)
+```
+
+## Context
+
+Context carries data through the pipeline. There are two main context types:
+
+### ContextSnapshot
+
+An **immutable** view of the world passed to stages. Contains:
+
+- **Run identity**: `pipeline_run_id`, `request_id`, `session_id`, `user_id`, `org_id`
+- **Configuration**: `topology`, `execution_mode`
+- **Input data**: `input_text`, `messages`
+- **Enrichments**: `profile`, `memory`, `documents`
+- **Extensions**: Application-specific data
+
+```python
+from stageflow.context import ContextSnapshot
+
+snapshot = ContextSnapshot(
+    pipeline_run_id=uuid4(),
+    request_id=uuid4(),
+    session_id=uuid4(),
+    user_id=uuid4(),
+    org_id=uuid4(),
+    interaction_id=uuid4(),
+    topology="chat_fast",
+    channel="text",
+    execution_mode="practice",
+    input_text="Hello!",
+    messages=[...],
+)
+```
+
+### StageContext
+
+The **execution wrapper** that stages receive. Provides:
+
+- Access to the immutable snapshot
+- Stage configuration
+- Output collection methods
+- Event emission
+
+```python
+async def execute(self, ctx: StageContext) -> StageOutput:
+    # Read from snapshot (immutable)
+    user_input = ctx.snapshot.input_text
+    user_id = ctx.snapshot.user_id
+    
+    # Access stage config
+    timeout = ctx.config.get("timeout", 30)
+    
+    # Get outputs from dependencies
+    inputs = ctx.config.get("inputs")
+    previous_result = inputs.get("some_key") if inputs else None
+    
+    return StageOutput.ok(...)
+```
+
+## Data Flow
+
+Data flows through the pipeline via stage outputs:
+
+1. **Snapshot** provides initial input (immutable)
+2. **Stage outputs** are collected as `StageOutput.data`
+3. **Downstream stages** access upstream outputs via `inputs`
+
+```python
+# Stage A produces data
+class StageA:
+    async def execute(self, ctx):
+        return StageOutput.ok(computed_value=42)
+
+# Stage B (depends on A) consumes it
+class StageB:
+    async def execute(self, ctx):
+        inputs = ctx.config.get("inputs")
+        value = inputs.get("computed_value")  # 42
+        return StageOutput.ok(doubled=value * 2)
+```
+
+## Interceptors
+
+**Interceptors** are middleware that wrap stage execution. They handle cross-cutting concerns:
+
+- **Logging** — Structured logging of stage events
+- **Metrics** — Duration, success/failure tracking
+- **Tracing** — OpenTelemetry span creation
+- **Timeouts** — Per-stage execution limits
+- **Circuit Breakers** — Prevent cascading failures
+- **Authentication** — JWT validation and org enforcement
+
+```python
+from stageflow import get_default_interceptors
+
+# Default interceptors are applied automatically
+interceptors = get_default_interceptors()
+# [TimeoutInterceptor, CircuitBreakerInterceptor, TracingInterceptor, 
+#  MetricsInterceptor, LoggingInterceptor]
+```
+
+## Events
+
+Stageflow emits structured events for observability:
+
+- `stage.{name}.started` — Stage began execution
+- `stage.{name}.completed` — Stage finished successfully
+- `stage.{name}.failed` — Stage failed with error
+
+Events flow through an `EventSink`:
+
+```python
+from stageflow import set_event_sink, LoggingEventSink
+
+# Use logging sink (default)
+set_event_sink(LoggingEventSink())
+
+# Or implement your own
+class MyEventSink:
+    async def emit(self, *, type: str, data: dict) -> None:
+        await save_to_database(type, data)
+    
+    def try_emit(self, *, type: str, data: dict) -> None:
+        asyncio.create_task(self.emit(type=type, data=data))
+```
+
+## Key Principles
+
+### 1. Containers vs. Payloads
+
+Stages are **containers** that handle orchestration (timeouts, retries, telemetry). Business logic lives in **payloads** (the actual work being done).
+
+### 2. Immutable Data Flow
+
+The `ContextSnapshot` is frozen. Stages cannot modify shared state—they read inputs and produce outputs.
+
+### 3. Parallel by Default
+
+Independent stages run concurrently. You don't need to manage threads or async coordination.
+
+### 4. Observability First
+
+Every stage execution is logged, timed, and traceable. Events are emitted for monitoring and debugging.
+
+### 5. Fail Fast, Recover Gracefully
+
+Errors are caught, logged, and can trigger retries or fallbacks via interceptors.
+
+## Next Steps
+
+- [Building Stages](../guides/stages.md) — Deep dive into stage implementation
+- [Composing Pipelines](../guides/pipelines.md) — Advanced pipeline patterns
+- [Context & Data Flow](../guides/context.md) — Detailed context usage

@@ -1,0 +1,576 @@
+# Testing Strategies
+
+This guide covers testing patterns for stageflow pipelines, stages, and interceptors.
+
+## Testing Pyramid
+
+```
+        E2E Tests (10-20)
+       /                \
+      /  Integration     \
+     /   Tests (50-100)   \
+    /                      \
+   /    Unit Tests          \
+  /     (200-500)            \
+ /_____________________________\
+```
+
+- **Unit tests**: Fast, isolated, no external dependencies
+- **Integration tests**: Test stage interactions, mock external services
+- **E2E tests**: Full user journeys, real services
+
+## Unit Testing Stages
+
+### Basic Stage Test
+
+```python
+import pytest
+from uuid import uuid4
+from stageflow import StageContext, StageOutput, StageStatus
+from stageflow.context import ContextSnapshot
+
+from my_app.stages import UppercaseStage
+
+
+@pytest.fixture
+def snapshot():
+    return ContextSnapshot(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=uuid4(),
+        org_id=None,
+        interaction_id=uuid4(),
+        topology="test",
+        channel="text",
+        execution_mode="test",
+        input_text="hello world",
+    )
+
+
+@pytest.fixture
+def ctx(snapshot):
+    return StageContext(snapshot=snapshot)
+
+
+@pytest.mark.asyncio
+async def test_uppercase_stage(ctx):
+    stage = UppercaseStage()
+    
+    output = await stage.execute(ctx)
+    
+    assert output.status == StageStatus.OK
+    assert output.data["text"] == "HELLO WORLD"
+```
+
+### Testing with Dependencies
+
+```python
+from unittest.mock import AsyncMock, Mock
+
+@pytest.fixture
+def mock_profile_service():
+    service = Mock()
+    service.get_profile = AsyncMock(return_value=Profile(
+        user_id=uuid4(),
+        display_name="Alice",
+        preferences={"tone": "friendly"},
+        goals=["Learn Python"],
+    ))
+    return service
+
+
+@pytest.mark.asyncio
+async def test_profile_enrich_stage(ctx, mock_profile_service):
+    stage = ProfileEnrichStage(profile_service=mock_profile_service)
+    
+    output = await stage.execute(ctx)
+    
+    assert output.status == StageStatus.OK
+    assert output.data["profile"]["display_name"] == "Alice"
+    mock_profile_service.get_profile.assert_called_once_with(ctx.snapshot.user_id)
+```
+
+### Testing Skip Conditions
+
+```python
+@pytest.mark.asyncio
+async def test_profile_enrich_skips_without_user_id():
+    snapshot = ContextSnapshot(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=None,  # No user_id
+        org_id=None,
+        interaction_id=uuid4(),
+        topology="test",
+        channel="text",
+        execution_mode="test",
+    )
+    ctx = StageContext(snapshot=snapshot)
+    stage = ProfileEnrichStage()
+    
+    output = await stage.execute(ctx)
+    
+    assert output.status == StageStatus.SKIP
+    assert "No user_id" in output.data.get("reason", "")
+```
+
+### Testing Error Handling
+
+```python
+@pytest.mark.asyncio
+async def test_llm_stage_handles_api_error(ctx, mock_llm_client):
+    mock_llm_client.chat.side_effect = Exception("API Error")
+    stage = LLMStage(llm_client=mock_llm_client)
+    
+    output = await stage.execute(ctx)
+    
+    assert output.status == StageStatus.FAIL
+    assert "API Error" in output.error
+```
+
+## Integration Testing Pipelines
+
+### Testing Pipeline Execution
+
+```python
+import pytest
+from stageflow import Pipeline, StageKind, StageContext
+from stageflow.context import ContextSnapshot
+
+
+@pytest.fixture
+def test_pipeline():
+    return (
+        Pipeline()
+        .with_stage("input", MockInputStage, StageKind.TRANSFORM)
+        .with_stage("process", MockProcessStage, StageKind.TRANSFORM, dependencies=("input",))
+        .with_stage("output", MockOutputStage, StageKind.TRANSFORM, dependencies=("process",))
+    )
+
+
+@pytest.mark.asyncio
+async def test_pipeline_execution(test_pipeline, snapshot):
+    graph = test_pipeline.build()
+    ctx = StageContext(snapshot=snapshot)
+    
+    results = await graph.run(ctx)
+    
+    assert "input" in results
+    assert "process" in results
+    assert "output" in results
+    assert all(r.status == StageStatus.OK for r in results.values())
+```
+
+### Testing Data Flow
+
+```python
+@pytest.mark.asyncio
+async def test_data_flows_between_stages(snapshot):
+    pipeline = (
+        Pipeline()
+        .with_stage("producer", ProducerStage, StageKind.TRANSFORM)
+        .with_stage("consumer", ConsumerStage, StageKind.TRANSFORM, dependencies=("producer",))
+    )
+    
+    graph = pipeline.build()
+    ctx = StageContext(snapshot=snapshot)
+    
+    results = await graph.run(ctx)
+    
+    # Verify producer output
+    assert results["producer"].data["value"] == 42
+    
+    # Verify consumer received producer's output
+    assert results["consumer"].data["received_value"] == 42
+```
+
+### Testing Parallel Execution
+
+```python
+import time
+
+@pytest.mark.asyncio
+async def test_parallel_stages_run_concurrently(snapshot):
+    # Stages that each take 0.1s
+    pipeline = (
+        Pipeline()
+        .with_stage("parallel_a", SlowStage(delay=0.1), StageKind.ENRICH)
+        .with_stage("parallel_b", SlowStage(delay=0.1), StageKind.ENRICH)
+        .with_stage("aggregate", AggregateStage, StageKind.TRANSFORM, 
+                   dependencies=("parallel_a", "parallel_b"))
+    )
+    
+    graph = pipeline.build()
+    ctx = StageContext(snapshot=snapshot)
+    
+    start = time.time()
+    results = await graph.run(ctx)
+    elapsed = time.time() - start
+    
+    # Should take ~0.1s (parallel), not ~0.2s (sequential)
+    assert elapsed < 0.15
+```
+
+### Testing Cancellation
+
+```python
+from stageflow.pipeline.dag import UnifiedPipelineCancelled
+
+@pytest.mark.asyncio
+async def test_pipeline_cancellation(snapshot):
+    pipeline = (
+        Pipeline()
+        .with_stage("guard", CancellingGuardStage, StageKind.GUARD)
+        .with_stage("process", ProcessStage, StageKind.TRANSFORM, dependencies=("guard",))
+    )
+    
+    graph = pipeline.build()
+    ctx = StageContext(snapshot=snapshot)
+    
+    with pytest.raises(UnifiedPipelineCancelled) as exc_info:
+        await graph.run(ctx)
+    
+    assert exc_info.value.stage == "guard"
+    assert "guard" in exc_info.value.results
+    assert "process" not in exc_info.value.results
+```
+
+## Testing Interceptors
+
+### Basic Interceptor Test
+
+```python
+from stageflow import BaseInterceptor, InterceptorResult
+from stageflow.stages.context import PipelineContext
+
+@pytest.fixture
+def mock_pipeline_ctx():
+    ctx = Mock(spec=PipelineContext)
+    ctx.pipeline_run_id = uuid4()
+    ctx.user_id = uuid4()
+    ctx.data = {}
+    return ctx
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_allows_requests(mock_pipeline_ctx):
+    interceptor = RateLimitInterceptor(max_requests=10)
+    
+    result = await interceptor.before("test_stage", mock_pipeline_ctx)
+    
+    assert result is None  # None means continue
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_blocks_excess(mock_pipeline_ctx):
+    interceptor = RateLimitInterceptor(max_requests=2)
+    
+    # First two pass
+    await interceptor.before("test_stage", mock_pipeline_ctx)
+    await interceptor.before("test_stage", mock_pipeline_ctx)
+    
+    # Third blocked
+    result = await interceptor.before("test_stage", mock_pipeline_ctx)
+    
+    assert result is not None
+    assert result.stage_ran is False
+```
+
+### Testing Error Handling
+
+```python
+from stageflow import ErrorAction
+
+@pytest.mark.asyncio
+async def test_retry_interceptor_retries_transient_errors(mock_pipeline_ctx):
+    interceptor = RetryInterceptor(max_retries=3)
+    
+    action = await interceptor.on_error(
+        "test_stage",
+        TimeoutError("Connection timed out"),
+        mock_pipeline_ctx,
+    )
+    
+    assert action == ErrorAction.RETRY
+
+
+@pytest.mark.asyncio
+async def test_retry_interceptor_fails_permanent_errors(mock_pipeline_ctx):
+    interceptor = RetryInterceptor(max_retries=3)
+    
+    action = await interceptor.on_error(
+        "test_stage",
+        ValueError("Invalid input"),
+        mock_pipeline_ctx,
+    )
+    
+    assert action == ErrorAction.FAIL
+```
+
+## Testing Tools
+
+### Basic Tool Test
+
+```python
+from stageflow.tools import ToolInput, ToolOutput
+
+@pytest.fixture
+def tool_input():
+    return ToolInput(
+        action_id=uuid4(),
+        tool_name="greet",
+        payload={"name": "Alice"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_greet_tool(tool_input):
+    tool = GreetTool()
+    
+    output = await tool.execute(tool_input, ctx={})
+    
+    assert output.success
+    assert output.data["message"] == "Hello, Alice!"
+```
+
+### Testing Tool Registry
+
+```python
+from stageflow.tools import get_tool_registry
+
+@pytest.fixture
+def registry():
+    reg = get_tool_registry()
+    reg.register(GreetTool())
+    reg.register(CalculatorTool())
+    yield reg
+    # Cleanup if needed
+
+
+def test_registry_finds_tool(registry):
+    tool = registry.get("greet")
+    assert tool is not None
+    assert tool.name == "greet"
+
+
+def test_registry_finds_by_action_type(registry):
+    tool = registry.get_by_action_type("GREET")
+    assert tool is not None
+```
+
+## Contract Tests
+
+### Stage Contract
+
+```python
+@pytest.mark.asyncio
+async def test_stage_returns_stage_output(ctx):
+    """All stages must return StageOutput."""
+    stage = MyStage()
+    
+    output = await stage.execute(ctx)
+    
+    assert isinstance(output, StageOutput)
+    assert output.status in StageStatus
+
+
+@pytest.mark.asyncio
+async def test_stage_has_required_attributes():
+    """All stages must have name and kind."""
+    stage = MyStage()
+    
+    assert hasattr(stage, "name")
+    assert hasattr(stage, "kind")
+    assert isinstance(stage.name, str)
+    assert isinstance(stage.kind, StageKind)
+```
+
+### Pipeline Contract
+
+```python
+def test_pipeline_has_no_cycles():
+    """Pipeline must be a valid DAG."""
+    pipeline = create_my_pipeline()
+    
+    # build() validates the DAG
+    graph = pipeline.build()
+    
+    assert len(graph.stage_specs) > 0
+
+
+def test_pipeline_dependencies_exist():
+    """All dependencies must reference existing stages."""
+    pipeline = create_my_pipeline()
+    stage_names = set(pipeline.stages.keys())
+    
+    for spec in pipeline.stages.values():
+        for dep in spec.dependencies:
+            assert dep in stage_names, f"Missing dependency: {dep}"
+```
+
+## Fixtures and Helpers
+
+### Common Fixtures
+
+```python
+# conftest.py
+import pytest
+from uuid import uuid4
+from stageflow import StageContext
+from stageflow.context import ContextSnapshot
+
+
+@pytest.fixture
+def user_id():
+    return uuid4()
+
+
+@pytest.fixture
+def session_id():
+    return uuid4()
+
+
+@pytest.fixture
+def base_snapshot(user_id, session_id):
+    return ContextSnapshot(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=session_id,
+        user_id=user_id,
+        org_id=uuid4(),
+        interaction_id=uuid4(),
+        topology="test",
+        channel="text",
+        execution_mode="test",
+    )
+
+
+@pytest.fixture
+def ctx(base_snapshot):
+    return StageContext(snapshot=base_snapshot)
+
+
+@pytest.fixture
+def ctx_with_input(base_snapshot):
+    def _create(input_text: str):
+        snapshot = ContextSnapshot(
+            **{**base_snapshot.__dict__, "input_text": input_text}
+        )
+        return StageContext(snapshot=snapshot)
+    return _create
+```
+
+### Mock Services
+
+```python
+# test_helpers.py
+from unittest.mock import AsyncMock, Mock
+
+def create_mock_llm_client(response: str = "Mock response"):
+    client = Mock()
+    client.chat = AsyncMock(return_value=response)
+    return client
+
+
+def create_mock_profile_service(display_name: str = "Test User"):
+    service = Mock()
+    service.get_profile = AsyncMock(return_value=Profile(
+        user_id=uuid4(),
+        display_name=display_name,
+        preferences={},
+        goals=[],
+    ))
+    return service
+```
+
+## Best Practices
+
+### 1. Test Behavior, Not Implementation
+
+```python
+# Good: Tests behavior
+@pytest.mark.asyncio
+async def test_uppercase_transforms_text(ctx):
+    stage = UppercaseStage()
+    output = await stage.execute(ctx)
+    assert output.data["text"] == ctx.snapshot.input_text.upper()
+
+# Bad: Tests implementation details
+@pytest.mark.asyncio
+async def test_uppercase_calls_upper_method(ctx):
+    with patch.object(str, "upper") as mock_upper:
+        stage = UppercaseStage()
+        await stage.execute(ctx)
+        mock_upper.assert_called()
+```
+
+### 2. Use Descriptive Test Names
+
+```python
+# Good
+def test_profile_enrich_skips_when_user_id_missing(): ...
+def test_llm_stage_retries_on_timeout(): ...
+def test_guard_cancels_pipeline_on_blocked_content(): ...
+
+# Bad
+def test_stage(): ...
+def test_error(): ...
+def test_1(): ...
+```
+
+### 3. Keep Tests Fast
+
+```python
+# Good: Mock slow operations
+@pytest.mark.asyncio
+async def test_llm_stage(mock_llm_client):
+    mock_llm_client.chat = AsyncMock(return_value="response")
+    stage = LLMStage(llm_client=mock_llm_client)
+    # Fast test
+
+# Bad: Real API calls
+@pytest.mark.asyncio
+async def test_llm_stage():
+    stage = LLMStage(llm_client=RealLLMClient())
+    # Slow, flaky, costs money
+```
+
+### 4. Test Edge Cases
+
+```python
+@pytest.mark.asyncio
+async def test_handles_empty_input(ctx_with_input):
+    ctx = ctx_with_input("")
+    stage = ProcessStage()
+    output = await stage.execute(ctx)
+    assert output.status == StageStatus.OK
+
+
+@pytest.mark.asyncio
+async def test_handles_very_long_input(ctx_with_input):
+    ctx = ctx_with_input("x" * 100000)
+    stage = ProcessStage()
+    output = await stage.execute(ctx)
+    # Verify handling
+```
+
+### 5. Isolate Tests
+
+```python
+# Good: Each test is independent
+@pytest.fixture
+def fresh_registry():
+    from stageflow.tools import ToolRegistry
+    return ToolRegistry()
+
+# Bad: Tests share state
+registry = get_tool_registry()  # Global state
+```
+
+## Next Steps
+
+- [Extensions](extensions.md) — Add custom context data
+- [Error Handling](errors.md) — Test error scenarios
+- [Observability](../guides/observability.md) — Test event emission

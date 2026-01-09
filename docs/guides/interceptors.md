@@ -1,0 +1,435 @@
+# Interceptors
+
+Interceptors are middleware that wrap stage execution to provide cross-cutting concerns like logging, metrics, timeouts, and authentication. This guide covers how to use and create interceptors.
+
+## What Are Interceptors?
+
+Interceptors wrap stage execution in a layered manner:
+
+```
+Request → [Timeout] → [CircuitBreaker] → [Tracing] → [Metrics] → [Logging] → Stage
+                                                                              ↓
+Response ← [Timeout] ← [CircuitBreaker] ← [Tracing] ← [Metrics] ← [Logging] ← Stage
+```
+
+Each interceptor can:
+- Run code **before** the stage executes
+- Run code **after** the stage completes
+- Handle **errors** during execution
+- **Short-circuit** execution (skip the stage entirely)
+
+## Built-in Interceptors
+
+Stageflow provides several interceptors out of the box:
+
+### TimeoutInterceptor
+
+Enforces per-stage execution timeouts:
+
+```python
+from stageflow import TimeoutInterceptor
+
+# Default timeout is 30 seconds
+timeout = TimeoutInterceptor()
+
+# Stages can override via context
+ctx.config["_timeout_ms"] = 60000  # 60 seconds for this stage
+```
+
+### CircuitBreakerInterceptor
+
+Prevents cascading failures by tracking stage failures:
+
+```python
+from stageflow import CircuitBreakerInterceptor
+
+circuit_breaker = CircuitBreakerInterceptor()
+# After 5 failures, circuit opens for 30 seconds
+# Half-open state allows test requests through
+```
+
+### TracingInterceptor
+
+Creates OpenTelemetry-compatible spans:
+
+```python
+from stageflow import TracingInterceptor
+
+tracing = TracingInterceptor()
+# Adds span context to ctx.data for downstream tracing
+```
+
+### MetricsInterceptor
+
+Records stage execution metrics:
+
+```python
+from stageflow import MetricsInterceptor
+
+metrics = MetricsInterceptor()
+# Logs duration, status, and pipeline_run_id
+```
+
+### LoggingInterceptor
+
+Provides structured JSON logging:
+
+```python
+from stageflow import LoggingInterceptor
+
+logging_interceptor = LoggingInterceptor()
+# Logs stage start/complete with structured data
+```
+
+## Default Interceptors
+
+Get the default set of interceptors:
+
+```python
+from stageflow import get_default_interceptors
+
+interceptors = get_default_interceptors()
+# Returns: [TimeoutInterceptor, CircuitBreakerInterceptor, 
+#           TracingInterceptor, MetricsInterceptor, LoggingInterceptor]
+
+# Include auth interceptors
+interceptors = get_default_interceptors(include_auth=True)
+# Adds: [AuthInterceptor, OrgEnforcementInterceptor] at the front
+```
+
+## Interceptor Priority
+
+Interceptors run in **priority order** (lower = runs first, outer wrapper):
+
+| Interceptor | Priority | Position |
+|-------------|----------|----------|
+| AuthInterceptor | 1 | Outermost |
+| OrgEnforcementInterceptor | 2 | |
+| TimeoutInterceptor | 5 | |
+| CircuitBreakerInterceptor | 10 | |
+| TracingInterceptor | 20 | |
+| MetricsInterceptor | 40 | |
+| LoggingInterceptor | 50 | Innermost |
+
+Lower priority interceptors wrap higher priority ones, so they see the full execution including any modifications by inner interceptors.
+
+## Auth Interceptors
+
+### AuthInterceptor
+
+Validates JWT tokens and creates `AuthContext`:
+
+```python
+from stageflow.auth import AuthInterceptor, JwtValidator
+
+# With custom validator
+validator = MyJwtValidator()  # Implements JwtValidator protocol
+auth = AuthInterceptor(validator=validator)
+
+# The interceptor:
+# 1. Extracts JWT from context
+# 2. Validates the token
+# 3. Creates AuthContext with user_id, org_id, roles
+# 4. Stores in ctx.data["_auth_context"]
+```
+
+### OrgEnforcementInterceptor
+
+Ensures tenant isolation:
+
+```python
+from stageflow.auth import OrgEnforcementInterceptor
+
+org_enforcement = OrgEnforcementInterceptor()
+# Verifies ctx.org_id matches AuthContext.org_id
+# Raises CrossTenantAccessError on mismatch
+```
+
+## Creating Custom Interceptors
+
+### Basic Structure
+
+Extend `BaseInterceptor`:
+
+```python
+from stageflow import BaseInterceptor, InterceptorResult, ErrorAction
+from stageflow.stages.context import PipelineContext
+from stageflow.stages.result import StageResult
+
+class MyInterceptor(BaseInterceptor):
+    name = "my_interceptor"
+    priority = 30  # Between tracing (20) and metrics (40)
+
+    async def before(self, stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+        """Called before stage execution."""
+        # Return None to continue
+        # Return InterceptorResult(stage_ran=False, ...) to short-circuit
+        print(f"Before {stage_name}")
+        return None
+
+    async def after(self, stage_name: str, result: StageResult, ctx: PipelineContext) -> None:
+        """Called after stage completes (success or failure)."""
+        print(f"After {stage_name}: {result.status}")
+
+    async def on_error(self, stage_name: str, error: Exception, ctx: PipelineContext) -> ErrorAction:
+        """Called when stage throws an exception."""
+        print(f"Error in {stage_name}: {error}")
+        return ErrorAction.FAIL  # or RETRY, FALLBACK
+```
+
+### Short-Circuiting Execution
+
+Skip stage execution by returning an `InterceptorResult`:
+
+```python
+async def before(self, stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+    # Check some condition
+    if ctx.data.get("skip_all_stages"):
+        return InterceptorResult(
+            stage_ran=False,
+            result={"skipped": True},
+            error="Skipped by interceptor",
+        )
+    return None
+```
+
+### Error Handling
+
+Control error behavior with `ErrorAction`:
+
+```python
+async def on_error(self, stage_name: str, error: Exception, ctx: PipelineContext) -> ErrorAction:
+    if isinstance(error, TransientError):
+        return ErrorAction.RETRY  # Retry the stage
+    elif isinstance(error, RecoverableError):
+        return ErrorAction.FALLBACK  # Use fallback result
+    else:
+        return ErrorAction.FAIL  # Propagate failure
+```
+
+### Adding Observations
+
+Interceptors can add data for other interceptors:
+
+```python
+from stageflow import InterceptorContext
+
+async def before(self, stage_name: str, ctx: PipelineContext) -> None:
+    # Create interceptor context
+    i_ctx = InterceptorContext(ctx, _interceptor_name=self.name)
+    
+    # Add observation
+    i_ctx.add_observation("start_time", time.time())
+
+async def after(self, stage_name: str, result: StageResult, ctx: PipelineContext) -> None:
+    i_ctx = InterceptorContext(ctx, _interceptor_name=self.name)
+    
+    # Retrieve observation
+    start_time = i_ctx.get_observation("start_time")
+    duration = time.time() - start_time
+```
+
+## Example: Rate Limiting Interceptor
+
+```python
+import time
+from collections import defaultdict
+from stageflow import BaseInterceptor, InterceptorResult
+
+class RateLimitInterceptor(BaseInterceptor):
+    """Limit stage executions per user."""
+    
+    name = "rate_limit"
+    priority = 15  # After circuit breaker, before tracing
+    
+    def __init__(self, max_requests: int = 100, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._requests: dict[str, list[float]] = defaultdict(list)
+    
+    async def before(self, stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+        user_id = str(ctx.user_id) if ctx.user_id else "anonymous"
+        now = time.time()
+        
+        # Clean old requests
+        cutoff = now - self.window_seconds
+        self._requests[user_id] = [
+            t for t in self._requests[user_id] if t > cutoff
+        ]
+        
+        # Check limit
+        if len(self._requests[user_id]) >= self.max_requests:
+            return InterceptorResult(
+                stage_ran=False,
+                error=f"Rate limit exceeded for user {user_id}",
+            )
+        
+        # Record request
+        self._requests[user_id].append(now)
+        return None
+    
+    async def after(self, stage_name: str, result: StageResult, ctx: PipelineContext) -> None:
+        pass  # Nothing to do after
+```
+
+## Example: Caching Interceptor
+
+```python
+import hashlib
+import json
+from stageflow import BaseInterceptor, InterceptorResult
+from stageflow.stages.result import StageResult
+
+class CachingInterceptor(BaseInterceptor):
+    """Cache stage results based on input."""
+    
+    name = "caching"
+    priority = 25  # After tracing
+    
+    def __init__(self, cache_stages: set[str] | None = None):
+        self.cache_stages = cache_stages or set()
+        self._cache: dict[str, StageResult] = {}
+    
+    def _cache_key(self, stage_name: str, ctx: PipelineContext) -> str:
+        """Generate cache key from stage name and relevant context."""
+        key_data = {
+            "stage": stage_name,
+            "input_text": ctx.data.get("input_text"),
+            "user_id": str(ctx.user_id) if ctx.user_id else None,
+        }
+        return hashlib.sha256(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
+    
+    async def before(self, stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+        if stage_name not in self.cache_stages:
+            return None
+        
+        cache_key = self._cache_key(stage_name, ctx)
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            return InterceptorResult(
+                stage_ran=False,
+                result=cached.data,
+            )
+        
+        # Store key for after()
+        ctx.data[f"_cache_key.{stage_name}"] = cache_key
+        return None
+    
+    async def after(self, stage_name: str, result: StageResult, ctx: PipelineContext) -> None:
+        cache_key = ctx.data.pop(f"_cache_key.{stage_name}", None)
+        if cache_key and result.status == "completed":
+            self._cache[cache_key] = result
+```
+
+## Using Custom Interceptors
+
+### With StageGraph
+
+Pass interceptors when creating the graph:
+
+```python
+from stageflow.pipeline.dag import StageGraph
+
+custom_interceptors = [
+    RateLimitInterceptor(max_requests=50),
+    CachingInterceptor(cache_stages={"expensive_stage"}),
+    *get_default_interceptors(),
+]
+
+graph = StageGraph(specs=pipeline.stage_specs, interceptors=custom_interceptors)
+```
+
+### Ordering Matters
+
+Interceptors are sorted by priority. Ensure your custom interceptor has the right priority:
+
+```python
+class MyInterceptor(BaseInterceptor):
+    name = "my_interceptor"
+    priority = 35  # Runs after tracing (20), before metrics (40)
+```
+
+## Interceptor Context
+
+The `InterceptorContext` provides a read-only view of the pipeline context:
+
+```python
+from stageflow import InterceptorContext
+
+i_ctx = InterceptorContext(ctx, _interceptor_name="my_interceptor")
+
+# Read-only access to context data
+data = i_ctx.data  # Returns a copy
+
+# Access IDs
+run_id = i_ctx.pipeline_run_id
+request_id = i_ctx.request_id
+user_id = i_ctx.user_id
+org_id = i_ctx.org_id
+
+# Access configuration
+topology = i_ctx.topology
+execution_mode = i_ctx.execution_mode
+```
+
+## Best Practices
+
+### 1. Keep Interceptors Focused
+
+Each interceptor should handle one concern:
+
+```python
+# Good: Single responsibility
+class LoggingInterceptor: ...
+class MetricsInterceptor: ...
+class AuthInterceptor: ...
+
+# Bad: Multiple concerns
+class DoEverythingInterceptor:
+    async def before(self, ...):
+        self.log_start()
+        self.record_metric()
+        self.check_auth()
+        self.apply_rate_limit()
+```
+
+### 2. Handle Errors Gracefully
+
+Interceptor errors shouldn't crash the pipeline:
+
+```python
+async def before(self, stage_name: str, ctx: PipelineContext) -> None:
+    try:
+        # Risky operation
+        await self.external_service.notify(stage_name)
+    except Exception as e:
+        # Log but don't fail
+        logger.warning(f"Interceptor error: {e}")
+```
+
+### 3. Use Appropriate Priority
+
+Choose priority based on when your interceptor needs to run:
+
+- **1-10**: Security (auth, rate limiting)
+- **10-20**: Reliability (circuit breaker, timeout)
+- **20-40**: Observability (tracing, metrics)
+- **40-60**: Logging, auditing
+
+### 4. Clean Up in after()
+
+Always clean up resources in `after()`:
+
+```python
+async def before(self, stage_name: str, ctx: PipelineContext) -> None:
+    ctx.data["_my_temp_data"] = "value"
+
+async def after(self, stage_name: str, result: StageResult, ctx: PipelineContext) -> None:
+    ctx.data.pop("_my_temp_data", None)  # Clean up
+```
+
+## Next Steps
+
+- [Tools & Agents](tools.md) — Build agent capabilities
+- [Observability](observability.md) — Monitor your pipelines
+- [Custom Interceptors](../advanced/custom-interceptors.md) — Advanced patterns

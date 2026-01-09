@@ -1,0 +1,601 @@
+# Observability
+
+Stageflow is built with observability as a first-class concern. This guide covers how to monitor, debug, and trace your pipelines.
+
+## Philosophy
+
+> "If it's not logged, traced, and replayable, it didn't happen."
+
+Every stage execution, tool invocation, and pipeline run produces structured events that can be:
+- **Logged** for debugging
+- **Traced** for distributed tracing
+- **Stored** for replay and analysis
+- **Streamed** to monitoring systems
+
+## Event System
+
+### EventSink Protocol
+
+All events flow through an `EventSink`:
+
+```python
+from stageflow import EventSink
+
+class EventSink(Protocol):
+    async def emit(self, *, type: str, data: dict) -> None:
+        """Emit an event asynchronously."""
+        ...
+    
+    def try_emit(self, *, type: str, data: dict) -> None:
+        """Emit an event without blocking (fire-and-forget)."""
+        ...
+```
+
+### Built-in Sinks
+
+```python
+from stageflow import (
+    NoOpEventSink,      # Discards all events
+    LoggingEventSink,   # Logs events via Python logging
+    set_event_sink,
+    get_event_sink,
+)
+
+# Use logging sink (default)
+set_event_sink(LoggingEventSink())
+
+# Get current sink
+sink = get_event_sink()
+```
+
+### Custom Event Sink
+
+```python
+class DatabaseEventSink:
+    """Store events in a database."""
+    
+    def __init__(self, db):
+        self.db = db
+    
+    async def emit(self, *, type: str, data: dict) -> None:
+        await self.db.insert("pipeline_events", {
+            "type": type,
+            "data": data,
+            "timestamp": datetime.utcnow(),
+        })
+    
+    def try_emit(self, *, type: str, data: dict) -> None:
+        # Fire-and-forget
+        asyncio.create_task(self.emit(type=type, data=data))
+
+# Register
+set_event_sink(DatabaseEventSink(db=my_database))
+```
+
+## Event Types
+
+### Stage Events
+
+| Event | Description |
+|-------|-------------|
+| `stage.{name}.started` | Stage began execution |
+| `stage.{name}.completed` | Stage finished successfully |
+| `stage.{name}.failed` | Stage failed with error |
+
+Example event data:
+```python
+{
+    "type": "stage.llm.completed",
+    "data": {
+        "stage": "llm",
+        "status": "completed",
+        "timestamp": "2024-01-15T10:30:00Z",
+        "topology": "chat_fast",
+        "execution_mode": "practice",
+        "duration_ms": 1250,
+        "pipeline_run_id": "...",
+        "request_id": "...",
+        "user_id": "...",
+    }
+}
+```
+
+### Tool Events
+
+| Event | Description |
+|-------|-------------|
+| `tool.invoked` | Tool execution requested |
+| `tool.started` | Tool execution began |
+| `tool.completed` | Tool executed successfully |
+| `tool.failed` | Tool execution failed |
+| `tool.denied` | Tool denied (behavior gating) |
+| `tool.undone` | Tool action was undone |
+| `tool.undo_failed` | Undo operation failed |
+
+### Pipeline Events
+
+| Event | Description |
+|-------|-------------|
+| `pipeline.started` | Pipeline run began |
+| `pipeline.completed` | Pipeline finished successfully |
+| `pipeline.failed` | Pipeline failed |
+| `pipeline.cancelled` | Pipeline was cancelled |
+
+### Custom Events
+
+Emit custom events from stages:
+
+```python
+async def execute(self, ctx: StageContext) -> StageOutput:
+    # Emit custom event
+    ctx.emit_event("custom.processing_started", {
+        "step": "validation",
+        "input_size": len(ctx.snapshot.input_text or ""),
+    })
+    
+    # Do work...
+    
+    ctx.emit_event("custom.processing_completed", {
+        "step": "validation",
+        "result": "passed",
+    })
+    
+    return StageOutput.ok(...)
+```
+
+## Logging
+
+### Structured Logging
+
+Stageflow uses Python's logging module with structured data:
+
+```python
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+
+# Stageflow loggers
+logger = logging.getLogger("stageflow")
+logger = logging.getLogger("pipeline_dag")
+logger = logging.getLogger("stage_interceptor")
+logger = logging.getLogger("stage_metrics")
+```
+
+### Log Output
+
+Stage execution produces logs like:
+
+```
+2024-01-15 10:30:00 - stage_interceptor - INFO - Stage starting: llm
+2024-01-15 10:30:01 - stage_interceptor - INFO - Stage completed: llm - completed
+2024-01-15 10:30:01 - stage_metrics - INFO - Stage metrics: llm
+```
+
+### JSON Logging
+
+For production, use JSON logging:
+
+```python
+import json
+import logging
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log_data = {
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if hasattr(record, "extra"):
+            log_data.update(record.extra)
+        return json.dumps(log_data)
+
+handler = logging.StreamHandler()
+handler.setFormatter(JsonFormatter())
+logging.getLogger().addHandler(handler)
+```
+
+## Metrics
+
+### MetricsInterceptor
+
+The built-in `MetricsInterceptor` records:
+- Stage duration
+- Success/failure status
+- Pipeline run correlation
+
+```python
+from stageflow import MetricsInterceptor
+
+metrics = MetricsInterceptor()
+# Automatically included in default interceptors
+```
+
+### Custom Metrics
+
+Integrate with your metrics system:
+
+```python
+from stageflow import BaseInterceptor
+from your_metrics import counter, histogram
+
+class PrometheusMetricsInterceptor(BaseInterceptor):
+    name = "prometheus_metrics"
+    priority = 40
+    
+    async def before(self, stage_name: str, ctx) -> None:
+        counter("stage_started_total", labels={"stage": stage_name}).inc()
+    
+    async def after(self, stage_name: str, result, ctx) -> None:
+        duration_ms = (result.ended_at - result.started_at).total_seconds() * 1000
+        
+        histogram("stage_duration_seconds", labels={"stage": stage_name}).observe(duration_ms / 1000)
+        counter("stage_completed_total", labels={
+            "stage": stage_name,
+            "status": result.status,
+        }).inc()
+```
+
+## Tracing
+
+### TracingInterceptor
+
+The built-in `TracingInterceptor` creates span context:
+
+```python
+from stageflow import TracingInterceptor
+
+tracing = TracingInterceptor()
+# Stores span context in ctx.data for downstream use
+```
+
+### OpenTelemetry Integration
+
+```python
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
+from stageflow import BaseInterceptor
+
+tracer = trace.get_tracer(__name__)
+
+class OpenTelemetryInterceptor(BaseInterceptor):
+    name = "opentelemetry"
+    priority = 20
+    
+    async def before(self, stage_name: str, ctx) -> None:
+        span = tracer.start_span(
+            f"stage.{stage_name}",
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "stage.name": stage_name,
+                "pipeline.run_id": str(ctx.pipeline_run_id),
+                "pipeline.topology": ctx.topology,
+            },
+        )
+        ctx.data[f"_otel_span.{stage_name}"] = span
+    
+    async def after(self, stage_name: str, result, ctx) -> None:
+        span = ctx.data.pop(f"_otel_span.{stage_name}", None)
+        if span:
+            span.set_attribute("stage.status", result.status)
+            span.set_attribute("stage.duration_ms", 
+                (result.ended_at - result.started_at).total_seconds() * 1000)
+            span.end()
+```
+
+## Pipeline Run Logging
+
+### PipelineRunLogger Protocol
+
+```python
+from stageflow.observability import PipelineRunLogger
+
+class PipelineRunLogger(Protocol):
+    async def log_run_started(
+        self,
+        *,
+        pipeline_run_id: UUID,
+        pipeline_name: str,
+        topology: str | None,
+        channel: str | None,
+        execution_mode: str | None,
+        user_id: UUID | None,
+        **kwargs,
+    ) -> None: ...
+
+    async def log_run_completed(
+        self,
+        *,
+        pipeline_run_id: UUID,
+        pipeline_name: str,
+        duration_ms: int,
+        status: str,
+        stage_results: dict,
+        **kwargs,
+    ) -> None: ...
+
+    async def log_run_failed(
+        self,
+        *,
+        pipeline_run_id: UUID,
+        pipeline_name: str,
+        error: str,
+        stage: str | None,
+        **kwargs,
+    ) -> None: ...
+```
+
+### Implementation Example
+
+```python
+class DatabasePipelineRunLogger:
+    def __init__(self, db):
+        self.db = db
+    
+    async def log_run_started(self, *, pipeline_run_id, pipeline_name, **kwargs):
+        await self.db.insert("pipeline_runs", {
+            "id": pipeline_run_id,
+            "pipeline_name": pipeline_name,
+            "status": "running",
+            "started_at": datetime.utcnow(),
+            **kwargs,
+        })
+    
+    async def log_run_completed(self, *, pipeline_run_id, duration_ms, status, **kwargs):
+        await self.db.update("pipeline_runs", pipeline_run_id, {
+            "status": status,
+            "duration_ms": duration_ms,
+            "completed_at": datetime.utcnow(),
+        })
+    
+    async def log_run_failed(self, *, pipeline_run_id, error, stage, **kwargs):
+        await self.db.update("pipeline_runs", pipeline_run_id, {
+            "status": "failed",
+            "error": error,
+            "failed_stage": stage,
+            "failed_at": datetime.utcnow(),
+        })
+```
+
+## Provider Call Logging
+
+Track external API calls (LLM, STT, TTS):
+
+```python
+from stageflow.observability import ProviderCallLogger
+
+class ProviderCallLogger(Protocol):
+    async def log_call_start(
+        self,
+        *,
+        operation: str,
+        provider: str,
+        model_id: str | None,
+        **context,
+    ) -> UUID: ...
+
+    async def log_call_end(
+        self,
+        call_id: UUID,
+        *,
+        success: bool,
+        latency_ms: int,
+        error: str | None = None,
+        **metrics,
+    ) -> None: ...
+```
+
+### Usage in Stages
+
+```python
+from stageflow.observability import provider_call_logger
+
+class LLMStage:
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        # Log call start
+        call_id = await provider_call_logger.log_call_start(
+            operation="chat",
+            provider="openai",
+            model_id="gpt-4",
+            pipeline_run_id=ctx.pipeline_run_id,
+        )
+        
+        start = time.time()
+        try:
+            response = await self.llm_client.chat(...)
+            
+            # Log success
+            await provider_call_logger.log_call_end(
+                call_id,
+                success=True,
+                latency_ms=int((time.time() - start) * 1000),
+                tokens_used=response.usage.total_tokens,
+            )
+            
+            return StageOutput.ok(response=response.content)
+        except Exception as e:
+            # Log failure
+            await provider_call_logger.log_call_end(
+                call_id,
+                success=False,
+                latency_ms=int((time.time() - start) * 1000),
+                error=str(e),
+            )
+            raise
+```
+
+## Circuit Breaker
+
+Prevent cascading failures:
+
+```python
+from stageflow.observability import CircuitBreaker, CircuitBreakerOpenError
+
+class CircuitBreaker(Protocol):
+    async def is_open(self, *, operation: str, provider: str) -> bool: ...
+    async def record_success(self, *, operation: str, provider: str) -> None: ...
+    async def record_failure(self, *, operation: str, provider: str, reason: str) -> None: ...
+
+# Usage
+breaker = get_circuit_breaker()
+
+if await breaker.is_open(operation="chat", provider="openai"):
+    raise CircuitBreakerOpenError("chat", "openai")
+
+try:
+    result = await call_provider()
+    await breaker.record_success(operation="chat", provider="openai")
+except Exception as e:
+    await breaker.record_failure(operation="chat", provider="openai", reason=str(e))
+    raise
+```
+
+## Error Summarization
+
+Summarize errors for logging:
+
+```python
+from stageflow.observability import (
+    summarize_pipeline_error,
+    error_summary_to_string,
+)
+
+try:
+    results = await graph.run(ctx)
+except Exception as e:
+    summary = summarize_pipeline_error(e)
+    # {
+    #     "code": "TIMEOUT",
+    #     "type": "TimeoutError",
+    #     "message": "Stage timed out after 30000ms",
+    #     "retryable": True,
+    # }
+    
+    error_str = error_summary_to_string(summary)
+    # "TIMEOUT: Stage timed out after 30000ms"
+```
+
+## Correlation IDs
+
+Track requests across services:
+
+```python
+from stageflow import CorrelationIds
+
+ids = CorrelationIds(
+    run_id=uuid4(),
+    request_id=uuid4(),
+    trace_id="abc123",
+    session_id=uuid4(),
+    user_id=uuid4(),
+    org_id=uuid4(),
+    extra={"interaction_id": str(interaction_id)},
+)
+
+# Convert to dict for logging
+log_data = ids.to_dict()
+# {
+#     "pipeline_run_id": "...",
+#     "request_id": "...",
+#     "trace_id": "abc123",
+#     "session_id": "...",
+#     "user_id": "...",
+#     "org_id": "...",
+#     "interaction_id": "...",
+# }
+```
+
+## Debugging Tips
+
+### 1. Enable Debug Logging
+
+```python
+import logging
+logging.getLogger("stageflow").setLevel(logging.DEBUG)
+logging.getLogger("pipeline_dag").setLevel(logging.DEBUG)
+```
+
+### 2. Use the Logging Event Sink
+
+```python
+from stageflow import set_event_sink, LoggingEventSink
+
+set_event_sink(LoggingEventSink())
+# All events will be logged
+```
+
+### 3. Inspect Stage Results
+
+```python
+results = await graph.run(ctx)
+
+for name, output in results.items():
+    print(f"Stage: {name}")
+    print(f"  Status: {output.status}")
+    print(f"  Data: {output.data}")
+    if output.error:
+        print(f"  Error: {output.error}")
+```
+
+### 4. Check Interceptor Observations
+
+```python
+# After execution, check context data for interceptor info
+print(ctx.data.get("_interceptor.metrics"))
+print(ctx.data.get("_interceptor.tracing"))
+```
+
+## Best Practices
+
+### 1. Always Include Correlation IDs
+
+```python
+ctx.emit_event("custom.event", {
+    "pipeline_run_id": str(ctx.pipeline_run_id),
+    "request_id": str(ctx.request_id),
+    "user_id": str(ctx.snapshot.user_id),
+    # ... your data
+})
+```
+
+### 2. Log at Appropriate Levels
+
+- **DEBUG**: Detailed diagnostic information
+- **INFO**: General operational events
+- **WARNING**: Unexpected but handled situations
+- **ERROR**: Failures that need attention
+
+### 3. Structure Your Logs
+
+Use structured logging with consistent fields:
+
+```python
+logger.info(
+    "Stage completed",
+    extra={
+        "stage": stage_name,
+        "status": "completed",
+        "duration_ms": duration,
+        "pipeline_run_id": str(ctx.pipeline_run_id),
+    },
+)
+```
+
+### 4. Monitor Key Metrics
+
+Track these metrics for pipeline health:
+- Stage duration (p50, p95, p99)
+- Success/failure rates
+- Error types and frequencies
+- Provider call latencies
+
+## Next Steps
+
+- [Authentication](authentication.md) — Secure your pipelines
+- [Error Handling](../advanced/errors.md) — Handle failures gracefully
+- [Testing](../advanced/testing.md) — Test your observability setup

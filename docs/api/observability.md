@@ -1,0 +1,269 @@
+# Observability API Reference
+
+This document provides the API reference for observability protocols and utilities.
+
+## PipelineRunLogger Protocol
+
+```python
+from stageflow.observability import PipelineRunLogger
+```
+
+Protocol for logging pipeline runs.
+
+### Methods
+
+#### `log_run_started(...) -> None`
+
+Log pipeline run start.
+
+**Parameters:**
+- `pipeline_run_id`: `UUID` — Run identifier
+- `pipeline_name`: `str` — Pipeline name
+- `topology`: `str | None` — Topology name
+- `channel`: `str | None` — Channel name
+- `execution_mode`: `str | None` — Execution mode
+- `user_id`: `UUID | None` — User identifier
+- `**kwargs` — Additional metadata
+
+#### `log_run_completed(...) -> None`
+
+Log pipeline run completion.
+
+**Parameters:**
+- `pipeline_run_id`: `UUID` — Run identifier
+- `pipeline_name`: `str` — Pipeline name
+- `duration_ms`: `int` — Total duration
+- `status`: `str` — Final status
+- `stage_results`: `dict` — Stage results
+- `**kwargs` — Additional metadata
+
+#### `log_run_failed(...) -> None`
+
+Log pipeline run failure.
+
+**Parameters:**
+- `pipeline_run_id`: `UUID` — Run identifier
+- `pipeline_name`: `str` — Pipeline name
+- `error`: `str` — Error message
+- `stage`: `str | None` — Failed stage name
+- `**kwargs` — Additional metadata
+
+---
+
+## ProviderCallLogger Protocol
+
+```python
+from stageflow.observability import ProviderCallLogger
+```
+
+Protocol for logging external provider API calls.
+
+### Methods
+
+#### `log_call_start(...) -> UUID`
+
+Log provider call start.
+
+**Parameters:**
+- `operation`: `str` — Operation type (e.g., "chat", "stt")
+- `provider`: `str` — Provider name (e.g., "openai", "groq")
+- `model_id`: `str | None` — Model identifier
+- `**context` — Additional context
+
+**Returns:** Call ID for correlation
+
+#### `log_call_end(call_id, ...) -> None`
+
+Log provider call completion.
+
+**Parameters:**
+- `call_id`: `UUID` — Call identifier from `log_call_start`
+- `success`: `bool` — Whether call succeeded
+- `latency_ms`: `int` — Call duration
+- `error`: `str | None` — Error message if failed
+- `**metrics` — Additional metrics (tokens, etc.)
+
+---
+
+## CircuitBreaker Protocol
+
+```python
+from stageflow.observability import CircuitBreaker, CircuitBreakerOpenError
+```
+
+Protocol for circuit breaker pattern.
+
+### Methods
+
+#### `is_open(*, operation: str, provider: str) -> bool`
+
+Check if circuit is open.
+
+#### `record_success(*, operation: str, provider: str) -> None`
+
+Record successful call.
+
+#### `record_failure(*, operation: str, provider: str, reason: str) -> None`
+
+Record failed call.
+
+### CircuitBreakerOpenError
+
+Raised when circuit breaker is open.
+
+**Attributes:**
+- `operation`: `str` — Operation type
+- `provider`: `str` — Provider name
+
+---
+
+## Utility Functions
+
+### summarize_pipeline_error
+
+```python
+from stageflow.observability import summarize_pipeline_error
+
+summary = summarize_pipeline_error(exception)
+# {
+#     "code": "TIMEOUT",
+#     "type": "TimeoutError",
+#     "message": "Stage timed out...",
+#     "retryable": True,
+# }
+```
+
+Summarize a pipeline error for logging.
+
+### error_summary_to_string
+
+```python
+from stageflow.observability import error_summary_to_string
+
+error_str = error_summary_to_string(summary)
+# "TIMEOUT: Stage timed out..."
+```
+
+Convert error summary to string.
+
+### error_summary_to_stages_patch
+
+```python
+from stageflow.observability import error_summary_to_stages_patch
+
+patch = error_summary_to_stages_patch(summary)
+# {"failure": {"error": {...}}}
+```
+
+Convert error summary to stages patch format.
+
+### get_circuit_breaker
+
+```python
+from stageflow.observability import get_circuit_breaker
+
+breaker = get_circuit_breaker()
+```
+
+Get the configured circuit breaker (returns NoOp by default).
+
+---
+
+## No-Op Implementations
+
+### NoOpPipelineRunLogger
+
+```python
+from stageflow.observability import NoOpPipelineRunLogger
+
+logger = NoOpPipelineRunLogger()
+```
+
+No-op logger for testing.
+
+### NoOpProviderCallLogger
+
+```python
+from stageflow.observability import NoOpProviderCallLogger
+
+logger = NoOpProviderCallLogger()
+```
+
+No-op provider call logger.
+
+---
+
+## Usage Example
+
+```python
+from uuid import uuid4
+from stageflow.observability import (
+    PipelineRunLogger,
+    ProviderCallLogger,
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    summarize_pipeline_error,
+    get_circuit_breaker,
+)
+
+# Custom pipeline run logger
+class MyPipelineRunLogger:
+    def __init__(self, db):
+        self.db = db
+    
+    async def log_run_started(self, *, pipeline_run_id, pipeline_name, **kwargs):
+        await self.db.insert("runs", {
+            "id": pipeline_run_id,
+            "name": pipeline_name,
+            "status": "running",
+            **kwargs,
+        })
+    
+    async def log_run_completed(self, *, pipeline_run_id, duration_ms, status, **kwargs):
+        await self.db.update("runs", pipeline_run_id, {
+            "status": status,
+            "duration_ms": duration_ms,
+        })
+    
+    async def log_run_failed(self, *, pipeline_run_id, error, stage, **kwargs):
+        await self.db.update("runs", pipeline_run_id, {
+            "status": "failed",
+            "error": error,
+            "failed_stage": stage,
+        })
+
+# Custom provider call logger
+class MyProviderCallLogger:
+    async def log_call_start(self, *, operation, provider, model_id, **context):
+        call_id = uuid4()
+        print(f"Starting {operation} on {provider}/{model_id}")
+        return call_id
+    
+    async def log_call_end(self, call_id, *, success, latency_ms, error=None, **metrics):
+        status = "success" if success else f"failed: {error}"
+        print(f"Call {call_id} {status} in {latency_ms}ms")
+
+# Using circuit breaker
+breaker = get_circuit_breaker()
+
+async def call_provider():
+    if await breaker.is_open(operation="chat", provider="openai"):
+        raise CircuitBreakerOpenError("chat", "openai")
+    
+    try:
+        result = await openai_client.chat(...)
+        await breaker.record_success(operation="chat", provider="openai")
+        return result
+    except Exception as e:
+        await breaker.record_failure(operation="chat", provider="openai", reason=str(e))
+        raise
+
+# Error summarization
+try:
+    results = await graph.run(ctx)
+except Exception as e:
+    summary = summarize_pipeline_error(e)
+    print(f"Pipeline failed: {summary['code']} - {summary['message']}")
+    if summary['retryable']:
+        print("This error is retryable")
+```
