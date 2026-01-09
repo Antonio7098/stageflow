@@ -1,20 +1,20 @@
 """Stage implementations for the test app."""
 
+from .agent import AgentStage
+from .dispatch import DispatchStage
 from .echo import EchoStage
+from .enrich import MemoryEnrichStage, ProfileEnrichStage
+from .guard import InputGuardStage, OutputGuardStage
+from .llm import LLMStage
+from .router import RouterStage
+from .subpipeline import SubpipelineStage
 from .transform import (
-    UppercaseStage,
+    FollowUpStage,
+    InsightsStage,
     ReverseStage,
     SummarizeStage,
-    InsightsStage,
-    FollowUpStage,
+    UppercaseStage,
 )
-from .enrich import ProfileEnrichStage, MemoryEnrichStage
-from .llm import LLMStage
-from .guard import InputGuardStage, OutputGuardStage
-from .router import RouterStage
-from .agent import AgentStage
-from .subpipeline import SubpipelineStage
-from .dispatch import DispatchStage
 
 __all__ = [
     "EchoStage",

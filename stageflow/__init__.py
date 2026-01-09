@@ -67,6 +67,46 @@ from stageflow.events import (
     set_event_sink,
 )
 
+# Extensions
+from stageflow.extensions import (
+    ExtensionHelper,
+    ExtensionRegistry,
+    TypedExtension,
+)
+
+# Observability protocols
+from stageflow.observability import (
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    PipelineRunLogger,
+    ProviderCallLogger,
+    error_summary_to_stages_patch,
+    error_summary_to_string,
+    get_circuit_breaker,
+    summarize_pipeline_error,
+)
+from stageflow.pipeline.dag import (
+    StageExecutionError,
+    StageGraph,
+    StageSpec,
+)
+
+# Interceptors
+from stageflow.pipeline.interceptors import (
+    BaseInterceptor,
+    ChildTrackerMetricsInterceptor,
+    CircuitBreakerInterceptor,
+    ErrorAction,
+    InterceptorContext,
+    InterceptorResult,
+    LoggingInterceptor,
+    MetricsInterceptor,
+    TimeoutInterceptor,
+    TracingInterceptor,
+    get_default_interceptors,
+    run_with_interceptors,
+)
+
 # Pipeline types
 from stageflow.pipeline.pipeline import (
     Pipeline,
@@ -75,11 +115,6 @@ from stageflow.pipeline.pipeline import (
 from stageflow.pipeline.registry import (
     PipelineRegistry,
     pipeline_registry,
-)
-from stageflow.pipeline.dag import (
-    StageExecutionError,
-    StageGraph,
-    StageSpec,
 )
 from stageflow.pipeline.spec import (
     CycleDetectedError,
@@ -94,44 +129,6 @@ from stageflow.pipeline.subpipeline import (
     get_subpipeline_spawner,
 )
 
-# Interceptors
-from stageflow.pipeline.interceptors import (
-    BaseInterceptor,
-    CircuitBreakerInterceptor,
-    ErrorAction,
-    InterceptorContext,
-    InterceptorResult,
-    LoggingInterceptor,
-    MetricsInterceptor,
-    ChildTrackerMetricsInterceptor,
-    TimeoutInterceptor,
-    TracingInterceptor,
-    get_default_interceptors,
-    run_with_interceptors,
-)
-
-# Context types
-from stageflow.stages.context import (
-    PipelineContext,
-    extract_service,
-)
-from stageflow.stages.result import (
-    StageError,
-    StageResult,
-)
-from stageflow.stages.inputs import (
-    StageInputs,
-    create_stage_inputs,
-)
-from stageflow.stages.ports import (
-    CorePorts,
-    LLMPorts,
-    AudioPorts,
-    create_core_ports,
-    create_llm_ports,
-    create_audio_ports,
-)
-
 # Protocols
 from stageflow.protocols import (
     ConfigProvider,
@@ -139,23 +136,26 @@ from stageflow.protocols import (
     RunStore,
 )
 
-# Observability protocols
-from stageflow.observability import (
-    CircuitBreaker,
-    CircuitBreakerOpenError,
-    PipelineRunLogger,
-    ProviderCallLogger,
-    error_summary_to_stages_patch,
-    error_summary_to_string,
-    get_circuit_breaker,
-    summarize_pipeline_error,
+# Context types
+from stageflow.stages.context import (
+    PipelineContext,
+    extract_service,
 )
-
-# Extensions
-from stageflow.extensions import (
-    ExtensionRegistry,
-    ExtensionHelper,
-    TypedExtension,
+from stageflow.stages.inputs import (
+    StageInputs,
+    create_stage_inputs,
+)
+from stageflow.stages.ports import (
+    AudioPorts,
+    CorePorts,
+    LLMPorts,
+    create_audio_ports,
+    create_core_ports,
+    create_llm_ports,
+)
+from stageflow.stages.result import (
+    StageError,
+    StageResult,
 )
 
 __all__ = [

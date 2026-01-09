@@ -8,14 +8,12 @@ These benchmarks measure:
 
 from __future__ import annotations
 
-import asyncio
 from uuid import uuid4
 
 import pytest
 
-from stageflow import Pipeline, PipelineContext, StageKind
+from stageflow import Pipeline, PipelineContext
 from stageflow.utils.frozen import FrozenDict
-from tests.utils.mocks import MockEventSink
 
 
 class TestPipelineBuildBenchmarks:

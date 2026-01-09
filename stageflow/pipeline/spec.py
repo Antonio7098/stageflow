@@ -24,9 +24,9 @@ class PipelineValidationError(Exception):
 
 class CycleDetectedError(PipelineValidationError):
     """Raised when a cycle is detected in the pipeline DAG.
-    
+
     Provides detailed information about the cycle for debugging.
-    
+
     Attributes:
         cycle_path: List of stage names forming the cycle (e.g., ['A', 'B', 'C', 'A'])
         stages: All stages involved in cycles

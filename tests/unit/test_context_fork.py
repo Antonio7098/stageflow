@@ -7,7 +7,6 @@ from uuid import uuid4
 import pytest
 
 from stageflow import PipelineContext
-from stageflow.utils.frozen import FrozenDict
 
 
 class TestPipelineContextFork:

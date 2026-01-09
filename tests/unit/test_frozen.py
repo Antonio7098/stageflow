@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from stageflow.utils.frozen import FrozenDict, FrozenList
 
 

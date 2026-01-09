@@ -3,14 +3,14 @@
 import pytest
 
 from stageflow.core import StageOutput
-from stageflow.pipeline.spec import PipelineSpec, PipelineValidationError, StageRunner
+from stageflow.pipeline.spec import PipelineSpec, StageRunner
 from stageflow.stages.context import PipelineContext
 
 
 class MockStage:
     """Mock stage for testing."""
 
-    async def execute(self, ctx: PipelineContext) -> StageOutput:
+    async def execute(self, _ctx: PipelineContext) -> StageOutput:
         return StageOutput.ok(data={"result": "success"})
 
 

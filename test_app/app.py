@@ -5,24 +5,24 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from flask import Flask, render_template, request, jsonify
-from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request
+from flask_socketio import SocketIO, emit
 
 # Add parent directory to path for stageflow imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from stageflow import Pipeline, StageKind, StageOutput, StageStatus
-from stageflow.context import ContextSnapshot
-from stageflow.context.types import Message
-from stageflow.core import StageContext, create_stage_context
-
 from pipelines import PIPELINES
 from services.groq_client import GroqClient
+
+from stageflow import Pipeline, StageOutput, StageStatus
+from stageflow.context import ContextSnapshot
+from stageflow.context.types import Message
+from stageflow.core import create_stage_context
 
 load_dotenv()
 
@@ -115,7 +115,7 @@ async def run_pipeline_async(
         input_text=input_text,
     )
 
-    ctx = create_stage_context(snapshot=snapshot, config={})
+    create_stage_context(snapshot=snapshot, config={})
 
     graph = pipeline.build()
 

@@ -14,7 +14,6 @@ from stageflow import StageKind, StageOutput
 from tests.contract.base import (
     StageContractTest,
     create_contract_test_context,
-    get_emitted_events,
 )
 from tests.utils.mocks import MockEventSink, MockStage
 

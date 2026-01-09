@@ -7,7 +7,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from stageflow import StageContext, StageKind, StageOutput
-from stageflow.tools import Tool, ToolInput, ToolOutput, get_tool_registry
+from stageflow.tools import get_tool_registry
 
 from .toggle_tool import TogglePanelTool
 
@@ -105,26 +105,26 @@ class AgentStage:
         matched_off = any(re.search(pattern, lower_text) for pattern in turn_off_patterns)
 
         if matched_on or lower_text == "on":
-            print(f"[Agent] Matched TURN ON")
+            print("[Agent] Matched TURN ON")
             actions.append(Action(
                 id=uuid4(),
                 type="TOGGLE_PANEL",
                 payload={"state": True},
             ))
         elif matched_off or lower_text == "off":
-            print(f"[Agent] Matched TURN OFF")
+            print("[Agent] Matched TURN OFF")
             actions.append(Action(
                 id=uuid4(),
                 type="TOGGLE_PANEL",
                 payload={"state": False},
             ))
         else:
-            print(f"[Agent] No toggle pattern matched")
+            print("[Agent] No toggle pattern matched")
 
         print(f"[Agent] Created {len(actions)} actions")
         return actions
 
-    def _generate_response(self, input_text: str, results: list[dict]) -> str:
+    def _generate_response(self, _input_text: str, results: list[dict]) -> str:
         """Generate response based on action results."""
         if not results:
             return "I didn't understand what you want me to do. Try asking me to turn something on or off."

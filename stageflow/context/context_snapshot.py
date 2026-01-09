@@ -21,8 +21,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from .enrichments import DocumentEnrichment, MemoryEnrichment, ProfileEnrichment
 from .types import Message, RoutingDecision
-from .enrichments import ProfileEnrichment, MemoryEnrichment, DocumentEnrichment
 
 
 @dataclass(frozen=True, slots=True)

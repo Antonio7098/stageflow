@@ -3,12 +3,12 @@
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs, create_stage_inputs
 from stageflow.stages.ports import (
+    AudioPorts,
     CorePorts,
     LLMPorts,
-    AudioPorts,
+    create_audio_ports,
     create_core_ports,
     create_llm_ports,
-    create_audio_ports,
 )
 from stageflow.stages.result import StageError, StageResult
 

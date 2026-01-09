@@ -11,9 +11,9 @@ Tests the UnifiedStageGraph - the new DAG executor using unified Stage protocol:
 """
 
 import asyncio
-from datetime import datetime, timedelta, UTC
-from typing import Any
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
+
 import pytest
 
 from stageflow.context import ContextSnapshot
@@ -30,7 +30,6 @@ from stageflow.pipeline.dag import (
     UnifiedStageSpec,
 )
 
-
 # === Test Fixtures ===
 
 def create_snapshot() -> ContextSnapshot:
@@ -43,7 +42,7 @@ def create_snapshot() -> ContextSnapshot:
         org_id=uuid4(),
         interaction_id=uuid4(),
         topology="test_topology",
-        
+
         execution_mode="test",
     )
 
@@ -60,7 +59,7 @@ class TestUnifiedStageSpec:
 
     def test_spec_creation(self):
         """Test UnifiedStageSpec with required fields."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         spec = UnifiedStageSpec(
@@ -74,7 +73,7 @@ class TestUnifiedStageSpec:
 
     def test_spec_with_dependencies(self):
         """Test UnifiedStageSpec with dependencies."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         spec = UnifiedStageSpec(
@@ -87,7 +86,7 @@ class TestUnifiedStageSpec:
 
     def test_spec_with_conditional(self):
         """Test UnifiedStageSpec with conditional flag."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         spec = UnifiedStageSpec(
@@ -100,7 +99,7 @@ class TestUnifiedStageSpec:
 
     def test_spec_defaults(self):
         """Test UnifiedStageSpec default values."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         spec = UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)
@@ -115,7 +114,7 @@ class TestUnifiedStageGraphInit:
 
     def test_init_with_single_spec(self):
         """Test graph with single spec."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         spec = UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)
@@ -124,7 +123,7 @@ class TestUnifiedStageGraphInit:
 
     def test_init_with_multiple_specs(self):
         """Test graph with multiple specs."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         specs = [
@@ -143,7 +142,7 @@ class TestUnifiedStageGraphInit:
 
     def test_stage_specs_property(self):
         """Test stage_specs property returns list."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         specs = [
@@ -157,7 +156,7 @@ class TestUnifiedStageGraphInit:
 
     def test_duration_ms_calculation(self):
         """Test _duration_ms method."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         graph = UnifiedStageGraph(
@@ -181,7 +180,7 @@ class TestUnifiedStageGraphExecution:
     @pytest.mark.asyncio
     async def test_run_single_stage(self):
         """Test running a single stage."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"result": "success"})
 
         graph = UnifiedStageGraph(
@@ -201,7 +200,7 @@ class TestUnifiedStageGraphExecution:
         execution_times = {}
 
         async def make_runner(name: str, delay: float):
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(_ctx: StageContext) -> StageOutput:
                 start = asyncio.get_event_loop().time()
                 await asyncio.sleep(delay)
                 execution_times[name] = asyncio.get_event_loop().time() - start
@@ -231,7 +230,7 @@ class TestUnifiedStageGraphExecution:
         execution_order = []
 
         async def make_runner(name: str, delay: float = 0):
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(_ctx: StageContext) -> StageOutput:
                 execution_order.append(name)
                 if delay > 0:
                     await asyncio.sleep(delay)
@@ -259,7 +258,7 @@ class TestUnifiedStageGraphExecution:
         execution_order = []
 
         async def make_runner(name: str):
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(_ctx: StageContext) -> StageOutput:
                 execution_order.append(name)
                 return StageOutput.ok(data={"stage": name})
             return runner
@@ -284,7 +283,7 @@ class TestUnifiedStageGraphExecution:
     @pytest.mark.asyncio
     async def test_run_preserves_stage_kind(self):
         """Test that StageKind is preserved."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         specs = [
@@ -303,7 +302,7 @@ class TestUnifiedStageGraphExecution:
     @pytest.mark.asyncio
     async def test_run_with_dict_result(self):
         """Test dict results are converted to StageOutput."""
-        async def runner(ctx: StageContext) -> dict:
+        async def runner(_ctx: StageContext) -> dict:
             return {"key": "value", "num": 42}
 
         graph = UnifiedStageGraph(
@@ -319,7 +318,7 @@ class TestUnifiedStageGraphExecution:
     @pytest.mark.asyncio
     async def test_run_with_none_result(self):
         """Test None result is converted to StageOutput.ok()."""
-        async def runner(ctx: StageContext) -> None:
+        async def runner(_ctx: StageContext) -> None:
             return None
 
         graph = UnifiedStageGraph(
@@ -335,7 +334,7 @@ class TestUnifiedStageGraphExecution:
     @pytest.mark.asyncio
     async def test_run_timing_recorded(self):
         """Test that timing is recorded in outputs."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             await asyncio.sleep(0.05)
             return StageOutput.ok()
 
@@ -358,7 +357,7 @@ class TestUnifiedStageGraphErrors:
     @pytest.mark.asyncio
     async def test_stage_failure_raises_execution_error(self):
         """Test that stage failure raises UnifiedStageExecutionError."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.fail(error="Test failure")
 
         graph = UnifiedStageGraph(
@@ -374,7 +373,7 @@ class TestUnifiedStageGraphErrors:
     @pytest.mark.asyncio
     async def test_exception_raises_execution_error(self):
         """Test that exceptions are wrapped in UnifiedStageExecutionError."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             raise ValueError("Original error message")
 
         graph = UnifiedStageGraph(
@@ -392,10 +391,10 @@ class TestUnifiedStageGraphErrors:
     @pytest.mark.asyncio
     async def test_cancelled_stages_propagate_error(self):
         """Test that CANCEL status raises UnifiedPipelineCancelled."""
-        async def cancel_runner(ctx: StageContext) -> StageOutput:
+        async def cancel_runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.cancel(reason="User requested cancel")
 
-        async def dependent_runner(ctx: StageContext) -> StageOutput:
+        async def dependent_runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         specs = [
@@ -414,10 +413,10 @@ class TestUnifiedStageGraphErrors:
     @pytest.mark.asyncio
     async def test_cancelled_exception_contains_partial_results(self):
         """Test UnifiedPipelineCancelled contains completed stage results."""
-        async def first_runner(ctx: StageContext) -> StageOutput:
+        async def first_runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"first": True})
 
-        async def cancel_runner(ctx: StageContext) -> StageOutput:
+        async def cancel_runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.cancel(reason="Stop")
 
         specs = [
@@ -438,7 +437,7 @@ class TestUnifiedStageGraphErrors:
     @pytest.mark.asyncio
     async def test_deadlock_detection(self):
         """Test that deadlock is detected."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         specs = [
@@ -456,7 +455,7 @@ class TestUnifiedStageGraphErrors:
     @pytest.mark.asyncio
     async def test_unsatisfied_dependency_raises(self):
         """Test unsatisfied dependency raises error."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         specs = [
@@ -471,7 +470,7 @@ class TestUnifiedStageGraphErrors:
     @pytest.mark.asyncio
     async def test_execution_error_attributes(self):
         """Test UnifiedStageExecutionError has correct attributes."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             raise RuntimeError("Original exception")
 
         graph = UnifiedStageGraph(
@@ -492,11 +491,11 @@ class TestUnifiedStageGraphErrors:
         """Test that first error stops execution."""
         error_raised = {"count": 0}
 
-        async def error_runner(ctx: StageContext) -> StageOutput:
+        async def error_runner(_ctx: StageContext) -> StageOutput:
             error_raised["count"] += 1
             raise ValueError("Error")
 
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok()
 
         specs = [
@@ -521,7 +520,7 @@ class TestUnifiedStageGraphCancellation:
     @pytest.mark.asyncio
     async def test_cancel_stops_pipeline(self):
         """Test that CANCEL status stops pipeline."""
-        async def cancel_runner(ctx: StageContext) -> StageOutput:
+        async def cancel_runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.cancel(reason="Stop pipeline")
 
         specs = [
@@ -538,11 +537,11 @@ class TestUnifiedStageGraphCancellation:
         """Test cancellation with dependent stages."""
         execution_order = []
 
-        async def first_runner(ctx: StageContext) -> StageOutput:
+        async def first_runner(_ctx: StageContext) -> StageOutput:
             execution_order.append("first")
             return StageOutput.ok()
 
-        async def cancel_runner(ctx: StageContext) -> StageOutput:
+        async def cancel_runner(_ctx: StageContext) -> StageOutput:
             execution_order.append("cancel")
             return StageOutput.cancel(reason="Stop")
 
@@ -565,7 +564,7 @@ class TestUnifiedStageGraphCancellation:
     @pytest.mark.asyncio
     async def test_cancel_reason_in_exception(self):
         """Test cancel reason is available in exception."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.cancel(reason="Custom cancel reason", data={"extra": "data"})
 
         graph = UnifiedStageGraph(
@@ -584,13 +583,13 @@ class TestUnifiedStageGraphCancellation:
         execution_order = []
 
         async def runner(name: str, delay: float = 0):
-            async def inner(ctx: StageContext) -> StageOutput:
+            async def inner(_ctx: StageContext) -> StageOutput:
                 execution_order.append(name)
                 await asyncio.sleep(delay)
                 return StageOutput.ok()
             return inner
 
-        async def canceler_runner(ctx: StageContext) -> StageOutput:
+        async def canceler_runner(_ctx: StageContext) -> StageOutput:
             execution_order.append("canceler")
             return StageOutput.cancel(reason="Test cancel")
 
@@ -620,7 +619,7 @@ class TestUnifiedConditionalStages:
     @pytest.mark.asyncio
     async def test_conditional_stage_runs_by_default(self):
         """Test conditional stage runs when no skip reason."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"ran": True})
 
         graph = UnifiedStageGraph(
@@ -638,10 +637,10 @@ class TestUnifiedConditionalStages:
     async def test_conditional_stage_skipped_with_reason(self):
         """Test conditional stage is skipped when skip_reason is set."""
         # First stage sets skip_reason
-        async def setup_runner(ctx: StageContext) -> StageOutput:
+        async def setup_runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"skip_reason": "condition not met"})
 
-        async def conditional_runner(ctx: StageContext) -> StageOutput:
+        async def conditional_runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"ran": True})
 
         graph = UnifiedStageGraph(
@@ -665,17 +664,17 @@ class TestUnifiedConditionalStages:
         """Test conditional stage with dependencies is skipped correctly."""
         execution_order = []
 
-        async def setup_runner(ctx: StageContext) -> StageOutput:
+        async def setup_runner(_ctx: StageContext) -> StageOutput:
             execution_order.append("setup")
             return StageOutput.ok(data={"skip_reason": "skipped"})
 
         async def regular_runner(name: str):
-            async def inner(ctx: StageContext) -> StageOutput:
+            async def inner(_ctx: StageContext) -> StageOutput:
                 execution_order.append(name)
                 return StageOutput.ok()
             return inner
 
-        async def conditional_runner(ctx: StageContext) -> StageOutput:
+        async def conditional_runner(_ctx: StageContext) -> StageOutput:
             execution_order.append("conditional")
             return StageOutput.ok()
 
@@ -687,7 +686,7 @@ class TestUnifiedConditionalStages:
         graph = UnifiedStageGraph(specs=specs)
         ctx = create_context()
 
-        results = await graph.run(ctx)
+        await graph.run(ctx)
 
         assert "setup" in execution_order
         assert "first" in execution_order
@@ -702,7 +701,7 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_empty_data_dict(self):
         """Test stage with empty data dict."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={})
 
         graph = UnifiedStageGraph(
@@ -717,7 +716,7 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_complex_data_types(self):
         """Test stage with complex data types."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={
                 "list": [1, 2, 3],
                 "nested": {"a": {"b": "c"}},
@@ -740,7 +739,7 @@ class TestUnifiedStageGraphEdgeCases:
         """Test stage that produces artifacts."""
         from stageflow.core import StageArtifact
 
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput(
                 status=StageStatus.OK,
                 artifacts=[
@@ -762,9 +761,8 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_stage_with_events(self):
         """Test stage that emits events."""
-        from stageflow.core import StageEvent
 
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             ctx.emit_event("stage.started", {"stage": "test"})
             ctx.emit_event("stage.completed", {"stage": "test"})
             return StageOutput(status=StageStatus.OK)
@@ -785,7 +783,7 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_retry_status_handling(self):
         """Test stage with RETRY status."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.retry(error="Temporary failure")
 
         graph = UnifiedStageGraph(
@@ -801,7 +799,7 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_skip_status_handling(self):
         """Test stage with SKIP status."""
-        async def runner(ctx: StageContext) -> StageOutput:
+        async def runner(_ctx: StageContext) -> StageOutput:
             return StageOutput.skip(reason="Not needed")
 
         graph = UnifiedStageGraph(
@@ -818,7 +816,7 @@ class TestUnifiedStageGraphEdgeCases:
     async def test_deep_dependency_graph(self):
         """Test deep dependency graph."""
         async def make_runner(i: int):
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(_ctx: StageContext) -> StageOutput:
                 return StageOutput.ok(data={"n": i})
             return runner
 
@@ -842,7 +840,7 @@ class TestUnifiedStageGraphEdgeCases:
     async def test_wide_fan_out(self):
         """Test wide fan-out (one parent, many children)."""
         async def make_runner():
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(_ctx: StageContext) -> StageOutput:
                 return StageOutput.ok()
             return runner
 
@@ -871,7 +869,6 @@ class TestUnifiedStageGraphEdgeCases:
     @pytest.mark.asyncio
     async def test_shared_timer_across_stages(self):
         """Test that shared timer is used across stages."""
-        import time
 
         timer1_time = None
         timer2_time = None

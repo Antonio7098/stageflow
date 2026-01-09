@@ -8,15 +8,12 @@ Tests the Pipeline builder and related types:
 - with_stage() fluent interface
 """
 
-import asyncio
 from dataclasses import FrozenInstanceError
-from datetime import datetime, UTC
-from typing import Any
 from uuid import uuid4
+
 import pytest
 
 from stageflow.core import (
-    Stage,
     StageContext,
     StageKind,
     StageOutput,
@@ -27,7 +24,6 @@ from stageflow.pipeline.pipeline import (
     UnifiedStageSpec,
 )
 
-
 # === Test Fixtures ===
 
 class SimpleStage:
@@ -35,7 +31,7 @@ class SimpleStage:
     name = "simple_stage"
     kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         return StageOutput.ok(result="simple_done")
 
 
@@ -44,7 +40,7 @@ class TransformStage:
     name = "transform"
     kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         return StageOutput.ok(data={"transformed": True})
 
 
@@ -53,7 +49,7 @@ class EnrichStage:
     name = "enrich"
     kind = StageKind.ENRICH
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         return StageOutput.ok(data={"enriched": True})
 
 
@@ -62,7 +58,7 @@ class GuardStage:
     name = "guard"
     kind = StageKind.GUARD
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         return StageOutput.ok(data={"guarded": True})
 
 
@@ -74,7 +70,7 @@ class FailingStage:
     def __init__(self, error_message: str = "Stage failed"):
         self.error_message = error_message
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         return StageOutput.fail(error=self.error_message)
 
 
@@ -86,7 +82,7 @@ class StageWithDelay:
     def __init__(self, delay_seconds: float = 0.1):
         self.delay_seconds = delay_seconds
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         import time
         time.sleep(self.delay_seconds)
         return StageOutput.ok(data={"delayed": True})
@@ -369,7 +365,7 @@ class TestPipeline:
             org_id=uuid4(),
             interaction_id=uuid4(),
             topology="test",
-            
+
             execution_mode="test",
         )
 

@@ -6,7 +6,6 @@ the Single Responsibility Principle - each error type handles one failure mode.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 

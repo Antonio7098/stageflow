@@ -12,6 +12,7 @@ from stageflow.core import (
     StageOutput,
     StageStatus,
 )
+from stageflow.observability.wide_events import WideEventEmitter
 from stageflow.pipeline.interceptors import (
     BaseInterceptor,
     get_default_interceptors,
@@ -90,11 +91,20 @@ class StageGraph:
         self,
         specs: Iterable[StageSpec],
         interceptors: list[BaseInterceptor] | None = None,
+        *,
+        wide_event_emitter: WideEventEmitter | None = None,
+        emit_stage_wide_events: bool = False,
+        emit_pipeline_wide_event: bool = False,
     ) -> None:
         self._specs = {spec.name: spec for spec in specs}
         if len(self._specs) == 0:
             raise ValueError("StageGraph requires at least one StageSpec")
         self._interceptors = interceptors or get_default_interceptors()
+        if wide_event_emitter is None and (emit_stage_wide_events or emit_pipeline_wide_event):
+            wide_event_emitter = WideEventEmitter()
+        self._wide_event_emitter = wide_event_emitter
+        self._emit_stage_wide_events = emit_stage_wide_events and wide_event_emitter is not None
+        self._emit_pipeline_wide_event = emit_pipeline_wide_event and wide_event_emitter is not None
 
     @property
     def stage_specs(self) -> list[StageSpec]:
@@ -113,6 +123,7 @@ class StageGraph:
             pass
 
     async def run(self, ctx: PipelineContext) -> dict[str, StageResult]:
+        graph_started_at = datetime.now(UTC)
         try:
             with open("/tmp/debug_voice_handler.log", "a") as f:
                 f.write(
@@ -180,6 +191,17 @@ class StageGraph:
                         if in_degree[potential_child] == 0:
                             schedule_stage(potential_child)
 
+        if self._emit_pipeline_wide_event and self._wide_event_emitter is not None:
+            duration_ms = int((datetime.now(UTC) - graph_started_at).total_seconds() * 1000)
+            self._wide_event_emitter.emit_pipeline_event(
+                ctx=ctx,
+                stage_results=completed,
+                pipeline_name=ctx.topology,
+                status=None,
+                duration_ms=duration_ms,
+                started_at=graph_started_at,
+            )
+
         return completed
 
     async def _execute_node(self, name: str, ctx: PipelineContext) -> tuple[str, StageResult]:
@@ -211,12 +233,13 @@ class StageGraph:
                 f"[{datetime.now(UTC)}] Stage {spec.name} completed with status={result.status}"
             )
 
+            duration_ms = self._duration_ms(started_at, result.ended_at)
             if result.status == "failed":
                 ctx.record_stage_event(
                     stage=spec.name,
                     status="failed",
                     payload={
-                        "duration_ms": self._duration_ms(started_at, result.ended_at),
+                        "duration_ms": duration_ms,
                         "error": result.error or "Stage returned failed status",
                     },
                 )
@@ -224,19 +247,32 @@ class StageGraph:
                 ctx.record_stage_event(
                     stage=spec.name,
                     status="completed",
-                    payload={"duration_ms": self._duration_ms(started_at, result.ended_at)},
+                    payload={"duration_ms": duration_ms},
                 )
+
+            if self._emit_stage_wide_events and self._wide_event_emitter is not None:
+                self._wide_event_emitter.emit_stage_event(ctx=ctx, result=result)
             return result
         except Exception as exc:  # pragma: no cover - defensive
-            self._debug_log(f"[{datetime.now(UTC)}] Stage {spec.name} failed with error={exc!r}")
+            ended_at = datetime.now(UTC)
+            self._debug_log(f"[{ended_at}] Stage {spec.name} failed with error={exc!r}")
             ctx.record_stage_event(
                 stage=spec.name,
                 status="failed",
                 payload={
-                    "duration_ms": self._duration_ms(started_at, datetime.now(UTC)),
+                    "duration_ms": self._duration_ms(started_at, ended_at),
                     "error": str(exc),
                 },
             )
+            if self._emit_stage_wide_events and self._wide_event_emitter is not None:
+                failure_result = StageResult(
+                    name=spec.name,
+                    status="failed",
+                    started_at=started_at,
+                    ended_at=ended_at,
+                    error=str(exc),
+                )
+                self._wide_event_emitter.emit_stage_event(ctx=ctx, result=failure_result)
             raise StageExecutionError(spec.name, exc) from exc
 
     @staticmethod
@@ -254,9 +290,7 @@ class StageGraph:
                 status = "completed"
             elif raw.status == StageStatus.FAIL:
                 status = "failed"
-            elif raw.status == StageStatus.SKIP:
-                status = "completed"
-            elif raw.status == StageStatus.CANCEL:
+            elif raw.status == StageStatus.SKIP or raw.status == StageStatus.CANCEL:
                 status = "completed"
             else:
                 status = "completed"
@@ -451,7 +485,7 @@ class UnifiedStageGraph:
         inputs = ctx.config.get("inputs")
         ports = inputs.ports if inputs else None
 
-        from stageflow.stages.inputs import StageInputs, create_stage_inputs
+        from stageflow.stages.inputs import create_stage_inputs
 
         new_inputs = create_stage_inputs(
             snapshot=ctx.snapshot,
@@ -530,7 +564,7 @@ class UnifiedStageGraph:
                     "duration_ms": duration_ms,
                 },
             )
-            
+
             # Emit stage.skipped event if stage returned SKIP status
             if result.status == StageStatus.SKIP:
                 event_sink = ctx.config.get("event_sink")
@@ -597,7 +631,6 @@ class UnifiedStageGraph:
 
 # Import StageKind for use in UnifiedStageSpec
 from stageflow.core import StageKind  # noqa: E402
-
 
 __all__ = [
     "StageExecutionError",

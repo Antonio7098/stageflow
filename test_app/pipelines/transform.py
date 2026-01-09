@@ -1,13 +1,13 @@
 """Transform chain pipeline - tests linear dependencies."""
 
-from stageflow import Pipeline, StageKind
+from stages.transform import ReverseStage, SummarizeStage, UppercaseStage
 
-from stages.transform import UppercaseStage, ReverseStage, SummarizeStage
+from stageflow import Pipeline, StageKind
 
 
 def create_transform_pipeline() -> Pipeline:
     """Create a linear chain of transform stages.
-    
+
     DAG:
         [uppercase] -> [reverse] -> [summarize]
     """

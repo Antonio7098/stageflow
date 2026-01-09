@@ -179,7 +179,7 @@ class ApprovalService:
 
         try:
             await asyncio.wait_for(event.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await self._mark_expired(request_id)
             raise
 

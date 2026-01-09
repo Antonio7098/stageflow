@@ -14,10 +14,8 @@ from typing import Any
 from uuid import uuid4
 
 from hypothesis import strategies as st
-from hypothesis.strategies import composite
 
 from stageflow import StageKind
-
 
 # Basic strategies
 
@@ -41,7 +39,7 @@ def stage_kinds(draw: Any) -> StageKind:
 
 
 @st.composite
-def uuids(draw: Any) -> Any:
+def uuids(_draw: Any) -> Any:
     """Generate UUIDs."""
     return uuid4()
 
@@ -50,7 +48,7 @@ def uuids(draw: Any) -> Any:
 
 
 @st.composite
-def stage_specs(draw: Any, max_deps: int = 3) -> dict[str, Any]:
+def stage_specs(draw: Any, _max_deps: int = 3) -> dict[str, Any]:
     """Generate a valid stage specification.
 
     Args:
@@ -84,7 +82,7 @@ def stage_spec_lists(
     specs = []
     used_names: set[str] = set()
 
-    for i in range(num_stages):
+    for _i in range(num_stages):
         # Generate unique name
         name = draw(stage_names())
         while name in used_names:

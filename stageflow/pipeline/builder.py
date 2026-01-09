@@ -10,10 +10,16 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from stageflow.pipeline.spec import CycleDetectedError, PipelineSpec, PipelineValidationError, StageRunner
-
 if TYPE_CHECKING:
+    from stageflow.observability.wide_events import WideEventEmitter
     from stageflow.pipeline.dag import StageGraph
+
+from stageflow.pipeline.spec import (
+    CycleDetectedError,
+    PipelineSpec,
+    PipelineValidationError,
+    StageRunner,
+)
 
 
 @dataclass
@@ -65,8 +71,8 @@ class PipelineBuilder:
 
         # Use DFS to detect cycles and extract the cycle path
         WHITE, GRAY, BLACK = 0, 1, 2
-        color: dict[str, int] = {name: WHITE for name in self.stages}
-        parent: dict[str, str | None] = {name: None for name in self.stages}
+        color: dict[str, int] = dict.fromkeys(self.stages, WHITE)
+        parent: dict[str, str | None] = dict.fromkeys(self.stages)
 
         def dfs(node: str, path: list[str]) -> list[str] | None:
             """DFS that returns cycle path if found, None otherwise."""
@@ -116,7 +122,7 @@ class PipelineBuilder:
             return None
 
         # Reset and run forward DFS
-        color = {name: WHITE for name in self.stages}
+        color = dict.fromkeys(self.stages, WHITE)
         for name in self.stages:
             if color[name] == WHITE:
                 cycle_path = dfs_forward(name, [])
@@ -207,7 +213,13 @@ class PipelineBuilder:
         # Validation happens in __post_init__
         return composed
 
-    def build(self) -> StageGraph:
+    def build(
+        self,
+        *,
+        emit_stage_wide_events: bool = False,
+        emit_pipeline_wide_event: bool = False,
+        wide_event_emitter: WideEventEmitter | None = None,
+    ) -> StageGraph:
         """Generate executable DAG for the orchestrator.
 
         Creates a StageGraph from the pipeline specifications.
@@ -256,7 +268,12 @@ class PipelineBuilder:
             )
             graph_specs.append(graph_spec)
 
-        return StageGraph(specs=graph_specs)
+        return StageGraph(
+            specs=graph_specs,
+            wide_event_emitter=wide_event_emitter,
+            emit_stage_wide_events=emit_stage_wide_events,
+            emit_pipeline_wide_event=emit_pipeline_wide_event,
+        )
 
     def get_stage(self, name: str) -> PipelineSpec | None:
         """Get a stage specification by name.

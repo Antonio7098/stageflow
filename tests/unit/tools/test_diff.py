@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-
 from stageflow.tools.diff import (
-    DiffType,
     DiffLine,
     DiffResult,
-    diff_text,
+    DiffType,
     diff_json,
     diff_structured,
+    diff_text,
 )
 
 

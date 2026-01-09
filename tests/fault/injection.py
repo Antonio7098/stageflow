@@ -7,11 +7,11 @@ faults into providers and stages to test error handling.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncGenerator, Callable, Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
 
 
 class FaultType(str, Enum):
@@ -52,7 +52,7 @@ class FaultInjector:
 
         if self.config.fault_type == FaultType.TIMEOUT:
             await asyncio.sleep(self.config.duration_ms / 1000)
-            raise asyncio.TimeoutError(self.config.message)
+            raise TimeoutError(self.config.message)
 
         elif self.config.fault_type == FaultType.ERROR:
             self._fault_count += 1

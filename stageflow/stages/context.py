@@ -15,7 +15,6 @@ from stageflow.core import StageArtifact as Artifact
 from stageflow.events import EventSink, get_event_sink
 
 if TYPE_CHECKING:
-    from stageflow.context.bag import ContextBag
     from stageflow.utils.frozen import FrozenDict
 
 
@@ -234,13 +233,13 @@ class PipelineContext:
         return self.canceled
 
     # === ExecutionContext protocol implementation ===
-    
+
     def try_emit_event(self, type: str, data: dict[str, Any]) -> None:
         """Emit an event without blocking (fire-and-forget).
-        
+
         Implements ExecutionContext protocol for compatibility with
         tools and other components.
-        
+
         Args:
             type: Event type string (e.g., "tool.completed")
             data: Event payload data

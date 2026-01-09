@@ -54,16 +54,27 @@ extension = Pipeline().with_stage("b", StageB, StageKind.TRANSFORM)
 merged = base.compose(extension)
 ```
 
-#### `build() -> StageGraph`
+#### `build(*, emit_stage_wide_events=False, emit_pipeline_wide_event=False, wide_event_emitter=None) -> StageGraph`
 
 Generate executable DAG for the orchestrator.
+
+**Parameters:**
+- `emit_stage_wide_events`: `bool` — When `True`, the resulting `StageGraph` emits `stage.wide` events after each stage completes/fails.
+- `emit_pipeline_wide_event`: `bool` — When `True`, emits a single `pipeline.wide` event after the run.
+- `wide_event_emitter`: `WideEventEmitter | None` — Optional shared emitter instance (auto-created when omitted but a custom emitter lets you integrate with your own sinks).
 
 **Returns:** `StageGraph` ready for execution
 
 **Raises:** `ValueError` if pipeline is empty or dependencies are invalid
 
 ```python
-graph = pipeline.build()
+from stageflow.observability import WideEventEmitter
+
+graph = pipeline.build(
+    emit_stage_wide_events=True,
+    emit_pipeline_wide_event=True,
+    wide_event_emitter=WideEventEmitter(),
+)
 results = await graph.run(ctx)
 ```
 
@@ -106,7 +117,14 @@ Dependency-driven DAG executor with parallel execution.
 ### Constructor
 
 ```python
-StageGraph(specs: Iterable[StageSpec], interceptors: list[BaseInterceptor] | None = None)
+StageGraph(
+    specs: Iterable[StageSpec],
+    interceptors: list[BaseInterceptor] | None = None,
+    *,
+    wide_event_emitter: WideEventEmitter | None = None,
+    emit_stage_wide_events: bool = False,
+    emit_pipeline_wide_event: bool = False,
+)
 ```
 
 ### Methods
@@ -128,6 +146,23 @@ Execute the DAG with the given context.
 results = await graph.run(ctx)
 print(results["my_stage"].data)
 ```
+
+#### Wide events
+
+If you construct `StageGraph` manually, you can opt into wide events:
+
+```python
+from stageflow.observability import WideEventEmitter
+
+graph = StageGraph(
+    specs=[...],
+    emit_stage_wide_events=True,
+    emit_pipeline_wide_event=True,
+    wide_event_emitter=WideEventEmitter(),
+)
+```
+
+Each stage completion/failure produces a `stage.wide` payload (duration, artifacts, correlation IDs) and the entire run produces a single `pipeline.wide` summary.
 
 ### Properties
 

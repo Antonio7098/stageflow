@@ -5,7 +5,12 @@ from stageflow.pipeline.builder import PipelineBuilder
 from stageflow.pipeline.dag import StageExecutionError, StageGraph, StageSpec
 from stageflow.pipeline.pipeline import Pipeline, UnifiedStageSpec
 from stageflow.pipeline.registry import PipelineRegistry, pipeline_registry
-from stageflow.pipeline.spec import CycleDetectedError, PipelineSpec, PipelineValidationError, StageRunner
+from stageflow.pipeline.spec import (
+    CycleDetectedError,
+    PipelineSpec,
+    PipelineValidationError,
+    StageRunner,
+)
 from stageflow.pipeline.subpipeline import (
     DEFAULT_MAX_SUBPIPELINE_DEPTH,
     ChildRunTracker,

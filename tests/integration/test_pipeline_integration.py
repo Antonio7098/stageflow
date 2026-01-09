@@ -5,27 +5,25 @@ components together to ensure the entire system works end-to-end.
 """
 
 import asyncio
-from datetime import datetime, UTC
-from typing import Any
+from datetime import UTC, datetime
 from uuid import uuid4
+
 import pytest
 
 from stageflow.context import ContextSnapshot
 from stageflow.core import (
+    StageArtifact,
     StageContext,
     StageKind,
     StageOutput,
     StageStatus,
-    StageArtifact,
 )
 from stageflow.pipeline.dag import UnifiedStageGraph, UnifiedStageSpec
-from stageflow.stages.inputs import StageInputs, create_stage_inputs
-
 
 # === Test Fixtures ===
 
 def create_snapshot(
-    pipeline_run_id: str | None = None,
+    _pipeline_run_id: str | None = None,
     topology: str = "test_pipeline",
 ) -> ContextSnapshot:
     """Create a test ContextSnapshot."""
@@ -37,7 +35,7 @@ def create_snapshot(
         org_id=uuid4(),
         interaction_id=uuid4(),
         topology=topology,
-        
+
         execution_mode="test",
         extensions={"key": "value"}
     )
@@ -51,13 +49,13 @@ class TestStageGraphIntegration:
     @pytest.mark.asyncio
     async def test_full_pipeline_with_all_components(self):
         """Test a complete pipeline with transform, guard, and work stages."""
-        async def transform_runner(ctx: StageContext) -> StageOutput:
+        async def transform_runner(__ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"transformed": True, "value": 42})
 
-        async def guard_runner(ctx: StageContext) -> StageOutput:
+        async def guard_runner(__ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"allowed": True})
 
-        async def work_runner(ctx: StageContext) -> StageOutput:
+        async def work_runner(__ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"completed": True})
 
         specs = [
@@ -96,7 +94,7 @@ class TestStageGraphIntegration:
         execution_times = []
 
         async def timed_runner(name: str, delay: float):
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(__ctx: StageContext) -> StageOutput:
                 start = datetime.now(UTC)
                 await asyncio.sleep(delay)
                 execution_times.append((name, datetime.now(UTC) - start))
@@ -135,7 +133,7 @@ class TestStageGraphIntegration:
     @pytest.mark.asyncio
     async def test_default_interceptors_are_applied(self):
         """Test that default interceptors are configured for stages."""
-        async def test_runner(ctx: StageContext) -> StageOutput:
+        async def test_runner(__ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"test": True})
 
         spec = UnifiedStageSpec(
@@ -164,7 +162,7 @@ class TestStageInputsIntegration:
         """Test that prior outputs are properly available to dependent stages."""
         stage2_received_data = []
 
-        async def stage1(ctx: StageContext) -> StageOutput:
+        async def stage1(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"key": "value1", "number": 42})
 
         async def stage2(ctx: StageContext) -> StageOutput:
@@ -200,15 +198,15 @@ class TestErrorHandlingIntegration:
         """Test that all stages complete successfully in a normal workflow."""
         results = []
 
-        async def stage1(ctx: StageContext) -> StageOutput:
+        async def stage1(__ctx: StageContext) -> StageOutput:
             results.append("stage1")
             return StageOutput.ok(data={"step": 1})
 
-        async def stage2(ctx: StageContext) -> StageOutput:
+        async def stage2(_ctx: StageContext) -> StageOutput:
             results.append("stage2")
             return StageOutput.ok(data={"step": 2})
 
-        async def stage3(ctx: StageContext) -> StageOutput:
+        async def stage3(__ctx: StageContext) -> StageOutput:
             results.append("stage3")
             return StageOutput.ok(data={"step": 3})
 
@@ -238,11 +236,11 @@ class TestConditionalExecutionIntegration:
         """Test conditional stage runs when no skip reason is set."""
         execution_order = []
 
-        async def normal_stage(ctx: StageContext) -> StageOutput:
+        async def normal_stage(_ctx: StageContext) -> StageOutput:
             execution_order.append("normal")
             return StageOutput.ok()
 
-        async def conditional_stage(ctx: StageContext) -> StageOutput:
+        async def conditional_stage(_ctx: StageContext) -> StageOutput:
             execution_order.append("conditional")
             return StageOutput.ok()
 
@@ -272,10 +270,10 @@ class TestConditionalExecutionIntegration:
     @pytest.mark.asyncio
     async def test_skip_with_reason_workflow(self):
         """Test that conditional stages are properly skipped with reason."""
-        async def setup_stage(ctx: StageContext) -> StageOutput:
+        async def setup_stage(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"skip_reason": "triage_failed"})
 
-        async def conditional_stage(ctx: StageContext) -> StageOutput:
+        async def conditional_stage(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"ran": True})
 
         specs = [
@@ -311,7 +309,7 @@ class TestArtifactEventIntegration:
     @pytest.mark.asyncio
     async def test_artifacts_through_pipeline(self):
         """Test that artifacts are properly created and collected."""
-        async def stage_with_artifact(ctx: StageContext) -> StageOutput:
+        async def stage_with_artifact(_ctx: StageContext) -> StageOutput:
             return StageOutput(
                 status=StageStatus.OK,
                 artifacts=[
@@ -346,15 +344,15 @@ class TestEndToEndPipeline:
     async def test_chat_pipeline_workflow(self):
         """Test a complete chat-like pipeline workflow."""
         # STT Stage
-        async def stt_stage(ctx: StageContext) -> StageOutput:
+        async def stt_stage(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"transcript": "Hello, how are you?"})
 
         # LLM Stage
-        async def llm_stage(ctx: StageContext) -> StageOutput:
+        async def llm_stage(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"response": "I'm doing well, thanks!"})
 
         # TTS Stage
-        async def tts_stage(ctx: StageContext) -> StageOutput:
+        async def tts_stage(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"audio_duration_ms": 1500})
 
         specs = [
@@ -377,19 +375,19 @@ class TestEndToEndPipeline:
     async def test_voice_pipeline_with_guardrail(self):
         """Test a voice pipeline with a guardrail stage."""
         # Input processing
-        async def process_input(ctx: StageContext) -> StageOutput:
+        async def process_input(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"processed_input": "test"})
 
         # Guardrail check
-        async def guardrail(ctx: StageContext) -> StageOutput:
+        async def guardrail(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"safe": True})
 
         # LLM generation
-        async def llm(ctx: StageContext) -> StageOutput:
+        async def llm(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"response": "Generated response"})
 
         # TTS synthesis
-        async def tts(ctx: StageContext) -> StageOutput:
+        async def tts(_ctx: StageContext) -> StageOutput:
             return StageOutput.ok(data={"audio": "synthesized"})
 
         specs = [
@@ -417,7 +415,7 @@ class TestPerformanceIntegration:
     async def test_many_stages_parallel_execution(self):
         """Test performance with many stages running in parallel."""
         async def make_runner(name: str):
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(__ctx: StageContext) -> StageOutput:
                 await asyncio.sleep(0.01)
                 return StageOutput.ok(data={"stage": name})
             return runner
@@ -444,7 +442,7 @@ class TestPerformanceIntegration:
     async def test_deep_dependency_chain(self):
         """Test performance with a deep chain of dependencies."""
         async def make_runner(name: str):
-            async def runner(ctx: StageContext) -> StageOutput:
+            async def runner(__ctx: StageContext) -> StageOutput:
                 return StageOutput.ok(data={"stage": name})
             return runner
 

@@ -1,15 +1,15 @@
 """LLM chat pipeline - tests real LLM integration."""
 
-from stageflow import Pipeline, StageKind
-
+from services.groq_client import GroqClient
 from stages.guard import InputGuardStage
 from stages.llm import LLMStage
-from services.groq_client import GroqClient
+
+from stageflow import Pipeline, StageKind
 
 
 def create_llm_pipeline(groq_client: GroqClient | None = None) -> Pipeline:
     """Create a pipeline with LLM integration.
-    
+
     DAG:
         [input_guard] -> [llm]
     """

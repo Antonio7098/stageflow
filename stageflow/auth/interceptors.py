@@ -13,7 +13,6 @@ from uuid import UUID
 from stageflow.auth.context import AuthContext
 from stageflow.auth.errors import (
     AuthenticationError,
-    CrossTenantAccessError,
     InvalidTokenError,
     MissingClaimsError,
     TokenExpiredError,
@@ -58,7 +57,7 @@ class MockJwtValidator:
 
     Validates tokens in format "valid_<user_id>_<org_id>_<roles>"
     or rejects tokens starting with "invalid_" or "expired_".
-    
+
     For testing, user_id and org_id should be valid UUID strings.
     """
 
@@ -119,7 +118,7 @@ class AuthInterceptor(BaseInterceptor):
         """
         self._jwt_validator = jwt_validator or MockJwtValidator()
 
-    async def before(self, stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+    async def before(self, _stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
         """Validate JWT token before stage execution.
 
         Extracts token from ctx.data["_auth_token"] or ctx.data.get("auth_token").
@@ -197,7 +196,7 @@ class AuthInterceptor(BaseInterceptor):
             session_id = UUID(session_id_str)
             org_id = UUID(claims["org_id"]) if claims.get("org_id") else None
         except ValueError as e:
-            raise InvalidTokenError(f"Invalid UUID in claims: {e}")
+            raise InvalidTokenError(f"Invalid UUID in claims: {e}") from e
 
         # Extract optional claims
         email = claims.get("email")
@@ -261,7 +260,7 @@ class OrgEnforcementInterceptor(BaseInterceptor):
     name: str = "org_enforcement"
     priority: int = 2  # Runs after auth
 
-    async def before(self, stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+    async def before(self, _stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
         """Check org isolation before stage execution.
 
         Verifies that ctx.data["_resource_org_id"] matches the

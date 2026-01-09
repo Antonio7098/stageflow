@@ -1,17 +1,17 @@
 """Pipeline definitions for the test app."""
 
-from .simple import create_simple_pipeline
-from .transform import create_transform_pipeline
-from .parallel import create_parallel_pipeline
-from .llm import create_llm_pipeline
+from .agent_demo import create_agent_demo_pipeline
 from .full import create_full_pipeline
 from .insights import (
-    create_insights_pipeline,
     create_guarded_insights_pipeline,
+    create_insights_pipeline,
 )
-from .agent_demo import create_agent_demo_pipeline
-from .unified_tools import create_unified_tools_pipeline
+from .llm import create_llm_pipeline
 from .observability_demo import create_observability_demo_pipeline
+from .parallel import create_parallel_pipeline
+from .simple import create_simple_pipeline
+from .transform import create_transform_pipeline
+from .unified_tools import create_unified_tools_pipeline
 
 PIPELINES = {
     "simple": {

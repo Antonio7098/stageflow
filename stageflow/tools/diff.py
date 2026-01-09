@@ -11,8 +11,8 @@ content. Diffs are essential for:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher, unified_diff
 from enum import Enum
-from difflib import unified_diff, SequenceMatcher
 from typing import Any
 
 
@@ -195,7 +195,7 @@ def diff_text(
 
 
 def _parse_diff_changes(
-    old_lines: list[str], new_lines: list[str], diff_lines: list[str]
+    _old_lines: list[str], _new_lines: list[str], diff_lines: list[str]
 ) -> list[DiffLine]:
     """Parse diff lines into DiffLine objects."""
     changes: list[DiffLine] = []
@@ -308,7 +308,6 @@ def _generate_json_patch(
     old: dict[str, Any] | list[Any], new: dict[str, Any] | list[Any]
 ) -> list[dict[str, Any]]:
     """Generate JSON Patch operations from two objects."""
-    import json
 
     patch: list[dict[str, Any]] = []
 

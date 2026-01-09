@@ -16,10 +16,7 @@ class DispatchStage:
     async def execute(self, ctx: StageContext) -> StageOutput:
         """Execute routing decision."""
         inputs = ctx.config.get("inputs")
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-        else:
-            input_text = ctx.snapshot.input_text or ""
+        input_text = inputs.snapshot.input_text or "" if inputs else ctx.snapshot.input_text or ""
 
         await asyncio.sleep(0.1)
 
@@ -35,7 +32,7 @@ class DispatchStage:
             route=route,
             routing_decision={
                 "selected_route": route,
-                "reason": f"Matched keyword or defaulted to agent",
+                "reason": "Matched keyword or defaulted to agent",
             },
         )
 

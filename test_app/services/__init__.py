@@ -1,7 +1,7 @@
 """Service implementations for the test app."""
 
 from .groq_client import GroqClient
-from .mocks import MockMemoryService, MockProfileService, MockGuardService
+from .mocks import MockGuardService, MockMemoryService, MockProfileService
 
 __all__ = [
     "GroqClient",

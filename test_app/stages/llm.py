@@ -1,11 +1,9 @@
 """LLM stage for real Groq integration."""
 
-import asyncio
-from typing import Any
-
-from stageflow import StageContext, StageKind, StageOutput
 
 from services.groq_client import GroqClient
+
+from stageflow import StageContext, StageKind, StageOutput
 
 
 class LLMStage:
@@ -24,7 +22,7 @@ class LLMStage:
             input_text = inputs.snapshot.input_text or ""
             profile = inputs.get("profile", {})
             memory = inputs.get("memory", {})
-            messages = [m for m in inputs.snapshot.messages] if inputs.snapshot.messages else []
+            messages = list(inputs.snapshot.messages) if inputs.snapshot.messages else []
         else:
             input_text = ctx.snapshot.input_text or ""
             profile = {}

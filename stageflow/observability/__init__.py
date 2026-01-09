@@ -7,12 +7,14 @@ models or direct provider logging - those belong in the application layer.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
-if TYPE_CHECKING:
-    from datetime import datetime
-
+from stageflow.observability.wide_events import (
+    WideEventEmitter,
+    emit_pipeline_wide_event,
+    emit_stage_wide_event,
+)
 
 class PipelineRunLogger(Protocol):
     """Protocol for logging pipeline runs.
@@ -67,7 +69,7 @@ class ProviderCallLogger(Protocol):
         operation: str,
         provider: str,
         model_id: str | None,
-        **context: Any,
+        **_context: Any,
     ) -> UUID: ...
 
     async def log_call_end(
@@ -167,10 +169,10 @@ class NoOpPipelineRunLogger:
 class NoOpProviderCallLogger:
     """No-op provider call logger."""
 
-    async def log_call_start(self, **kwargs: Any) -> UUID:
+    async def log_call_start(self, **_kwargs: Any) -> UUID:
         return UUID("00000000-0000-0000-0000-000000000000")
 
-    async def log_call_end(self, call_id: UUID, **kwargs: Any) -> None: ...
+    async def log_call_end(self, call_id: UUID, **_kwargs: Any) -> None: ...
 
 
 # Default no-op instances
@@ -183,15 +185,12 @@ def get_circuit_breaker() -> CircuitBreaker:
 
     Returns a no-op circuit breaker by default.
     """
-    # Import here to avoid circular imports
-    from stageflow.core import PipelineTimer
-
     class NoOpCircuitBreaker:
-        async def is_open(self, **kwargs: Any) -> bool:
+        async def is_open(self, **_kwargs: Any) -> bool:
             return False
 
-        async def record_success(self, **kwargs: Any) -> None: ...
-        async def record_failure(self, **kwargs: Any) -> None: ...
+        async def record_success(self, **_kwargs: Any) -> None: ...
+        async def record_failure(self, **_kwargs: Any) -> None: ...
 
     return NoOpCircuitBreaker()
 
@@ -209,4 +208,7 @@ __all__ = [
     "get_circuit_breaker",
     "pipeline_run_logger",
     "provider_call_logger",
+    "WideEventEmitter",
+    "emit_stage_wide_event",
+    "emit_pipeline_wide_event",
 ]

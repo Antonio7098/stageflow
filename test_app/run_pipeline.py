@@ -13,29 +13,29 @@ import asyncio
 import json
 import logging
 import sys
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 # Add parent to path for imports
 sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
 
-from stageflow import StageContext, set_event_sink, LoggingEventSink
+from stageflow import StageContext, set_event_sink
 from stageflow.context import ContextSnapshot
-from stageflow.pipeline.dag import UnifiedStageGraph, UnifiedPipelineCancelled
+from stageflow.pipeline.dag import UnifiedPipelineCancelled, UnifiedStageGraph
 
 
 class ObservableEventSink:
     """Event sink that prints events with formatting for observability."""
-    
+
     def __init__(self, verbose: bool = True):
         self.verbose = verbose
         self.events: list[dict[str, Any]] = []
         self._start_time = datetime.now(UTC)
-    
+
     def _elapsed_ms(self) -> float:
         return (datetime.now(UTC) - self._start_time).total_seconds() * 1000
-    
+
     async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:
         """Emit an event asynchronously."""
         event = {
@@ -45,10 +45,10 @@ class ObservableEventSink:
             "elapsed_ms": self._elapsed_ms(),
         }
         self.events.append(event)
-        
+
         if self.verbose:
             self._print_event(event)
-    
+
     def try_emit(self, *, type: str, data: dict[str, Any] | None) -> None:
         """Emit an event synchronously (fire-and-forget)."""
         event = {
@@ -58,15 +58,15 @@ class ObservableEventSink:
             "elapsed_ms": self._elapsed_ms(),
         }
         self.events.append(event)
-        
+
         if self.verbose:
             self._print_event(event)
-    
+
     def _print_event(self, event: dict[str, Any]) -> None:
         """Print event with formatting."""
         elapsed = event["elapsed_ms"]
         event_type = event["type"]
-        
+
         # Color coding based on event type
         if "error" in event_type or "failed" in event_type:
             color = "\033[91m"  # Red
@@ -78,37 +78,37 @@ class ObservableEventSink:
             color = "\033[93m"  # Yellow
         else:
             color = "\033[96m"  # Cyan
-        
+
         reset = "\033[0m"
-        
+
         print(f"{color}[{elapsed:8.2f}ms] {event_type}{reset}")
-        
+
         # Print relevant data
         data = event.get("data", {})
         if data:
-            relevant_keys = ["stage", "action_type", "tool_name", "error", "result", 
+            relevant_keys = ["stage", "action_type", "tool_name", "error", "result",
                            "duration_ms", "execution_mode", "behavior"]
             for key in relevant_keys:
                 if key in data:
                     print(f"           {key}: {data[key]}")
-    
+
     def print_summary(self) -> None:
         """Print summary of all events."""
         print("\n" + "=" * 60)
         print("EVENT SUMMARY")
         print("=" * 60)
         print(f"Total events: {len(self.events)}")
-        
+
         # Group by type prefix
         by_prefix: dict[str, int] = {}
         for event in self.events:
             prefix = event["type"].split(".")[0]
             by_prefix[prefix] = by_prefix.get(prefix, 0) + 1
-        
+
         print("\nBy category:")
         for prefix, count in sorted(by_prefix.items()):
             print(f"  {prefix}: {count}")
-        
+
         # Show timeline
         print("\nTimeline:")
         for event in self.events:
@@ -125,7 +125,7 @@ def setup_logging(verbose: bool) -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
-    
+
     # Reduce noise from some loggers
     logging.getLogger("asyncio").setLevel(logging.WARNING)
 
@@ -156,23 +156,23 @@ async def run_unified_tools_pipeline(
 ) -> dict[str, Any]:
     """Run the unified tools pipeline."""
     from test_app.pipelines.unified_tools import create_unified_tools_pipeline
-    
+
     specs = create_unified_tools_pipeline()
     graph = UnifiedStageGraph(specs)
-    
+
     snapshot = create_context_snapshot(input_text, execution_mode)
     ctx = StageContext(
         snapshot=snapshot,
         config={"event_sink": event_sink},
     )
-    
+
     print("\n" + "=" * 60)
     print("RUNNING: unified_tools pipeline")
     print("=" * 60)
     print(f"Input: {input_text}")
     print(f"Execution Mode: {execution_mode}")
     print("-" * 60)
-    
+
     try:
         results = await graph.run(ctx)
         return {
@@ -201,23 +201,23 @@ async def run_observability_demo_pipeline(
 ) -> dict[str, Any]:
     """Run the observability demo pipeline."""
     from test_app.pipelines.observability_demo import create_observability_demo_pipeline
-    
+
     specs = create_observability_demo_pipeline()
     graph = UnifiedStageGraph(specs)
-    
+
     snapshot = create_context_snapshot(input_text, execution_mode)
     ctx = StageContext(
         snapshot=snapshot,
         config={"event_sink": event_sink},
     )
-    
+
     print("\n" + "=" * 60)
     print("RUNNING: observability_demo pipeline")
     print("=" * 60)
     print(f"Input: {input_text}")
     print(f"Execution Mode: {execution_mode}")
     print("-" * 60)
-    
+
     try:
         results = await graph.run(ctx)
         return {
@@ -281,15 +281,15 @@ Examples:
         action="store_true",
         help="Suppress event output",
     )
-    
+
     args = parser.parse_args()
-    
+
     setup_logging(args.verbose)
-    
+
     # Create observable event sink
     event_sink = ObservableEventSink(verbose=not args.no_events)
     set_event_sink(event_sink)
-    
+
     # Run the selected pipeline
     if args.pipeline == "unified_tools":
         result = await run_unified_tools_pipeline(
@@ -306,21 +306,21 @@ Examples:
     else:
         print(f"Unknown pipeline: {args.pipeline}", file=sys.stderr)
         return 1
-    
+
     # Print results
     print("\n" + "=" * 60)
     print("RESULTS")
     print("=" * 60)
-    
+
     if args.json:
         print(json.dumps(result, indent=2, default=str))
     else:
         if result.get("success"):
             print("\033[92mPipeline completed successfully!\033[0m")
-            
+
             if result.get("cancelled"):
                 print(f"  (Cancelled: {result.get('reason')})")
-            
+
             stages = result.get("stages", {})
             for stage_name, stage_data in stages.items():
                 print(f"\n  Stage: {stage_name}")
@@ -333,11 +333,11 @@ Examples:
         else:
             print(f"\033[91mPipeline failed: {result.get('error')}\033[0m")
             print(f"  Error type: {result.get('error_type')}")
-    
+
     # Print event summary
     if not args.no_events:
         event_sink.print_summary()
-    
+
     return 0 if result.get("success") else 1
 
 

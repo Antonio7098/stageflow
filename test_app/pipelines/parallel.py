@@ -1,14 +1,14 @@
 """Parallel enrichment pipeline - tests parallel execution."""
 
-from stageflow import Pipeline, StageKind
-
-from stages.enrich import ProfileEnrichStage, MemoryEnrichStage
+from stages.enrich import MemoryEnrichStage, ProfileEnrichStage
 from stages.transform import SummarizeStage
+
+from stageflow import Pipeline, StageKind
 
 
 def create_parallel_pipeline() -> Pipeline:
     """Create a pipeline with parallel enrichment stages.
-    
+
     DAG:
         [profile_enrich] ─┐
                           ├─> [summarize]

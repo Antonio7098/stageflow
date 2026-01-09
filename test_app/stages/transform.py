@@ -58,10 +58,7 @@ class SummarizeStage:
         else:
             text = ctx.snapshot.input_text or ""
 
-        if len(text) > 100:
-            summary = text[:100] + "..."
-        else:
-            summary = text
+        summary = text[:100] + "..." if len(text) > 100 else text
 
         return StageOutput.ok(
             text=summary,

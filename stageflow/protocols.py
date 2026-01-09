@@ -9,7 +9,7 @@ Protocols:
     EventSink: Event persistence/emission
     RunStore: Pipeline run persistence
     ConfigProvider: Configuration access
-    
+
 Dataclasses:
     CorrelationIds: Generic correlation IDs for tracing
 """
@@ -24,52 +24,52 @@ from uuid import UUID
 @runtime_checkable
 class ExecutionContext(Protocol):
     """Common interface for all execution contexts.
-    
+
     This protocol defines the minimal interface that both PipelineContext
     and StageContext implement, enabling tools and other components to
     work with either context type.
-    
+
     Implements:
     - Liskov Substitution: Both contexts can be used where ExecutionContext is expected
     - Interface Segregation: Defines only the minimal required interface
     - Dependency Inversion: Tools depend on this protocol, not concrete classes
-    
+
     Example:
         def process(ctx: ExecutionContext) -> None:
             print(f"Run: {ctx.pipeline_run_id}")
             print(f"Mode: {ctx.execution_mode}")
             ctx.try_emit_event("custom.event", {"key": "value"})
     """
-    
+
     @property
     def pipeline_run_id(self) -> UUID | None:
         """Pipeline run identifier for correlation."""
         ...
-    
+
     @property
     def request_id(self) -> UUID | None:
         """Request identifier for tracing."""
         ...
-    
+
     @property
     def execution_mode(self) -> str | None:
         """Current execution mode (e.g., 'practice', 'roleplay', 'doc_edit')."""
         ...
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of the context
         """
         ...
-    
+
     def try_emit_event(self, type: str, data: dict[str, Any]) -> None:
         """Emit an event without blocking (fire-and-forget).
-        
+
         This method should not raise exceptions. If no event sink is
         available, the event should be logged or silently discarded.
-        
+
         Args:
             type: Event type string (e.g., "tool.completed")
             data: Event payload data
@@ -80,34 +80,34 @@ class ExecutionContext(Protocol):
 @runtime_checkable
 class EventSink(Protocol):
     """Protocol for event persistence/emission.
-    
+
     Implementations handle where events go - database, message queue,
     logging system, or just discarded (NoOp).
-    
+
     Example:
         class DatabaseEventSink:
             async def emit(self, *, type: str, data: dict | None) -> None:
                 await db.insert("events", {"type": type, "data": data})
-                
+
             def try_emit(self, *, type: str, data: dict | None) -> None:
                 asyncio.create_task(self.emit(type=type, data=data))
     """
-    
+
     async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:
         """Emit an event asynchronously.
-        
+
         Args:
             type: Event type string (e.g., "stage.stt.completed")
             data: Event payload data
         """
         ...
-    
+
     def try_emit(self, *, type: str, data: dict[str, Any] | None) -> None:
         """Emit an event without blocking (fire-and-forget).
-        
+
         This method should not raise exceptions. Failed emissions
         should be logged internally.
-        
+
         Args:
             type: Event type string
             data: Event payload data
@@ -118,16 +118,16 @@ class EventSink(Protocol):
 @runtime_checkable
 class RunStore(Protocol):
     """Protocol for pipeline run persistence.
-    
+
     Implementations handle how pipeline runs are stored and retrieved.
     This could be a database, in-memory store, or external service.
-    
+
     Example:
         class PostgresRunStore:
             async def create_run(self, run_id: UUID, **metadata) -> PipelineRun:
                 return await db.insert("pipeline_runs", {"id": run_id, **metadata})
     """
-    
+
     async def create_run(
         self,
         run_id: UUID,
@@ -152,7 +152,7 @@ class RunStore(Protocol):
             The created run object
         """
         ...
-    
+
     async def update_status(
         self,
         run_id: UUID,
@@ -163,7 +163,7 @@ class RunStore(Protocol):
         **data: Any,
     ) -> None:
         """Update a pipeline run's status.
-        
+
         Args:
             run_id: Run identifier
             status: New status
@@ -172,13 +172,13 @@ class RunStore(Protocol):
             **data: Additional data to store
         """
         ...
-    
+
     async def get_run(self, run_id: UUID) -> Any | None:
         """Retrieve a pipeline run by ID.
-        
+
         Args:
             run_id: Run identifier
-            
+
         Returns:
             The run object or None if not found
         """
@@ -188,23 +188,23 @@ class RunStore(Protocol):
 @runtime_checkable
 class ConfigProvider(Protocol):
     """Protocol for configuration access.
-    
+
     Implementations provide configuration values from environment,
     files, databases, or other sources.
-    
+
     Example:
         class EnvConfigProvider:
             def get(self, key: str, default: Any = None) -> Any:
                 return os.environ.get(key, default)
     """
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value.
-        
+
         Args:
             key: Configuration key
             default: Default value if key not found
-            
+
         Returns:
             Configuration value or default
         """
@@ -214,10 +214,10 @@ class ConfigProvider(Protocol):
 @dataclass(frozen=True, slots=True)
 class CorrelationIds:
     """Generic correlation IDs for distributed tracing.
-    
+
     These IDs are propagated through the pipeline to correlate
     logs, traces, and events across services.
-    
+
     Attributes:
         run_id: Pipeline run identifier
         request_id: HTTP/WS request identifier
@@ -226,7 +226,7 @@ class CorrelationIds:
         user_id: User identifier
         org_id: Organization/tenant identifier
         extra: Extension point for app-specific IDs
-        
+
     Example:
         ids = CorrelationIds(
             run_id=uuid4(),
@@ -235,7 +235,7 @@ class CorrelationIds:
             extra={"interaction_id": str(interaction_id)}
         )
     """
-    
+
     run_id: UUID | None = None
     request_id: UUID | None = None
     trace_id: str | None = None
@@ -243,7 +243,7 @@ class CorrelationIds:
     user_id: UUID | None = None
     org_id: UUID | None = None
     extra: dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for logging/serialization."""
         result: dict[str, Any] = {}
@@ -266,7 +266,7 @@ class CorrelationIds:
 __all__ = [
     "ExecutionContext",
     "EventSink",
-    "RunStore", 
+    "RunStore",
     "ConfigProvider",
     "CorrelationIds",
 ]

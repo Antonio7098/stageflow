@@ -1,5 +1,10 @@
 """Test utilities for stageflow tests."""
 
+from .assertions import (
+    assert_event_emitted,
+    assert_stage_completed,
+    assert_stage_failed,
+)
 from .factories import (
     create_test_context,
     create_test_pipeline,
@@ -10,11 +15,6 @@ from .mocks import (
     MockEventSink,
     MockStage,
     MockTool,
-)
-from .assertions import (
-    assert_event_emitted,
-    assert_stage_completed,
-    assert_stage_failed,
 )
 
 __all__ = [

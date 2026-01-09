@@ -3,19 +3,17 @@
 Tests the StageGraph DAG executor.
 """
 
-import asyncio
-from datetime import datetime, UTC
+from typing import Any
 from uuid import uuid4
+
 import pytest
 
-from stageflow.core import StageOutput, StageStatus
+from stageflow.core import StageOutput
 from stageflow.pipeline.dag import (
-    StageExecutionError,
     StageGraph,
     StageSpec,
 )
 from stageflow.stages.context import PipelineContext
-
 
 # === Test Fixtures ===
 
@@ -40,7 +38,7 @@ class SimpleStage:
     def __init__(self, result_data: dict | None = None):
         self.result_data = result_data or {}
 
-    async def execute(self, ctx: PipelineContext) -> StageOutput:
+    async def execute(self, _ctx: PipelineContext) -> StageOutput:
         return StageOutput.ok(data=self.result_data)
 
 
@@ -48,8 +46,38 @@ class FailingStage:
     """Stage that always raises an error for testing error handling."""
     name = "failing"
 
-    async def execute(self, ctx: PipelineContext) -> StageOutput:
+    async def execute(self, _ctx: PipelineContext) -> StageOutput:
         raise ValueError("Intentional test error")
+
+
+class CapturingWideEmitter:
+    """Test double for WideEventEmitter."""
+
+    def __init__(self):
+        self.stage_events: list[tuple[str, str]] = []
+        self.pipeline_events: list[dict[str, Any]] = []
+
+    def emit_stage_event(self, *, _ctx, result):
+        self.stage_events.append((result.name, result.status))
+
+    def emit_pipeline_event(
+        self,
+        *,
+        _ctx,
+        stage_results,
+        pipeline_name,
+        status,
+        duration_ms,
+        _started_at,
+    ):
+        self.pipeline_events.append(
+            {
+                "pipeline_name": pipeline_name,
+                "status": status,
+                "stage_count": len(stage_results),
+                "duration_ms": duration_ms,
+            }
+        )
 
 
 # === Test StageSpec ===
@@ -218,6 +246,44 @@ class TestStageGraphExecution:
         assert results["c"].status == "completed"
         assert results["d"].status == "completed"
 
+    @pytest.mark.asyncio
+    async def test_stage_wide_events_can_be_emitted(self):
+        """Ensure StageGraph can emit wide events for each stage."""
+        emitter = CapturingWideEmitter()
+        spec = StageSpec(name="simple", runner=SimpleStage)
+        graph = StageGraph(
+            specs=[spec],
+            wide_event_emitter=emitter,
+            emit_stage_wide_events=True,
+        )
+        ctx = create_context()
+
+        await graph.run(ctx)
+
+        assert emitter.stage_events == [("simple", "completed")]
+
+    @pytest.mark.asyncio
+    async def test_pipeline_wide_event_can_be_emitted(self):
+        """Ensure StageGraph can emit a pipeline-wide event."""
+        emitter = CapturingWideEmitter()
+        specs = [
+            StageSpec(name="a", runner=SimpleStage),
+            StageSpec(name="b", runner=SimpleStage),
+        ]
+        graph = StageGraph(
+            specs=specs,
+            wide_event_emitter=emitter,
+            emit_pipeline_wide_event=True,
+        )
+        ctx = create_context()
+
+        await graph.run(ctx)
+
+        assert len(emitter.pipeline_events) == 1
+        event = emitter.pipeline_events[0]
+        assert event["pipeline_name"] == ctx.topology
+        assert event["stage_count"] == 2
+
 
 # === Test Error Handling ===
 
@@ -341,7 +407,7 @@ class TestStageGraphEdgeCases:
         results = await graph.run(ctx)
 
         assert len(results) == 10
-        for name, result in results.items():
+        for _name, result in results.items():
             assert result.status == "completed"
 
     @pytest.mark.asyncio
@@ -379,10 +445,10 @@ class TestStageGraphEdgeCases:
         class BadInterceptor(BaseInterceptor):
             name = "bad"
 
-            async def before(self, stage_name: str, ctx: PipelineContext) -> None:
+            async def before(self, _stage_name: str, _ctx: PipelineContext) -> None:
                 raise RuntimeError("Interceptor before error")
 
-            async def after(self, stage_name: str, result, ctx: PipelineContext) -> None:
+            async def after(self, _stage_name: str, _result, _ctx: PipelineContext) -> None:
                 raise RuntimeError("Interceptor after error")
 
         spec = StageSpec(name="test", runner=SimpleStage)

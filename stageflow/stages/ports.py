@@ -76,7 +76,7 @@ def create_core_ports(
     retry_fn: Any = None,
 ) -> CorePorts:
     """Create CorePorts with essential capabilities.
-    
+
     Args:
         db: Database session for persistence operations
         db_lock: Optional lock for preventing concurrent DB access
@@ -84,7 +84,7 @@ def create_core_ports(
         send_status: Callback for status updates
         call_logger: Logger for tracking provider API calls
         retry_fn: Retry function for failed operations
-        
+
     Returns:
         CorePorts instance
     """
@@ -107,13 +107,13 @@ def create_llm_ports(
     send_token: Callable[[str], Awaitable[None]] | None = None,
 ) -> LLMPorts:
     """Create LLMPorts for language model operations.
-    
+
     Args:
         llm_provider: LLM provider for text generation
         chat_service: Chat service for building context and running LLM
         llm_chunk_queue: Queue for LLM chunks in streaming pipeline
         send_token: Callback for streaming tokens
-        
+
     Returns:
         LLMPorts instance
     """
@@ -138,7 +138,7 @@ def create_audio_ports(
     recording: Any = None,
 ) -> AudioPorts:
     """Create AudioPorts for audio processing operations.
-    
+
     Args:
         tts_provider: TTS provider for text-to-speech synthesis
         stt_provider: STT provider for speech-to-text transcription
@@ -148,7 +148,7 @@ def create_audio_ports(
         audio_format: Audio format string
         tts_text_queue: Queue for text chunks to be synthesized by TTS
         recording: Recording metadata
-        
+
     Returns:
         AudioPorts instance
     """

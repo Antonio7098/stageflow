@@ -1,24 +1,24 @@
 """Full feature pipeline - tests all stageflow features."""
 
-from stageflow import Pipeline, StageKind
-
-from stages.router import RouterStage
-from stages.guard import InputGuardStage, OutputGuardStage
-from stages.enrich import ProfileEnrichStage, MemoryEnrichStage
-from stages.llm import LLMStage
 from services.groq_client import GroqClient
+from stages.enrich import MemoryEnrichStage, ProfileEnrichStage
+from stages.guard import InputGuardStage, OutputGuardStage
+from stages.llm import LLMStage
+from stages.router import RouterStage
+
+from stageflow import Pipeline, StageKind
 
 
 def create_full_pipeline(groq_client: GroqClient | None = None) -> Pipeline:
     """Create a full-featured pipeline with all stage types.
-    
+
     DAG:
         [input_guard] -> [router] ─┐
                                    │
         [profile_enrich] ──────────┼─> [llm] -> [output_guard]
                                    │
         [memory_enrich] ───────────┘
-    
+
     Features tested:
     - Guard stages (input/output validation)
     - Route stages (path selection)

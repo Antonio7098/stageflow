@@ -1,7 +1,7 @@
 """Groq LLM client for real LLM integration."""
 
 import os
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 try:
     from groq import AsyncGroq

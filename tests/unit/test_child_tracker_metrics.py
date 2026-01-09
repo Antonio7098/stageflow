@@ -9,25 +9,21 @@ Tests:
 """
 
 import asyncio
-import logging
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
+
 import pytest
 
-from stageflow.pipeline.subpipeline import (
-    ChildRunTracker,
-    get_child_tracker,
-    set_child_tracker,
-    clear_child_tracker,
-)
 from stageflow.pipeline.interceptors import (
     ChildTrackerMetricsInterceptor,
     get_default_interceptors,
 )
-from stageflow.core import StageStatus
-from stageflow.stages.context import PipelineContext
-from stageflow.context import ContextSnapshot
-from stageflow.stages.result import StageResult
+from stageflow.pipeline.subpipeline import (
+    ChildRunTracker,
+    clear_child_tracker,
+    get_child_tracker,
+    set_child_tracker,
+)
 
 
 class TestChildRunTrackerMetrics:
@@ -37,7 +33,7 @@ class TestChildRunTrackerMetrics:
         """Test initial metrics state."""
         tracker = ChildRunTracker()
         metrics = await tracker.get_metrics()
-        
+
         assert metrics["registration_count"] == 0
         assert metrics["unregistration_count"] == 0
         assert metrics["lookup_count"] == 0
@@ -54,10 +50,10 @@ class TestChildRunTrackerMetrics:
         tracker = ChildRunTracker()
         parent_id = uuid4()
         child_id = uuid4()
-        
+
         await tracker.register_child(parent_id, child_id)
         metrics = await tracker.get_metrics()
-        
+
         assert metrics["registration_count"] == 1
         assert metrics["max_concurrent_children"] == 1
         assert metrics["active_parents"] == 1
@@ -68,14 +64,14 @@ class TestChildRunTrackerMetrics:
         """Test metrics with multiple children."""
         tracker = ChildRunTracker()
         parent_id = uuid4()
-        
+
         # Register multiple children
         child_ids = [uuid4() for _ in range(3)]
         for child_id in child_ids:
             await tracker.register_child(parent_id, child_id)
-        
+
         metrics = await tracker.get_metrics()
-        
+
         assert metrics["registration_count"] == 3
         assert metrics["max_concurrent_children"] == 3
         assert metrics["active_parents"] == 1
@@ -87,11 +83,11 @@ class TestChildRunTrackerMetrics:
         tracker = ChildRunTracker()
         parent_id = uuid4()
         child_id = uuid4()
-        
+
         await tracker.register_child(parent_id, child_id)
         await tracker.unregister_child(parent_id, child_id)
         metrics = await tracker.get_metrics()
-        
+
         assert metrics["registration_count"] == 1
         assert metrics["unregistration_count"] == 1
         assert metrics["active_parents"] == 0
@@ -103,13 +99,13 @@ class TestChildRunTrackerMetrics:
         tracker = ChildRunTracker()
         parent_id = uuid4()
         child_id = uuid4()
-        
+
         await tracker.register_child(parent_id, child_id)
-        
+
         # Test get_children lookup
         await tracker.get_children(parent_id)
         await tracker.get_parent(child_id)
-        
+
         metrics = await tracker.get_metrics()
         assert metrics["lookup_count"] == 2
 
@@ -117,17 +113,17 @@ class TestChildRunTrackerMetrics:
         """Test tree traversal metrics."""
         tracker = ChildRunTracker()
         root_id = uuid4()
-        
+
         # Create a tree: root -> child1 -> grandchild1
         child1_id = uuid4()
         grandchild1_id = uuid4()
-        
+
         await tracker.register_child(root_id, child1_id)
         await tracker.register_child(child1_id, grandchild1_id)
-        
+
         # Test tree traversal
         descendants = await tracker.get_all_descendants(root_id)
-        
+
         metrics = await tracker.get_metrics()
         assert metrics["tree_traversal_count"] == 1
         assert len(descendants) == 2  # child1 + grandchild1
@@ -135,20 +131,20 @@ class TestChildRunTrackerMetrics:
     async def test_depth_tracking_metrics(self):
         """Test depth tracking metrics."""
         tracker = ChildRunTracker()
-        
+
         # Create a chain: root -> child1 -> child2 -> child3
         root_id = uuid4()
         child1_id = uuid4()
         child2_id = uuid4()
         child3_id = uuid4()
-        
+
         await tracker.register_child(root_id, child1_id)
         await tracker.register_child(child1_id, child2_id)
         await tracker.register_child(child2_id, child3_id)
-        
+
         # Get root for deepest child to update depth tracking
         await tracker.get_root_run(child3_id)
-        
+
         metrics = await tracker.get_metrics()
         assert metrics["max_depth_seen"] == 3
 
@@ -157,10 +153,10 @@ class TestChildRunTrackerMetrics:
         tracker = ChildRunTracker()
         parent_id = uuid4()
         child_id = uuid4()
-        
+
         await tracker.register_child(parent_id, child_id)
         await tracker.cleanup_run(child_id)
-        
+
         metrics = await tracker.get_metrics()
         assert metrics["cleanup_count"] == 1
         assert metrics["active_children"] == 0
@@ -170,16 +166,16 @@ class TestChildRunTrackerMetrics:
         tracker = ChildRunTracker()
         parent_id = uuid4()
         child_id = uuid4()
-        
+
         # Perform some operations
         await tracker.register_child(parent_id, child_id)
         await tracker.get_children(parent_id)
         await tracker.get_all_descendants(parent_id)
-        
+
         # Reset metrics
         await tracker.reset_metrics()
         metrics = await tracker.get_metrics()
-        
+
         # All counters should be zero
         assert metrics["registration_count"] == 0
         assert metrics["unregistration_count"] == 0
@@ -193,15 +189,15 @@ class TestChildRunTrackerMetrics:
         """Test thread-safe metrics updates."""
         tracker = ChildRunTracker()
         parent_id = uuid4()
-        
+
         # Concurrent registrations
         tasks = []
-        for i in range(10):
+        for _i in range(10):
             child_id = uuid4()
             tasks.append(tracker.register_child(parent_id, child_id))
-        
+
         await asyncio.gather(*tasks)
-        
+
         metrics = await tracker.get_metrics()
         assert metrics["registration_count"] == 10
         assert metrics["max_concurrent_children"] == 10
@@ -213,7 +209,7 @@ class TestChildTrackerMetricsInterceptor:
     def test_interceptor_properties(self):
         """Test interceptor basic properties."""
         interceptor = ChildTrackerMetricsInterceptor()
-        
+
         assert interceptor.name == "child_tracker_metrics"
         assert interceptor.priority == 45
 
@@ -221,43 +217,43 @@ class TestChildTrackerMetricsInterceptor:
         """Test before() method is no-op."""
         interceptor = ChildTrackerMetricsInterceptor()
         ctx = MagicMock()
-        
+
         # Should not raise any errors
         await interceptor.before("test_stage", ctx)
 
     async def test_after_logs_metrics_for_child_run(self):
         """Test after() logs metrics for child runs."""
         interceptor = ChildTrackerMetricsInterceptor()
-        
+
         # Create a mock context that's a child run
         ctx = MagicMock()
         ctx.pipeline_run_id = uuid4()
         ctx.is_child_run = True
-        
+
         # Create a mock result
         result = MagicMock()
-        
+
         # Mock the logger
         with pytest.MonkeyPatch().context() as m:
             mock_logger = MagicMock()
-            m.setattr("logging.getLogger", lambda name: mock_logger)
-            
+            m.setattr("logging.getLogger", lambda _name: mock_logger)
+
             # Mock the tracker
             tracker = AsyncMock()
             tracker.get_metrics.return_value = {
                 "registration_count": 5,
                 "active_children": 2,
             }
-            
+
             m.setattr("stageflow.pipeline.subpipeline.get_child_tracker", lambda: tracker)
-            
+
             await interceptor.after("test_stage", result, ctx)
-            
+
             # Should have logged metrics
             mock_logger.info.assert_called_once()
             call_args = mock_logger.info.call_args
             assert call_args[0][0] == "ChildRunTracker metrics"
-            
+
             # Check extra data contains metrics
             extra = call_args[1]["extra"]
             assert extra["component"] == "ChildRunTracker"
@@ -268,47 +264,47 @@ class TestChildTrackerMetricsInterceptor:
     async def test_after_skips_non_child_runs(self):
         """Test after() skips metrics for non-child runs."""
         interceptor = ChildTrackerMetricsInterceptor()
-        
+
         # Create a mock context that's NOT a child run
         ctx = MagicMock()
         ctx.pipeline_run_id = uuid4()
         # Explicitly set is_child_run to False
         ctx.is_child_run = False
-        
+
         result = MagicMock()
-        
+
         # Mock the logger
         with pytest.MonkeyPatch().context() as m:
             mock_logger = MagicMock()
-            m.setattr("logging.getLogger", lambda name: mock_logger)
-            
+            m.setattr("logging.getLogger", lambda _name: mock_logger)
+
             await interceptor.after("test_stage", result, ctx)
-            
+
             # Should not have logged anything
             mock_logger.info.assert_not_called()
 
     async def test_after_handles_gracefully_on_error(self):
         """Test after() handles errors gracefully."""
         interceptor = ChildTrackerMetricsInterceptor()
-        
+
         ctx = MagicMock()
         ctx.pipeline_run_id = uuid4()
         ctx.is_child_run = True
         result = MagicMock()
-        
+
         # Mock the logger
         with pytest.MonkeyPatch().context() as m:
             mock_logger = MagicMock()
-            m.setattr("logging.getLogger", lambda name: mock_logger)
-            
+            m.setattr("logging.getLogger", lambda _name: mock_logger)
+
             # Mock get_child_tracker to raise an error
             def raise_error():
                 raise Exception("Tracker error")
             m.setattr("stageflow.pipeline.subpipeline.get_child_tracker", raise_error)
-            
+
             # Should not raise an exception
             await interceptor.after("test_stage", result, ctx)
-            
+
             # Should have logged a warning
             mock_logger.warning.assert_called_once()
             warning_call = mock_logger.warning.call_args
@@ -322,17 +318,17 @@ class TestChildTrackerMetricsIntegration:
         """Test global tracker management functions."""
         # Clear any existing tracker
         clear_child_tracker()
-        
+
         # Test getting/setting tracker
         tracker1 = get_child_tracker()
         assert isinstance(tracker1, ChildRunTracker)
-        
+
         custom_tracker = ChildRunTracker()
         set_child_tracker(custom_tracker)
-        
+
         tracker2 = get_child_tracker()
         assert tracker2 is custom_tracker
-        
+
         # Clear and verify new instance
         clear_child_tracker()
         tracker3 = get_child_tracker()
@@ -342,14 +338,14 @@ class TestChildTrackerMetricsIntegration:
     def test_included_in_default_interceptors(self):
         """Test ChildTrackerMetricsInterceptor is in default interceptors."""
         interceptors = get_default_interceptors()
-        
+
         # Find the child tracker metrics interceptor
         child_tracker_interceptor = None
         for interceptor in interceptors:
             if hasattr(interceptor, 'name') and interceptor.name == 'child_tracker_metrics':
                 child_tracker_interceptor = interceptor
                 break
-        
+
         assert child_tracker_interceptor is not None
         assert isinstance(child_tracker_interceptor, ChildTrackerMetricsInterceptor)
         assert child_tracker_interceptor.priority == 45
@@ -359,25 +355,25 @@ class TestChildTrackerMetricsIntegration:
         # Set up a fresh tracker
         tracker = ChildRunTracker()
         set_child_tracker(tracker)
-        
+
         # Simulate some subpipeline activity
         parent_id = uuid4()
         child_id = uuid4()
-        
+
         await tracker.register_child(parent_id, child_id)
         await tracker.get_children(parent_id)
         await tracker.get_parent(child_id)
-        
+
         # Check metrics
         metrics = await tracker.get_metrics()
         assert metrics["registration_count"] == 1
         assert metrics["lookup_count"] == 2
         assert metrics["active_children"] == 1
-        
+
         # Cleanup
         await tracker.unregister_child(parent_id, child_id)
         await tracker.cleanup_run(child_id)
-        
+
         final_metrics = await tracker.get_metrics()
         assert final_metrics["unregistration_count"] == 1
         assert final_metrics["cleanup_count"] == 1

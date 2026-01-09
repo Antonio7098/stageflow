@@ -2,11 +2,11 @@
 
 from stageflow.context import (
     ContextSnapshot,
-    Message,
-    RoutingDecision,
-    ProfileEnrichment,
-    MemoryEnrichment,
     DocumentEnrichment,
+    MemoryEnrichment,
+    Message,
+    ProfileEnrichment,
+    RoutingDecision,
 )
 
 __all__ = [

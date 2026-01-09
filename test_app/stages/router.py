@@ -36,6 +36,6 @@ class RouterStage:
             route=route,
             routing_decision={
                 "selected_route": route,
-                "reason": f"Matched keyword or default",
+                "reason": "Matched keyword or default",
             },
         )

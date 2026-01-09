@@ -5,17 +5,14 @@ Tests:
 - extract_service function
 """
 
-from datetime import datetime, UTC
-from typing import Any
+from datetime import UTC, datetime
 from uuid import uuid4
-import pytest
 
 from stageflow.events import NoOpEventSink
 from stageflow.stages.context import (
-    extract_service,
     PipelineContext,
+    extract_service,
 )
-
 
 # === Test extract_service ===
 
@@ -230,7 +227,7 @@ class TestPipelineContext:
         # Mock the event sink
         emitted_events = []
         class MockEventSink:
-            def try_emit(self, *, type, data):
+            def try_emit(self, *, _type, data):
                 emitted_events.append((type, data))
 
         ctx.event_sink = MockEventSink()
@@ -256,7 +253,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, type, data):
+            def try_emit(self, *, _type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()
@@ -292,7 +289,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, type, data):
+            def try_emit(self, *, _type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()
@@ -321,7 +318,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, type, data):
+            def try_emit(self, *, _type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()
@@ -345,7 +342,7 @@ class TestPipelineContext:
 
         emitted = []
         class MockEventSink:
-            def try_emit(self, *, type, data):
+            def try_emit(self, *, _type, data):
                 emitted.append(data)
 
         ctx.event_sink = MockEventSink()

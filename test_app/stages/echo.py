@@ -2,7 +2,7 @@
 
 import asyncio
 
-from stageflow import Stage, StageContext, StageKind, StageOutput
+from stageflow import StageContext, StageKind, StageOutput
 
 
 class EchoStage:
@@ -15,10 +15,7 @@ class EchoStage:
         await asyncio.sleep(0.2)
 
         inputs = ctx.config.get("inputs")
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-        else:
-            input_text = ctx.snapshot.input_text or ""
+        input_text = inputs.snapshot.input_text or "" if inputs else ctx.snapshot.input_text or ""
 
         return StageOutput.ok(
             echo=input_text,

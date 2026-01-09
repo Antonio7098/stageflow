@@ -32,7 +32,7 @@ class StageContext:
 
     The snapshot is frozen - stages cannot modify input context.
     All outputs go through the append-only output buffer.
-    
+
     Implements the ExecutionContext protocol for compatibility with
     tools and other components that need a common context interface.
     """
@@ -65,10 +65,10 @@ class StageContext:
     @property
     def inputs(self) -> StageInputs | None:
         """Type-safe access to StageInputs from upstream stages.
-        
+
         Returns the StageInputs object if available in config, None otherwise.
         This is the preferred way to access upstream stage outputs.
-        
+
         Example:
             async def execute(self, ctx: StageContext) -> StageOutput:
                 if ctx.inputs:
@@ -83,28 +83,28 @@ class StageContext:
         return self._started_at
 
     # === ExecutionContext protocol implementation ===
-    
+
     @property
     def pipeline_run_id(self) -> UUID | None:
         """Pipeline run identifier for correlation (from snapshot)."""
         return self._snapshot.pipeline_run_id
-    
+
     @property
     def request_id(self) -> UUID | None:
         """Request identifier for tracing (from snapshot)."""
         return self._snapshot.request_id
-    
+
     @property
     def execution_mode(self) -> str | None:
         """Current execution mode (from snapshot)."""
         return self._snapshot.execution_mode
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for serialization.
-        
+
         Combines snapshot data with context metadata for tool execution
         and serialization purposes.
-        
+
         Returns:
             Dictionary representation of the context
         """
@@ -118,13 +118,13 @@ class StageContext:
         if serializable_config:
             result["stage_config"] = serializable_config
         return result
-    
+
     def try_emit_event(self, type: str, data: dict[str, Any]) -> None:
         """Emit an event without blocking (fire-and-forget).
-        
+
         If an event sink is available in config, emits through it.
         Otherwise logs the event at debug level.
-        
+
         Args:
             type: Event type string (e.g., "tool.completed")
             data: Event payload data
@@ -136,7 +136,7 @@ class StageContext:
             "execution_mode": self.execution_mode,
             **data,
         }
-        
+
         if self._event_sink is not None:
             try:
                 self._event_sink.try_emit(type=type, data=enriched_data)
@@ -175,7 +175,7 @@ class StageContext:
 
     def emit_event(self, type: str, data: dict[str, Any]) -> None:
         """Emit an event during execution.
-        
+
         Events are enriched with correlation IDs (pipeline_run_id, request_id)
         for observability and tracing.
         """
@@ -208,7 +208,7 @@ class StageContext:
             if key in output.data:
                 return output.data[key]
         return default
-    
+
     @property
     def event_sink(self) -> EventSink | None:
         """Get the event sink if available."""

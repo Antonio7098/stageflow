@@ -10,23 +10,19 @@ Tests:
 
 import asyncio
 import logging
-from typing import Any
-import pytest
 
 from stageflow.events import (
-    clear_event_sink,
-    get_event_sink,
     LoggingEventSink,
     NoOpEventSink,
+    clear_event_sink,
+    get_event_sink,
     set_event_sink,
     wait_for_event_sink_tasks,
 )
 from stageflow.events.sink import (
     EventSink,
-    _event_sink_var,
     _pending_emit_tasks,
 )
-
 
 # === Test EventSink Protocol ===
 
@@ -231,7 +227,7 @@ class TestEventSinkContextVariable:
     def test_context_variable_isolation(self):
         """Test that event sink is isolated per context."""
         sink1 = NoOpEventSink()
-        sink2 = LoggingEventSink()
+        LoggingEventSink()
 
         # Set sink1
         set_event_sink(sink1)
@@ -288,7 +284,7 @@ class TestEventSinkEdgeCases:
     def test_sequential_set_clears(self):
         """Test that set_event_sink clears any previous custom state."""
         sink1 = NoOpEventSink()
-        sink2 = NoOpEventSink()
+        NoOpEventSink()
 
         set_event_sink(sink1)
         clear_event_sink()

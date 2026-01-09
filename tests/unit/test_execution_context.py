@@ -1,15 +1,14 @@
 """Tests for ExecutionContext protocol and implementations."""
 
-import pytest
-from datetime import datetime
 from uuid import uuid4
 
-from stageflow.protocols import ExecutionContext
-from stageflow.core import StageContext
+import pytest
+
 from stageflow.context import ContextSnapshot
+from stageflow.core import StageContext
+from stageflow.protocols import ExecutionContext
 from stageflow.stages.context import PipelineContext
 from stageflow.tools.adapters import DictContextAdapter, adapt_context
-from stageflow.events import LoggingEventSink
 
 
 class TestExecutionContextProtocol:
@@ -28,14 +27,14 @@ class TestExecutionContextProtocol:
             execution_mode="practice",
         )
         ctx = StageContext(snapshot=snapshot)
-        
+
         # Check protocol attributes exist
         assert hasattr(ctx, 'pipeline_run_id')
         assert hasattr(ctx, 'request_id')
         assert hasattr(ctx, 'execution_mode')
         assert hasattr(ctx, 'to_dict')
         assert hasattr(ctx, 'try_emit_event')
-        
+
         # Check isinstance works with runtime_checkable
         assert isinstance(ctx, ExecutionContext)
 
@@ -50,14 +49,14 @@ class TestExecutionContextProtocol:
             interaction_id=uuid4(),
             execution_mode="practice",
         )
-        
+
         # Check protocol attributes exist
         assert hasattr(ctx, 'pipeline_run_id')
         assert hasattr(ctx, 'request_id')
         assert hasattr(ctx, 'execution_mode')
         assert hasattr(ctx, 'to_dict')
         assert hasattr(ctx, 'try_emit_event')
-        
+
         # Check isinstance works with runtime_checkable
         assert isinstance(ctx, ExecutionContext)
 
@@ -68,14 +67,14 @@ class TestExecutionContextProtocol:
             "request_id": str(uuid4()),
             "execution_mode": "practice",
         })
-        
+
         # Check protocol attributes exist
         assert hasattr(ctx, 'pipeline_run_id')
         assert hasattr(ctx, 'request_id')
         assert hasattr(ctx, 'execution_mode')
         assert hasattr(ctx, 'to_dict')
         assert hasattr(ctx, 'try_emit_event')
-        
+
         # Check isinstance works with runtime_checkable
         assert isinstance(ctx, ExecutionContext)
 
@@ -144,9 +143,9 @@ class TestStageContextExecutionContext:
             execution_mode="practice",
         )
         ctx = StageContext(snapshot=snapshot)
-        
+
         result = ctx.to_dict()
-        
+
         assert result["pipeline_run_id"] == str(run_id)
         assert result["execution_mode"] == "practice"
         assert result["topology"] == "chat_fast"
@@ -155,14 +154,14 @@ class TestStageContextExecutionContext:
     def test_try_emit_event_with_event_sink(self):
         """try_emit_event should emit through event sink when available."""
         events_emitted = []
-        
+
         class MockEventSink:
             def try_emit(self, *, type: str, data: dict):
                 events_emitted.append({"type": type, "data": data})
-            
+
             async def emit(self, *, type: str, data: dict):
                 events_emitted.append({"type": type, "data": data})
-        
+
         snapshot = ContextSnapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -177,9 +176,9 @@ class TestStageContextExecutionContext:
             snapshot=snapshot,
             config={"event_sink": MockEventSink()},
         )
-        
+
         ctx.try_emit_event("test.event", {"key": "value"})
-        
+
         assert len(events_emitted) == 1
         assert events_emitted[0]["type"] == "test.event"
         assert events_emitted[0]["data"]["key"] == "value"
@@ -198,7 +197,7 @@ class TestStageContextExecutionContext:
             execution_mode=None,
         )
         ctx = StageContext(snapshot=snapshot)
-        
+
         # Should not raise
         ctx.try_emit_event("test.event", {"key": "value"})
 
@@ -209,14 +208,14 @@ class TestPipelineContextExecutionContext:
     def test_try_emit_event(self):
         """try_emit_event should emit through event sink."""
         events_emitted = []
-        
+
         class MockEventSink:
             def try_emit(self, *, type: str, data: dict):
                 events_emitted.append({"type": type, "data": data})
-            
+
             async def emit(self, *, type: str, data: dict):
                 events_emitted.append({"type": type, "data": data})
-        
+
         ctx = PipelineContext(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
@@ -228,9 +227,9 @@ class TestPipelineContextExecutionContext:
             topology="chat_fast",
             event_sink=MockEventSink(),
         )
-        
+
         ctx.try_emit_event("test.event", {"key": "value"})
-        
+
         assert len(events_emitted) == 1
         assert events_emitted[0]["type"] == "test.event"
         assert events_emitted[0]["data"]["key"] == "value"
@@ -279,7 +278,7 @@ class TestDictContextAdapter:
         data = {"key": "value", "execution_mode": "practice"}
         adapter = DictContextAdapter(data)
         result = adapter.to_dict()
-        
+
         assert result == data
         assert result is not data  # Should be a copy
 
@@ -306,7 +305,7 @@ class TestAdaptContext:
             execution_mode=None,
         )
         ctx = StageContext(snapshot=snapshot)
-        
+
         result = adapt_context(ctx)
         assert result is ctx
 
@@ -320,16 +319,16 @@ class TestAdaptContext:
             org_id=None,
             interaction_id=None,
         )
-        
+
         result = adapt_context(ctx)
         assert result is ctx
 
     def test_adapt_dict(self):
         """Should wrap dict in DictContextAdapter."""
         data = {"pipeline_run_id": str(uuid4()), "execution_mode": "practice"}
-        
+
         result = adapt_context(data)
-        
+
         assert isinstance(result, DictContextAdapter)
         assert result.execution_mode == "practice"
 
@@ -341,6 +340,6 @@ class TestAdaptContext:
     def test_adapt_dict_context_adapter(self):
         """Should return DictContextAdapter unchanged."""
         adapter = DictContextAdapter({"execution_mode": "practice"})
-        
+
         result = adapt_context(adapter)
         assert result is adapter

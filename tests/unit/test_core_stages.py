@@ -12,11 +12,10 @@ Tests all core stage types:
 - create_stage_context factory function
 """
 
-import asyncio
 from dataclasses import FrozenInstanceError
-from datetime import datetime, timedelta, UTC
-from typing import Any
+from datetime import UTC, datetime
 from uuid import uuid4
+
 import pytest
 
 from stageflow.core import (
@@ -53,7 +52,7 @@ class TestStageKind:
         """Verify stage kind can be compared with strings."""
         assert StageKind.TRANSFORM == "transform"
         assert StageKind.ENRICH == "enrich"
-        assert "agent" == StageKind.AGENT
+        assert StageKind.AGENT == "agent"
 
     def test_stage_kind_values_are_unique(self):
         """Verify all stage kind values are unique."""
@@ -141,7 +140,7 @@ class TestStageOutput:
         assert output.status == StageStatus.OK
         assert output.data == {"result": "success", "count": 5}
 
-    def test_ok_factory_with_kwargs(self):
+    def test_ok_factory_with_final_kwargs(self):
         """Test that kwargs become data dict when no data provided."""
         output = StageOutput.ok(final="done")
         assert output.data == {"final": "done"}
@@ -464,7 +463,7 @@ class TestStageContext:
         ctx.add_artifact("test", {})  # This doesn't add to data
         # Use emit_event which does add to output
         ctx.emit_event("test", {})
-        outputs = ctx.collect_outputs()
+        ctx.collect_outputs()
         # The event output has status OK, not data with our key
         # Let's add data directly
         from stageflow.core import StageOutput
@@ -541,7 +540,6 @@ class TestStageProtocol:
     def test_stage_protocol_has_required_attributes(self):
         """Verify Stage protocol has name and kind."""
         # Stage is a Protocol, we check its requirements through annotations
-        import typing
         annotations = getattr(Stage, "__annotations__", {})
         assert "name" in annotations
         assert "kind" in annotations
@@ -553,8 +551,7 @@ class TestStageProtocol:
     def test_stage_protocol_execute_is_async(self):
         """Verify Stage.execute is async."""
         # Check that execute is a coroutine function type
-        import typing
         # The execute method should be async
-        annotations = Stage.execute.__annotations__ if hasattr(Stage, 'execute') else {}
+        Stage.execute.__annotations__ if hasattr(Stage, 'execute') else {}
         # Just verify it exists and is callable
         assert callable(Stage.execute)

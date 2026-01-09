@@ -11,32 +11,27 @@ Tests:
 - create_stage_inputs factory function
 """
 
-import asyncio
 from dataclasses import FrozenInstanceError
-from datetime import datetime, UTC
-from typing import Any
 from uuid import uuid4
+
 import pytest
 
 from stageflow.context import ContextSnapshot
 from stageflow.core import (
-    StageContext,
     StageOutput,
-    StageStatus,
 )
 from stageflow.stages.inputs import (
-    create_stage_inputs,
     StageInputs,
+    create_stage_inputs,
 )
 from stageflow.stages.ports import (
-    create_core_ports,
-    create_llm_ports,
-    create_audio_ports,
+    AudioPorts,
     CorePorts,
     LLMPorts,
-    AudioPorts,
+    create_audio_ports,
+    create_core_ports,
+    create_llm_ports,
 )
-
 
 # === Test CorePorts ===
 
@@ -56,8 +51,10 @@ class TestCorePorts:
     def test_with_values(self):
         """Test CorePorts with values."""
         db_mock = object()
-        status_cb = lambda stage, state, data: None
-        
+
+        def status_cb(_stage, _state, _data):
+            return None
+
         ports = CorePorts(
             db=db_mock,
             send_status=status_cb,
@@ -100,7 +97,7 @@ class TestLLMPorts:
         """Test LLMPorts with values."""
         llm_mock = object()
         token_cb = lambda token: None
-        
+
         ports = LLMPorts(
             llm_provider=llm_mock,
             send_token=token_cb,
@@ -136,7 +133,7 @@ class TestAudioPorts:
         """Test AudioPorts with values."""
         tts_mock = object()
         audio_cb = lambda chunk, fmt, idx, last: None
-        
+
         ports = AudioPorts(
             tts_provider=tts_mock,
             send_audio_chunk=audio_cb,
@@ -170,7 +167,7 @@ class TestPortFactories:
         """Test create_core_ports factory."""
         db_mock = object()
         status_cb = lambda stage, state, data: None
-        
+
         ports = create_core_ports(
             db=db_mock,
             send_status=status_cb,
@@ -183,7 +180,7 @@ class TestPortFactories:
         """Test create_llm_ports factory."""
         llm_mock = object()
         token_cb = lambda token: None
-        
+
         ports = create_llm_ports(
             llm_provider=llm_mock,
             send_token=token_cb,
@@ -197,7 +194,7 @@ class TestPortFactories:
         tts_mock = object()
         audio_cb = lambda chunk, fmt, idx, last: None
         audio = b"test audio"
-        
+
         ports = create_audio_ports(
             tts_provider=tts_mock,
             send_audio_chunk=audio_cb,
@@ -226,7 +223,7 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-        
+
         inputs = StageInputs(snapshot=snapshot)
         assert inputs.snapshot is snapshot
         assert inputs.prior_outputs == {}
@@ -244,14 +241,14 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-        
+
         prior_outputs = {
             "stage_a": StageOutput.ok(data={"value": 42}),
             "stage_b": StageOutput.ok(data={"text": "hello"}),
         }
-        
+
         ports = CorePorts(db=object())
-        
+
         inputs = StageInputs(
             snapshot=snapshot,
             prior_outputs=prior_outputs,
@@ -273,7 +270,7 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-        
+
         inputs = StageInputs(snapshot=snapshot)
         with pytest.raises(FrozenInstanceError):
             inputs.snapshot = object()
@@ -290,7 +287,7 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-        
+
         inputs = StageInputs(snapshot=snapshot)
         assert hasattr(inputs, '__slots__')
         # Frozen dataclasses with slots prevent attribute addition
@@ -312,22 +309,22 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-        
+
         prior_outputs = {
             "stage_a": StageOutput.ok(data={"value": 42, "shared": "from_a"}),
             "stage_b": StageOutput.ok(data={"text": "hello", "shared": "from_b"}),
         }
-        
+
         inputs = StageInputs(
             snapshot=snapshot,
             prior_outputs=prior_outputs,
         )
-        
+
         # Test getting specific values
         assert inputs.get("value") == 42
         assert inputs.get("text") == "hello"
         assert inputs.get("missing", "default") == "default"
-        
+
         # Test that it returns first match (insertion order)
         assert inputs.get("shared") == "from_a"
 
@@ -343,25 +340,25 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-        
+
         prior_outputs = {
             "stage_a": StageOutput.ok(data={"value": 42}),
             "stage_b": StageOutput.ok(data={"text": "hello"}),
         }
-        
+
         inputs = StageInputs(
             snapshot=snapshot,
             prior_outputs=prior_outputs,
         )
-        
+
         # Test getting from specific stage
         assert inputs.get_from("stage_a", "value") == 42
         assert inputs.get_from("stage_b", "text") == "hello"
-        
+
         # Test missing stage
         assert inputs.get_from("missing", "key") is None
         assert inputs.get_from("missing", "key", "default") == "default"
-        
+
         # Test missing key
         assert inputs.get_from("stage_a", "missing") is None
         assert inputs.get_from("stage_a", "missing", "default") == "default"
@@ -378,15 +375,15 @@ class TestStageInputs:
             topology="test",
             execution_mode="test",
         )
-        
+
         output = StageOutput.ok(data={"value": 42})
         prior_outputs = {"stage_a": output}
-        
+
         inputs = StageInputs(
             snapshot=snapshot,
             prior_outputs=prior_outputs,
         )
-        
+
         # Test getting output
         assert inputs.get_output("stage_a") is output
         assert inputs.get_output("missing") is None
@@ -409,7 +406,7 @@ class TestStageInputsFactory:
             topology="test",
             execution_mode="test",
         )
-        
+
         inputs = create_stage_inputs(snapshot=snapshot)
         assert isinstance(inputs, StageInputs)
         assert inputs.snapshot is snapshot
@@ -428,10 +425,10 @@ class TestStageInputsFactory:
             topology="test",
             execution_mode="test",
         )
-        
+
         prior_outputs = {"stage_a": StageOutput.ok(data={"value": 42})}
         ports = LLMPorts(llm_provider=object())
-        
+
         inputs = create_stage_inputs(
             snapshot=snapshot,
             prior_outputs=prior_outputs,
@@ -454,7 +451,7 @@ class TestStageInputsFactory:
             topology="test",
             execution_mode="test",
         )
-        
+
         ports = CorePorts(db=object())
         inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
         assert inputs.ports is ports
@@ -471,7 +468,7 @@ class TestStageInputsFactory:
             topology="test",
             execution_mode="test",
         )
-        
+
         ports = LLMPorts(llm_provider=object())
         inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
         assert inputs.ports is ports
@@ -488,7 +485,7 @@ class TestStageInputsFactory:
             topology="test",
             execution_mode="test",
         )
-        
+
         ports = AudioPorts(tts_provider=object())
         inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
         assert inputs.ports is ports

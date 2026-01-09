@@ -18,7 +18,7 @@ logger = logging.getLogger("stageflow.events")
 @runtime_checkable
 class EventSink(Protocol):
     """Protocol for event persistence/emission."""
-    
+
     async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:
         """Emit an event asynchronously."""
         ...
@@ -30,7 +30,7 @@ class EventSink(Protocol):
 
 class NoOpEventSink:
     """Event sink that discards all events."""
-    
+
     async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:
         _ = type, data
         return None
@@ -42,7 +42,7 @@ class NoOpEventSink:
 
 class LoggingEventSink:
     """Event sink that logs events to Python logging."""
-    
+
     def __init__(self, *, level: int = logging.INFO) -> None:
         self._level = level
         self._logger = logging.getLogger("stageflow.events")

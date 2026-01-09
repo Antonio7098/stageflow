@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 
-from stageflow.tools.undo import UndoEntry, UndoStore, get_undo_store, clear_undo_store
+from stageflow.tools.undo import UndoStore, clear_undo_store, get_undo_store
 
 
 class TestUndoStore:

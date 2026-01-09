@@ -6,7 +6,6 @@ This module provides helpers for testing stages, pipelines, and contexts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -15,7 +14,7 @@ from stageflow.core import StageContext, StageOutput
 from stageflow.events import NoOpEventSink
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs, create_stage_inputs
-from stageflow.stages.ports import CorePorts, LLMPorts, AudioPorts
+from stageflow.stages.ports import AudioPorts, CorePorts, LLMPorts
 
 
 def create_test_snapshot(
@@ -34,9 +33,9 @@ def create_test_snapshot(
     **kwargs: Any,
 ) -> ContextSnapshot:
     """Create a ContextSnapshot for testing with sensible defaults.
-    
+
     All UUID fields default to new random UUIDs if not provided.
-    
+
     Args:
         pipeline_run_id: Pipeline run ID (default: new UUID)
         request_id: Request ID (default: new UUID)
@@ -50,10 +49,10 @@ def create_test_snapshot(
         messages: Message history
         extensions: Extension data
         **kwargs: Additional ContextSnapshot fields
-        
+
     Returns:
         ContextSnapshot configured for testing
-        
+
     Example:
         snapshot = create_test_snapshot(
             input_text="Hello, world!",
@@ -87,7 +86,7 @@ def create_test_stage_context(
     **snapshot_kwargs: Any,
 ) -> StageContext:
     """Create a StageContext for testing with sensible defaults.
-    
+
     Args:
         snapshot: ContextSnapshot to use (creates one if not provided)
         config: Stage configuration dict
@@ -96,25 +95,25 @@ def create_test_stage_context(
         ports: Modular ports for service injection (CorePorts, LLMPorts, or AudioPorts)
         event_sink: Event sink for observability (default: NoOpEventSink)
         **snapshot_kwargs: Passed to create_test_snapshot if snapshot not provided
-        
+
     Returns:
         StageContext configured for testing
-        
+
     Example:
         ctx = create_test_stage_context(
             input_text="Test input",
             prior_outputs={"stage_a": StageOutput.ok(value=42)},
         )
-        
+
         # Access inputs
         value = ctx.inputs.get("value")  # Returns 42
     """
     if snapshot is None:
         snapshot = create_test_snapshot(**snapshot_kwargs)
-    
+
     # Build config
     final_config = config.copy() if config else {}
-    
+
     # Set up inputs if not provided
     if inputs is None and (prior_outputs or ports):
         inputs = create_stage_inputs(
@@ -122,13 +121,13 @@ def create_test_stage_context(
             prior_outputs=prior_outputs or {},
             ports=ports,
         )
-    
+
     if inputs is not None:
         final_config["inputs"] = inputs
-    
+
     # Set event sink
     final_config["event_sink"] = event_sink or NoOpEventSink()
-    
+
     return StageContext(snapshot=snapshot, config=final_config)
 
 
@@ -148,7 +147,7 @@ def create_test_pipeline_context(
     **kwargs: Any,
 ) -> PipelineContext:
     """Create a PipelineContext for testing with sensible defaults.
-    
+
     Args:
         pipeline_run_id: Pipeline run ID (default: new UUID)
         request_id: Request ID (default: new UUID)
@@ -162,10 +161,10 @@ def create_test_pipeline_context(
         data: Context data dict
         event_sink: Event sink (default: NoOpEventSink)
         **kwargs: Additional PipelineContext fields
-        
+
     Returns:
         PipelineContext configured for testing
-        
+
     Example:
         ctx = create_test_pipeline_context(
             user_id=uuid4(),
@@ -191,7 +190,7 @@ def create_test_pipeline_context(
 @dataclass
 class SnapshotValidationError:
     """Represents a validation error in a ContextSnapshot."""
-    
+
     field: str
     message: str
     value: Any = None
@@ -200,11 +199,11 @@ class SnapshotValidationError:
 @dataclass
 class SnapshotValidationResult:
     """Result of validating a ContextSnapshot."""
-    
+
     valid: bool
     errors: list[SnapshotValidationError] = field(default_factory=list)
     warnings: list[SnapshotValidationError] = field(default_factory=list)
-    
+
     def __bool__(self) -> bool:
         return self.valid
 
@@ -219,10 +218,10 @@ def validate_snapshot(
     strict: bool = False,
 ) -> SnapshotValidationResult:
     """Validate a ContextSnapshot for correctness.
-    
+
     Checks for common issues like missing required fields, invalid UUIDs,
     and inconsistent data.
-    
+
     Args:
         snapshot: The snapshot to validate
         require_user_id: Require user_id to be set
@@ -230,10 +229,10 @@ def validate_snapshot(
         require_pipeline_run_id: Require pipeline_run_id to be set
         require_request_id: Require request_id to be set
         strict: If True, treat warnings as errors
-        
+
     Returns:
         SnapshotValidationResult with validation status and any errors/warnings
-        
+
     Example:
         result = validate_snapshot(snapshot, require_user_id=True)
         if not result:
@@ -242,32 +241,32 @@ def validate_snapshot(
     """
     errors: list[SnapshotValidationError] = []
     warnings: list[SnapshotValidationError] = []
-    
+
     # Required field checks
     if require_pipeline_run_id and snapshot.pipeline_run_id is None:
         errors.append(SnapshotValidationError(
             field="pipeline_run_id",
             message="pipeline_run_id is required but not set",
         ))
-    
+
     if require_request_id and snapshot.request_id is None:
         errors.append(SnapshotValidationError(
             field="request_id",
             message="request_id is required but not set",
         ))
-    
+
     if require_user_id and snapshot.user_id is None:
         errors.append(SnapshotValidationError(
             field="user_id",
             message="user_id is required but not set",
         ))
-    
+
     if require_org_id and snapshot.org_id is None:
         errors.append(SnapshotValidationError(
             field="org_id",
             message="org_id is required but not set",
         ))
-    
+
     # Type checks for messages
     if snapshot.messages:
         for i, msg in enumerate(snapshot.messages):
@@ -283,14 +282,14 @@ def validate_snapshot(
                     message="Message role is empty",
                     value=msg,
                 ))
-    
+
     # Topology/execution_mode consistency warnings
     if snapshot.topology is None and snapshot.execution_mode is not None:
         warnings.append(SnapshotValidationError(
             field="topology",
             message="execution_mode is set but topology is None",
         ))
-    
+
     # Extensions type check
     if not isinstance(snapshot.extensions, dict):
         errors.append(SnapshotValidationError(
@@ -298,12 +297,12 @@ def validate_snapshot(
             message=f"extensions must be a dict, got {type(snapshot.extensions).__name__}",
             value=snapshot.extensions,
         ))
-    
+
     # In strict mode, warnings become errors
     if strict:
         errors.extend(warnings)
         warnings = []
-    
+
     return SnapshotValidationResult(
         valid=len(errors) == 0,
         errors=errors,
@@ -313,17 +312,17 @@ def validate_snapshot(
 
 def validate_snapshot_strict(snapshot: ContextSnapshot, **kwargs: Any) -> ContextSnapshot:
     """Validate a snapshot and raise if invalid.
-    
+
     Args:
         snapshot: The snapshot to validate
         **kwargs: Passed to validate_snapshot
-        
+
     Returns:
         The snapshot if valid
-        
+
     Raises:
         ValueError: If validation fails, with details about errors
-        
+
     Example:
         # This will raise if snapshot is invalid
         snapshot = validate_snapshot_strict(snapshot, require_user_id=True)
@@ -337,17 +336,17 @@ def validate_snapshot_strict(snapshot: ContextSnapshot, **kwargs: Any) -> Contex
 
 def snapshot_from_dict_strict(data: dict[str, Any], **validation_kwargs: Any) -> ContextSnapshot:
     """Create a ContextSnapshot from dict with validation.
-    
+
     Args:
         data: Dictionary data to create snapshot from
         **validation_kwargs: Passed to validate_snapshot
-        
+
     Returns:
         Validated ContextSnapshot
-        
+
     Raises:
         ValueError: If the data produces an invalid snapshot
-        
+
     Example:
         snapshot = snapshot_from_dict_strict(
             {"pipeline_run_id": "...", ...},
@@ -361,7 +360,7 @@ def snapshot_from_dict_strict(data: dict[str, Any], **validation_kwargs: Any) ->
 __all__ = [
     # Snapshot creation
     "create_test_snapshot",
-    "create_test_stage_context", 
+    "create_test_stage_context",
     "create_test_pipeline_context",
     # Validation
     "SnapshotValidationError",

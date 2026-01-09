@@ -1,10 +1,10 @@
 """Pipelines focused on contextual insights and follow-up generation."""
 
-from stageflow import Pipeline, StageKind
-
-from stages.enrich import ProfileEnrichStage, MemoryEnrichStage
-from stages.transform import InsightsStage, FollowUpStage
+from stages.enrich import MemoryEnrichStage, ProfileEnrichStage
 from stages.guard import InputGuardStage, OutputGuardStage
+from stages.transform import FollowUpStage, InsightsStage
+
+from stageflow import Pipeline, StageKind
 
 
 def create_insights_pipeline() -> Pipeline:

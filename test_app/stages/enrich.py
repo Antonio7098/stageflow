@@ -1,11 +1,9 @@
 """Enrichment stages for testing parallel execution."""
 
-import asyncio
-from typing import Any
+
+from services.mocks import MockMemoryService, MockProfileService
 
 from stageflow import StageContext, StageKind, StageOutput
-
-from services.mocks import MockProfileService, MockMemoryService
 
 
 class ProfileEnrichStage:
@@ -19,10 +17,7 @@ class ProfileEnrichStage:
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         inputs = ctx.config.get("inputs")
-        if inputs:
-            user_id = inputs.snapshot.user_id
-        else:
-            user_id = ctx.snapshot.user_id
+        user_id = inputs.snapshot.user_id if inputs else ctx.snapshot.user_id
 
         if not user_id:
             return StageOutput.skip(reason="No user_id provided")
@@ -50,10 +45,7 @@ class MemoryEnrichStage:
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         inputs = ctx.config.get("inputs")
-        if inputs:
-            session_id = inputs.snapshot.session_id
-        else:
-            session_id = ctx.snapshot.session_id
+        session_id = inputs.snapshot.session_id if inputs else ctx.snapshot.session_id
 
         if not session_id:
             return StageOutput.skip(reason="No session_id provided")

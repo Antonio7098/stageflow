@@ -1,8 +1,8 @@
 """Guard stages for testing guardrails."""
 
-from stageflow import StageContext, StageKind, StageOutput
-
 from services.mocks import MockGuardService
+
+from stageflow import StageContext, StageKind, StageOutput
 
 
 class InputGuardStage:
@@ -16,10 +16,7 @@ class InputGuardStage:
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         inputs = ctx.config.get("inputs")
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-        else:
-            input_text = ctx.snapshot.input_text or ""
+        input_text = inputs.snapshot.input_text or "" if inputs else ctx.snapshot.input_text or ""
 
         is_safe, reason = await self.guard_service.check_input(input_text)
 
@@ -46,10 +43,7 @@ class OutputGuardStage:
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         inputs = ctx.config.get("inputs")
-        if inputs:
-            response = inputs.get("response", "")
-        else:
-            response = ""
+        response = inputs.get("response", "") if inputs else ""
 
         is_safe, reason = await self.guard_service.check_output(response)
 

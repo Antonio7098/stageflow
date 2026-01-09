@@ -8,7 +8,6 @@ These tests verify that:
 
 from __future__ import annotations
 
-import pytest
 from hypothesis import given, settings
 
 from tests.property.strategies import stage_spec_lists
@@ -78,7 +77,7 @@ class TestDAGProperties:
         }
 
         # Kahn's algorithm
-        in_degree: dict[str, int] = {name: 0 for name in name_to_deps}
+        in_degree: dict[str, int] = dict.fromkeys(name_to_deps, 0)
         for name, deps in name_to_deps.items():
             for dep in deps:
                 if dep in in_degree:

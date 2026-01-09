@@ -5,7 +5,6 @@ Tests:
 - pipeline_registry global instance
 """
 
-from uuid import uuid4
 import pytest
 
 from stageflow.core import StageKind, StageOutput
@@ -15,7 +14,6 @@ from stageflow.pipeline.registry import (
     pipeline_registry,
 )
 
-
 # === Test Fixtures ===
 
 class DummyStage:
@@ -23,7 +21,7 @@ class DummyStage:
     name = "dummy"
     kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx) -> StageOutput:
+    async def execute(self, _ctx) -> StageOutput:
         return StageOutput.ok()
 
 
@@ -147,10 +145,9 @@ class TestPipelineRegistry:
         registry._register_all = tracking_register
 
         # get() should trigger registration
-        try:
+        import contextlib
+        with contextlib.suppress(KeyError):
             registry.get("missing")
-        except KeyError:
-            pass
 
         assert call_count["count"] == 1
 

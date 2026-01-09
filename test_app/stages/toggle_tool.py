@@ -20,7 +20,7 @@ class TogglePanelTool(BaseTool):
     def action_type(self) -> str:
         return "TOGGLE_PANEL"
 
-    async def execute(self, input: ToolInput, ctx: dict[str, Any]) -> ToolOutput:
+    async def execute(self, input: ToolInput, _ctx: dict[str, Any]) -> ToolOutput:
         """Handle toggle panel action."""
         state = input.action.payload.get("state", False)
 

@@ -16,10 +16,9 @@ Follows SOLID principles:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -175,9 +174,8 @@ class AdvancedToolExecutor:
             )
 
         # Check HITL approval if required
-        if tool.requires_approval:
-            if not await self._request_and_await_approval(tool, tool_input, ctx):
-                raise ToolApprovalDeniedError(tool=tool.name)
+        if tool.requires_approval and not await self._request_and_await_approval(tool, tool_input, ctx):
+            raise ToolApprovalDeniedError(tool=tool.name)
 
         # Execute with telemetry
         start_time = time.perf_counter()
@@ -299,7 +297,7 @@ class AdvancedToolExecutor:
             await self._emit_approval_decided(tool, tool_input, ctx, request.id, decision.granted)
             return decision.granted
 
-        except asyncio.TimeoutError:
+        except TimeoutError as err:
             await self._emit_tool_denied(
                 tool,
                 tool_input,
@@ -310,7 +308,7 @@ class AdvancedToolExecutor:
                 tool=tool.name,
                 request_id=request.id,
                 timeout_seconds=self.config.approval_timeout_seconds,
-            )
+            ) from err
 
     async def _store_undo_metadata(
         self,

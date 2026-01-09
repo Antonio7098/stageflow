@@ -143,6 +143,48 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     return StageOutput.ok(...)
 ```
 
+### Wide Events (opt-in)
+
+Use wide events when you want a single, denormalized record per stage or per pipeline run.
+
+```python
+from stageflow.observability import WideEventEmitter
+from stageflow.pipeline.dag import StageGraph, StageSpec
+
+emitter = WideEventEmitter()
+
+graph = StageGraph(
+    specs=[StageSpec(name="llm", runner=LLMStage)],
+    wide_event_emitter=emitter,
+    emit_stage_wide_events=True,
+    emit_pipeline_wide_event=True,
+)
+```
+
+If you build graphs via `PipelineBuilder`, pass the flags through `build()`:
+
+```python
+graph = builder.build(
+    emit_stage_wide_events=True,
+    emit_pipeline_wide_event=True,
+    wide_event_emitter=WideEventEmitter(),
+)
+```
+
+Each stage completion/failure will emit `stage.wide` payloads with correlation IDs and summarized stage data, and the pipeline run will emit a single `pipeline.wide` summary once execution finishes. You can also call the helpers directly inside `PipelineRunLogger` implementations:
+
+```python
+from stageflow.observability import emit_pipeline_wide_event
+
+class MyPipelineRunLogger(PipelineRunLogger):
+    async def log_run_completed(..., stage_results, **_):
+        emit_pipeline_wide_event(
+            ctx=ctx,
+            stage_results=stage_results,
+            extra={"customer_id": str(ctx.user_id)},
+        )
+```
+
 ## Logging
 
 ### Structured Logging

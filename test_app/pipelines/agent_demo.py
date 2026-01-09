@@ -1,8 +1,8 @@
 """Pipeline demonstrating agent tools and subpipeline routing."""
 
-from stageflow import Pipeline, StageKind
+from stages import AgentStage, DispatchStage, SubpipelineStage
 
-from stages import AgentStage, SubpipelineStage, DispatchStage
+from stageflow import Pipeline, StageKind
 
 
 def create_agent_demo_pipeline() -> Pipeline:

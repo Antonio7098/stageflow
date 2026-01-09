@@ -42,7 +42,7 @@ class MockProfileService:
 class MockMemoryService:
     """Mock memory service that returns fake conversation context."""
 
-    async def get_memory(self, session_id: UUID) -> MockMemory:
+    async def get_memory(self, _session_id: UUID) -> MockMemory:
         await asyncio.sleep(random.uniform(0.1, 0.3))
         return MockMemory(
             recent_topics=["stageflow", "pipelines", "DAG execution"],

@@ -11,21 +11,21 @@ from stageflow.stages.context import PipelineContext
 class MockStageA:
     """Mock stage A for testing."""
 
-    async def execute(self, ctx: PipelineContext) -> StageOutput:
+    async def execute(self, _ctx: PipelineContext) -> StageOutput:
         return StageOutput.ok(data={"stage": "A"})
 
 
 class MockStageB:
     """Mock stage B for testing."""
 
-    async def execute(self, ctx: PipelineContext) -> StageOutput:
+    async def execute(self, _ctx: PipelineContext) -> StageOutput:
         return StageOutput.ok(data={"stage": "B"})
 
 
 class MockStageC:
     """Mock stage C for testing."""
 
-    async def execute(self, ctx: PipelineContext) -> StageOutput:
+    async def execute(self, _ctx: PipelineContext) -> StageOutput:
         return StageOutput.ok(data={"stage": "C"})
 
 

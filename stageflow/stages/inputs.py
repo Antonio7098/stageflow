@@ -33,8 +33,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from stageflow.core import StageOutput
-
-from stageflow.stages.ports import CorePorts, LLMPorts, AudioPorts
+from stageflow.stages.ports import AudioPorts, CorePorts, LLMPorts
 
 if TYPE_CHECKING:
     from stageflow.context import ContextSnapshot

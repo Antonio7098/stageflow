@@ -9,9 +9,9 @@ Tests:
 """
 
 from dataclasses import FrozenInstanceError
-from datetime import datetime, UTC
-from typing import Any
+from datetime import UTC, datetime
 from uuid import uuid4
+
 import pytest
 
 from stageflow.context import (
@@ -22,7 +22,6 @@ from stageflow.context import (
     ProfileEnrichment,
     RoutingDecision,
 )
-
 
 # === Test Message ===
 

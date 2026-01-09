@@ -14,6 +14,7 @@ def pytest_configure(config):
 def benchmark_context():
     """Create a context suitable for benchmarking."""
     from uuid import uuid4
+
     from stageflow import PipelineContext
     from tests.utils.mocks import MockEventSink
 

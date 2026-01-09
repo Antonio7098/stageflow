@@ -1,13 +1,13 @@
 """Simple echo pipeline - tests basic execution."""
 
-from stageflow import Pipeline, StageKind
-
 from stages.echo import EchoStage
+
+from stageflow import Pipeline, StageKind
 
 
 def create_simple_pipeline() -> Pipeline:
     """Create a simple single-stage pipeline.
-    
+
     DAG:
         [echo]
     """

@@ -10,11 +10,9 @@ Tests the interceptor framework:
 """
 
 import asyncio
-from dataclasses import FrozenInstanceError
-import logging
-from datetime import datetime, UTC
-from typing import Any
+from datetime import UTC, datetime
 from uuid import uuid4
+
 import pytest
 
 from stageflow.pipeline.interceptors import (
@@ -32,7 +30,6 @@ from stageflow.pipeline.interceptors import (
 )
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.result import StageResult
-
 
 # === Test Fixtures ===
 
@@ -126,14 +123,12 @@ class TestBaseInterceptor:
     def test_before_defined_in_protocol(self):
         """Test that before method is defined in the protocol."""
         # Check that before is an abstract method
-        import inspect
         assert hasattr(BaseInterceptor, 'before')
         # The method exists and is abstract (implemented as abstractmethod in the class)
         assert getattr(BaseInterceptor.before, '__isabstractmethod__', False) is True
 
     def test_after_defined_in_protocol(self):
         """Test that after method is defined."""
-        import inspect
         assert hasattr(BaseInterceptor, 'after')
         assert getattr(BaseInterceptor.after, '__isabstractmethod__', False) is True
 
@@ -575,20 +570,20 @@ class TestRunWithInterceptors:
             name = "low"
             priority = 100
 
-            async def before(self, stage_name, ctx):
+            async def before(self, _stage_name, _ctx):
                 return None
 
-            async def after(self, stage_name, result, ctx):
+            async def after(self, _stage_name, _result, _ctx):
                 pass
 
         class HighPriority(BaseInterceptor):
             name = "high"
             priority = 10
 
-            async def before(self, stage_name, ctx):
+            async def before(self, _stage_name, _ctx):
                 return None
 
-            async def after(self, stage_name, result, ctx):
+            async def after(self, _stage_name, _result, _ctx):
                 pass
 
         async def stage_run():
@@ -615,10 +610,10 @@ class TestRunWithInterceptors:
             name = "short_circuit"
             priority = 50
 
-            async def before(self, stage_name, ctx):
+            async def before(self, _stage_name, _ctx):
                 return InterceptorResult(stage_ran=False, result={"skipped": True}, error=None)
 
-            async def after(self, stage_name, result, ctx):
+            async def after(self, _stage_name, _result, _ctx):
                 pass
 
         async def stage_run():
@@ -642,10 +637,10 @@ class TestRunWithInterceptors:
             name = "error"
             priority = 50
 
-            async def before(self, stage_name, ctx):
+            async def before(self, _stage_name, _ctx):
                 raise RuntimeError("Interceptor error")
 
-            async def after(self, stage_name, result, ctx):
+            async def after(self, _stage_name, _result, _ctx):
                 raise RuntimeError("After error")
 
         async def stage_run():
@@ -711,13 +706,13 @@ class TestRunWithInterceptors:
             name = "handler"
             priority = 50
 
-            async def before(self, stage_name, ctx):
+            async def before(self, _stage_name, _ctx):
                 return None
 
-            async def after(self, stage_name, result, ctx):
+            async def after(self, _stage_name, _result, _ctx):
                 pass
 
-            async def on_error(self, stage_name, error, ctx):
+            async def on_error(self, _stage_name, _error, _ctx):
                 return ErrorAction.FAIL
 
         async def error_stage():
@@ -742,13 +737,13 @@ class TestRunWithInterceptors:
             name = "retry"
             priority = 50
 
-            async def before(self, stage_name, ctx):
+            async def before(self, _stage_name, _ctx):
                 return None
 
-            async def after(self, stage_name, result, ctx):
+            async def after(self, _stage_name, _result, _ctx):
                 pass
 
-            async def on_error(self, stage_name, error, ctx):
+            async def on_error(self, _stage_name, _error, _ctx):
                 return ErrorAction.RETRY
 
         async def succeed_on_retry():
@@ -861,10 +856,10 @@ class TestInterceptorEdgeCases:
             name = "custom"
             priority = 25
 
-            async def before(self, stage_name, ctx):
+            async def before(self, _stage_name, _ctx):
                 return None
 
-            async def after(self, stage_name, result, ctx):
+            async def after(self, _stage_name, _result, _ctx):
                 pass
 
         interceptor = CustomInterceptor()

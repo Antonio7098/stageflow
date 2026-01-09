@@ -163,19 +163,19 @@ class ChildTrackerMetricsInterceptor(BaseInterceptor):
         """No-op before method - this interceptor only tracks after execution."""
         pass
 
-    async def after(self, _stage_name: str, result: StageResult, ctx: PipelineContext) -> None:
+    async def after(self, _stage_name: str, _result: StageResult, ctx: PipelineContext) -> None:
         """Log ChildRunTracker metrics after stage execution."""
         import logging
-        
+
         # Only log metrics for stages that might spawn children
         if hasattr(ctx, 'is_child_run') and ctx.is_child_run:
             logger = logging.getLogger("stageflow.child_tracker_metrics")
-            
+
             try:
                 from stageflow.pipeline.subpipeline import get_child_tracker
                 tracker = get_child_tracker()
                 metrics = await tracker.get_metrics()
-                
+
                 logger.info(
                     "ChildRunTracker metrics",
                     extra={
@@ -355,10 +355,10 @@ class TimeoutInterceptor(BaseInterceptor):
 
 def get_default_interceptors(include_auth: bool = False) -> list[BaseInterceptor]:
     """Get the default set of interceptors for pipeline execution.
-    
+
     Args:
         include_auth: Whether to include authentication interceptors
-        
+
     Returns:
         List of interceptors in priority order (low to high)
     """
@@ -370,14 +370,14 @@ def get_default_interceptors(include_auth: bool = False) -> list[BaseInterceptor
         ChildTrackerMetricsInterceptor(),  # Priority 45
         LoggingInterceptor(),  # Priority 50
     ]
-    
+
     if include_auth:
         # Add auth interceptors with appropriate priorities
         from stageflow.auth.interceptors import (
             OrganizationInterceptor,
-            RegionInterceptor,
-            RateLimitInterceptor,
             PolicyGatewayInterceptor,
+            RateLimitInterceptor,
+            RegionInterceptor,
         )
         interceptors.extend([
             OrganizationInterceptor(),  # Priority 30
@@ -385,7 +385,7 @@ def get_default_interceptors(include_auth: bool = False) -> list[BaseInterceptor
             RateLimitInterceptor(),  # Priority 37
             PolicyGatewayInterceptor(),  # Priority 39
         ])
-    
+
     return interceptors
 
 

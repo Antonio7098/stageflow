@@ -7,8 +7,7 @@ Production implementations can extend or replace with Redis/DB storage.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import MutableMapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID

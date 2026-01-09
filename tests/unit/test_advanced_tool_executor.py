@@ -1,24 +1,25 @@
 """Tests for AdvancedToolExecutor with ExecutionContext."""
 
-import pytest
 from dataclasses import dataclass
-from uuid import uuid4, UUID
 from typing import Any
+from uuid import UUID, uuid4
 
+import pytest
+
+from stageflow.context import ContextSnapshot
+from stageflow.core import StageContext
+from stageflow.events import NoOpEventSink
+from stageflow.stages.context import PipelineContext
 from stageflow.tools import (
     AdvancedToolExecutor,
-    ToolDefinition,
-    ToolInput,
-    ToolOutput,
-    ToolExecutorConfig,
-    ToolNotFoundError,
-    ToolDeniedError,
     DictContextAdapter,
+    ToolDefinition,
+    ToolDeniedError,
+    ToolExecutorConfig,
+    ToolInput,
+    ToolNotFoundError,
+    ToolOutput,
 )
-from stageflow.core import StageContext
-from stageflow.context import ContextSnapshot
-from stageflow.stages.context import PipelineContext
-from stageflow.events import NoOpEventSink
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,7 @@ async def mock_handler(input: ToolInput) -> ToolOutput:
     return ToolOutput.ok(data={"handled": True, "payload": input.payload})
 
 
-async def mock_failing_handler(input: ToolInput) -> ToolOutput:
+async def mock_failing_handler(_input: ToolInput) -> ToolOutput:
     """Mock handler that raises an exception."""
     raise ValueError("Handler failed")
 
@@ -72,15 +73,15 @@ class TestAdvancedToolExecutorWithStageContext:
             action_type="TEST_ACTION",
             handler=mock_handler,
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="TEST_ACTION",
             payload={"key": "value"},
         )
-        
+
         result = await executor.execute(action, stage_context)
-        
+
         assert result.success
         assert result.data["handled"] is True
         assert result.data["payload"]["key"] == "value"
@@ -94,16 +95,16 @@ class TestAdvancedToolExecutorWithStageContext:
             handler=mock_handler,
             allowed_behaviors=("doc_edit",),  # Not "practice"
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="RESTRICTED_ACTION",
             payload={},
         )
-        
+
         with pytest.raises(ToolDeniedError) as exc_info:
             await executor.execute(action, stage_context)
-        
+
         assert exc_info.value.tool == "restricted_tool"
         assert exc_info.value.behavior == "practice"
 
@@ -121,20 +122,20 @@ class TestAdvancedToolExecutorWithStageContext:
             execution_mode="doc_edit",
         )
         ctx = StageContext(snapshot=snapshot)
-        
+
         executor.register(ToolDefinition(
             name="doc_tool",
             action_type="DOC_ACTION",
             handler=mock_handler,
             allowed_behaviors=("doc_edit", "practice"),
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="DOC_ACTION",
             payload={},
         )
-        
+
         result = await executor.execute(action, ctx)
         assert result.success
 
@@ -171,15 +172,15 @@ class TestAdvancedToolExecutorWithPipelineContext:
             action_type="TEST_ACTION",
             handler=mock_handler,
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="TEST_ACTION",
             payload={"key": "value"},
         )
-        
+
         result = await executor.execute(action, pipeline_context)
-        
+
         assert result.success
         assert result.data["handled"] is True
 
@@ -192,13 +193,13 @@ class TestAdvancedToolExecutorWithPipelineContext:
             handler=mock_handler,
             allowed_behaviors=("practice",),  # Not "roleplay"
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="PRACTICE_ACTION",
             payload={},
         )
-        
+
         with pytest.raises(ToolDeniedError):
             await executor.execute(action, pipeline_context)
 
@@ -230,15 +231,15 @@ class TestAdvancedToolExecutorWithDictContext:
             action_type="TEST_ACTION",
             handler=mock_handler,
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="TEST_ACTION",
             payload={"key": "value"},
         )
-        
+
         result = await executor.execute(action, dict_context)
-        
+
         assert result.success
         assert result.data["handled"] is True
 
@@ -251,13 +252,13 @@ class TestAdvancedToolExecutorWithDictContext:
             handler=mock_handler,
             allowed_behaviors=("doc_edit",),  # Not "practice"
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="RESTRICTED_ACTION",
             payload={},
         )
-        
+
         with pytest.raises(ToolDeniedError):
             await executor.execute(action, dict_context)
 
@@ -295,10 +296,10 @@ class TestAdvancedToolExecutorErrors:
             type="UNKNOWN_ACTION",
             payload={},
         )
-        
+
         with pytest.raises(ToolNotFoundError) as exc_info:
             await executor.execute(action, context)
-        
+
         assert "UNKNOWN_ACTION" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -310,13 +311,13 @@ class TestAdvancedToolExecutorErrors:
             handler=mock_handler,
             allowed_behaviors=(),  # Empty = all allowed
         ))
-        
+
         action = MockAction(
             id=uuid4(),
             type="UNIVERSAL_ACTION",
             payload={},
         )
-        
+
         result = await executor.execute(action, context)
         assert result.success
 
@@ -337,15 +338,15 @@ class TestToolInputFromAction:
             execution_mode="practice",
         )
         ctx = StageContext(snapshot=snapshot)
-        
+
         action = MockAction(
             id=uuid4(),
             type="TEST_ACTION",
             payload={"key": "value"},
         )
-        
+
         tool_input = ToolInput.from_action(action, "test_tool", ctx)
-        
+
         assert tool_input.action_id == action.id
         assert tool_input.tool_name == "test_tool"
         assert tool_input.payload == {"key": "value"}
@@ -364,15 +365,15 @@ class TestToolInputFromAction:
             interaction_id=None,
             execution_mode="roleplay",
         )
-        
+
         action = MockAction(
             id=uuid4(),
             type="TEST_ACTION",
             payload={"key": "value"},
         )
-        
+
         tool_input = ToolInput.from_action(action, "test_tool", ctx)
-        
+
         assert tool_input.behavior == "roleplay"
         assert tool_input.pipeline_run_id == ctx.pipeline_run_id
 
@@ -383,15 +384,15 @@ class TestToolInputFromAction:
             "pipeline_run_id": str(run_id),
             "execution_mode": "doc_edit",
         })
-        
+
         action = MockAction(
             id=uuid4(),
             type="TEST_ACTION",
             payload={},
         )
-        
+
         tool_input = ToolInput.from_action(action, "test_tool", ctx)
-        
+
         assert tool_input.behavior == "doc_edit"
         assert tool_input.pipeline_run_id == run_id
 
@@ -402,9 +403,9 @@ class TestToolInputFromAction:
             type="TEST_ACTION",
             payload={"key": "value"},
         )
-        
+
         tool_input = ToolInput.from_action(action, "test_tool", None)
-        
+
         assert tool_input.action_id == action.id
         assert tool_input.behavior is None
         assert tool_input.pipeline_run_id is None

@@ -7,7 +7,6 @@ from typing import Any
 from uuid import UUID
 
 from stageflow import StageKind, StageOutput
-from stageflow.protocols import EventSink
 from stageflow.tools import ToolInput, ToolOutput
 
 
@@ -58,7 +57,7 @@ class MockStage:
     fail_message: str = "Mock stage failure"
     execute_count: int = 0
 
-    async def execute(self, ctx: Any) -> StageOutput:
+    async def execute(self, _ctx: Any) -> StageOutput:
         """Execute the mock stage."""
         self.execute_count += 1
         if self.should_fail:
@@ -88,7 +87,7 @@ class MockTool:
     fail_message: str = "Mock tool failure"
     output_data: dict[str, Any] = field(default_factory=dict)
 
-    async def execute(self, input: ToolInput, ctx: dict[str, Any]) -> ToolOutput:
+    async def execute(self, input: ToolInput, _ctx: dict[str, Any]) -> ToolOutput:
         """Execute the mock tool."""
         self.execute_count += 1
         self.last_input = input
