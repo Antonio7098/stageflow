@@ -453,12 +453,6 @@ class PipelineBenchmarks:
 
 ## 👁️ Observability Checklist
 
-### Central Pulse Dashboard
-- [ ] Pipeline build time trend
-- [ ] Stage latency distribution
-- [ ] Error rate by stage
-- [ ] Circuit breaker state changes
-
 ### Alerting
 - [ ] Alert if P99 latency exceeds budget for 5min
 - [ ] Alert if error rate >1% for 5min

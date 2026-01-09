@@ -466,7 +466,11 @@ class UnifiedStageGraph:
 
         stage_ctx = StageContext(
             snapshot=ctx.snapshot,
-            config={"inputs": new_inputs, "timer": shared_timer},
+            config={
+                "inputs": new_inputs,
+                "timer": shared_timer,
+                "event_sink": ctx.config.get("event_sink"),  # Pass through for observability
+            },
         )
 
         return name, await self._run_stage(spec, stage_ctx)

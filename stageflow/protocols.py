@@ -5,6 +5,7 @@ extended without modifying core code. Following the Dependency Inversion Princip
 high-level modules depend on these abstractions, not on concrete implementations.
 
 Protocols:
+    ExecutionContext: Common interface for all execution contexts
     EventSink: Event persistence/emission
     RunStore: Pipeline run persistence
     ConfigProvider: Configuration access
@@ -18,6 +19,62 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
+
+
+@runtime_checkable
+class ExecutionContext(Protocol):
+    """Common interface for all execution contexts.
+    
+    This protocol defines the minimal interface that both PipelineContext
+    and StageContext implement, enabling tools and other components to
+    work with either context type.
+    
+    Implements:
+    - Liskov Substitution: Both contexts can be used where ExecutionContext is expected
+    - Interface Segregation: Defines only the minimal required interface
+    - Dependency Inversion: Tools depend on this protocol, not concrete classes
+    
+    Example:
+        def process(ctx: ExecutionContext) -> None:
+            print(f"Run: {ctx.pipeline_run_id}")
+            print(f"Mode: {ctx.execution_mode}")
+            ctx.try_emit_event("custom.event", {"key": "value"})
+    """
+    
+    @property
+    def pipeline_run_id(self) -> UUID | None:
+        """Pipeline run identifier for correlation."""
+        ...
+    
+    @property
+    def request_id(self) -> UUID | None:
+        """Request identifier for tracing."""
+        ...
+    
+    @property
+    def execution_mode(self) -> str | None:
+        """Current execution mode (e.g., 'practice', 'roleplay', 'doc_edit')."""
+        ...
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert context to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the context
+        """
+        ...
+    
+    def try_emit_event(self, type: str, data: dict[str, Any]) -> None:
+        """Emit an event without blocking (fire-and-forget).
+        
+        This method should not raise exceptions. If no event sink is
+        available, the event should be logged or silently discarded.
+        
+        Args:
+            type: Event type string (e.g., "tool.completed")
+            data: Event payload data
+        """
+        ...
 
 
 @runtime_checkable
@@ -207,6 +264,7 @@ class CorrelationIds:
 
 
 __all__ = [
+    "ExecutionContext",
     "EventSink",
     "RunStore", 
     "ConfigProvider",

@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
-
-from app.ai.framework.agent.types import Action
+from typing import Any, Protocol
 
 from .base import Tool, ToolInput, ToolOutput
+
+
+class ActionProtocol(Protocol):
+    """Protocol for action objects."""
+
+    @property
+    def type(self) -> str:
+        ...
+
+    @property
+    def payload(self) -> dict[str, Any]:
+        ...
 
 
 class ToolRegistry:
@@ -47,7 +57,7 @@ class ToolRegistry:
         """Check if we have a tool for this action type."""
         return action_type in self._tools or action_type in self._factories
 
-    async def execute(self, action: Action, ctx: dict[str, Any]) -> ToolOutput | None:
+    async def execute(self, action: ActionProtocol, ctx: dict[str, Any]) -> ToolOutput | None:
         """Execute an action using its registered tool."""
         tool = self.get_tool(action.type)
         if tool is None:

@@ -81,16 +81,9 @@ class StageInputs:
             The value from the first prior output containing the key,
             or default if not found.
         """
-        import sys
-        print(f"[INPUTS_GET] get('{key}') called, prior_outputs keys: {list(self.prior_outputs.keys())}", file=sys.stderr)
-        
         for output in self.prior_outputs.values():
             if key in output.data:
-                result = output.data[key]
-                print(f"[INPUTS_GET] Found key '{key}' in output (status={output.status}), value={repr(result)[:100]}", file=sys.stderr)
-                return result
-        
-        print(f"[INPUTS_GET] Key '{key}' not found, returning default={repr(default)[:100]}", file=sys.stderr)
+                return output.data[key]
         return default
 
     def get_from(self, stage_name: str, key: str, default: Any = None) -> Any:

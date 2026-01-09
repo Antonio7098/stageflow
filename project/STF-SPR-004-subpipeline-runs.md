@@ -361,11 +361,6 @@ All child events include both IDs for end-to-end tracing:
 - [ ] `pipeline.child_completed` event when child finishes
 - [ ] `pipeline.child_failed` event when child errors
 
-### Central Pulse Integration
-- [ ] Run tree visualization shows parent-child relationships
-- [ ] Clicking child run shows parent context
-- [ ] Cancellation events show cascade path
-
 ---
 
 ## ✔️ Completion Checklist

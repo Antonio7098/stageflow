@@ -4,17 +4,26 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
-if TYPE_CHECKING:
-    from app.ai.framework.agent.types import Action
+
+class ActionProtocol(Protocol):
+    """Protocol for action objects."""
+
+    @property
+    def type(self) -> str:
+        ...
+
+    @property
+    def payload(self) -> dict[str, Any]:
+        ...
 
 
 @dataclass(frozen=True)
 class ToolInput:
     """Input schema for a tool - wrapped action payload."""
 
-    action: Action
+    action: ActionProtocol
 
 
 @dataclass(frozen=True)
