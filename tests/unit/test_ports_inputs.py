@@ -75,7 +75,7 @@ class TestCorePorts:
         # Frozen dataclasses with slots prevent attribute addition
         try:
             ports.new_attribute = "test"
-            assert False, "Should have raised an exception"
+            raise AssertionError("Should have raised an exception")
         except (AttributeError, FrozenInstanceError, TypeError):
             pass  # Expected for frozen dataclass with slots
 
@@ -96,7 +96,9 @@ class TestLLMPorts:
     def test_with_values(self):
         """Test LLMPorts with values."""
         llm_mock = object()
-        token_cb = lambda token: None
+
+        def token_cb(_token):
+            return None
 
         ports = LLMPorts(
             llm_provider=llm_mock,
@@ -132,7 +134,9 @@ class TestAudioPorts:
     def test_with_values(self):
         """Test AudioPorts with values."""
         tts_mock = object()
-        audio_cb = lambda chunk, fmt, idx, last: None
+
+        def audio_cb(_chunk, _fmt, _idx, _last):
+            return None
 
         ports = AudioPorts(
             tts_provider=tts_mock,
@@ -166,7 +170,9 @@ class TestPortFactories:
     def test_create_core_ports(self):
         """Test create_core_ports factory."""
         db_mock = object()
-        status_cb = lambda stage, state, data: None
+
+        def status_cb(_stage, _state, _data):
+            return None
 
         ports = create_core_ports(
             db=db_mock,
@@ -179,7 +185,9 @@ class TestPortFactories:
     def test_create_llm_ports(self):
         """Test create_llm_ports factory."""
         llm_mock = object()
-        token_cb = lambda token: None
+
+        def token_cb(_token):
+            return None
 
         ports = create_llm_ports(
             llm_provider=llm_mock,
@@ -192,7 +200,10 @@ class TestPortFactories:
     def test_create_audio_ports(self):
         """Test create_audio_ports factory."""
         tts_mock = object()
-        audio_cb = lambda chunk, fmt, idx, last: None
+
+        def audio_cb(_chunk, _fmt, _idx, _last):
+            return None
+
         audio = b"test audio"
 
         ports = create_audio_ports(
@@ -293,7 +304,7 @@ class TestStageInputs:
         # Frozen dataclasses with slots prevent attribute addition
         try:
             inputs.new_attribute = "test"
-            assert False, "Should have raised an exception"
+            raise AssertionError("Should have raised an exception")
         except (AttributeError, FrozenInstanceError, TypeError):
             pass  # Expected for frozen dataclass with slots
 

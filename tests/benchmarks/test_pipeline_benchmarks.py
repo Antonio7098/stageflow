@@ -24,7 +24,7 @@ class TestPipelineBuildBenchmarks:
         """Benchmark building a simple 3-stage pipeline."""
 
         def build_simple():
-            pipeline = Pipeline(name="simple")
+            pipeline = Pipeline()
             # Note: with_stage requires actual stage classes in real usage
             return pipeline
 
@@ -35,7 +35,7 @@ class TestPipelineBuildBenchmarks:
         """Benchmark Pipeline object creation."""
 
         def create_pipeline():
-            return Pipeline(name=f"pipeline_{uuid4().hex[:8]}")
+            return Pipeline()
 
         benchmark(create_pipeline)
 

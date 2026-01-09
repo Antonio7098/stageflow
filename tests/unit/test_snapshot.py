@@ -213,16 +213,16 @@ class TestContextSnapshot:
     @pytest.fixture
     def required_fields(self):
         """Required fields for ContextSnapshot."""
-        return dict(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test_topology",
-            execution_mode="test",
-        )
+        return {
+            "pipeline_run_id": uuid4(),
+            "request_id": uuid4(),
+            "session_id": uuid4(),
+            "user_id": uuid4(),
+            "org_id": uuid4(),
+            "interaction_id": uuid4(),
+            "topology": "test_topology",
+            "execution_mode": "test",
+        }
 
     def test_minimal_snapshot(self, required_fields):
         """Test snapshot with only required fields."""
@@ -320,7 +320,7 @@ class TestContextSnapshot:
         with pytest.raises(FrozenInstanceError):
             snapshot.topology = "modified"
 
-    def test_snapshot_has_slots(self, required_fields):
+    def test_snapshot_has_slots(self, _required_fields):
         """Test ContextSnapshot uses slots."""
         assert hasattr(ContextSnapshot, "__slots__")
 

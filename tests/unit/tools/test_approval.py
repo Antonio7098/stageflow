@@ -186,7 +186,7 @@ class TestApprovalService:
         # Create some requests
         req1 = await service.request_approval(uuid4(), "tool1", pipeline_run_id=run_id)
         req2 = await service.request_approval(uuid4(), "tool2", pipeline_run_id=run_id)
-        req3 = await service.request_approval(uuid4(), "tool3", pipeline_run_id=uuid4())
+        await service.request_approval(uuid4(), "tool3", pipeline_run_id=uuid4())
 
         # Approve one
         await service.record_decision(req1.id, granted=True)

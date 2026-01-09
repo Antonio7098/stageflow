@@ -128,7 +128,7 @@ class TestUndoMetadata:
 class TestToolDefinition:
     """Tests for ToolDefinition dataclass."""
 
-    async def _dummy_handler(self, input: ToolInput) -> ToolOutput:
+    async def _dummy_handler(self, _input: ToolInput) -> ToolOutput:
         return ToolOutput.ok()
 
     def test_create_tool_definition(self) -> None:

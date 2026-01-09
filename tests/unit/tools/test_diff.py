@@ -227,7 +227,7 @@ class TestDiffText:
         """diff_text generates unified diff format."""
         result = diff_text("old", "new")
         assert "--- a/original" in result.diff_output
-        "+++ b/modified" in result.diff_output
+        assert "+++ b/modified" in result.diff_output
 
     def test_custom_filenames(self) -> None:
         """diff_text uses custom filenames."""

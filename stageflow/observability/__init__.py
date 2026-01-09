@@ -16,6 +16,7 @@ from stageflow.observability.wide_events import (
     emit_stage_wide_event,
 )
 
+
 class PipelineRunLogger(Protocol):
     """Protocol for logging pipeline runs.
 
