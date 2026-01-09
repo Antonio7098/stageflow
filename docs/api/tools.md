@@ -317,6 +317,144 @@ Remove undo metadata.
 
 ---
 
+## Diff Utilities
+
+```python
+from stageflow.tools import DiffType, DiffResult, diff_text, diff_json, diff_structured
+```
+
+Utilities for generating diffs between content, useful for showing changes and supporting undo.
+
+### DiffType
+
+Enum for diff format types.
+
+| Value | Description |
+|-------|-------------|
+| `UNIFIED` | Unified diff format (default) |
+| `CONTEXT` | Context diff format |
+| `JSON_PATCH` | JSON Patch format (RFC 6902) |
+| `LINE_BY_LINE` | Simple line-by-line comparison |
+
+### DiffLine
+
+```python
+@dataclass(frozen=True)
+class DiffLine:
+    type: str           # "equal", "add", "remove"
+    content: str
+    line_number_old: int | None
+    line_number_new: int | None
+```
+
+A single line in a diff.
+
+### DiffResult
+
+```python
+@dataclass(frozen=True)
+class DiffResult:
+    diff_type: DiffType
+    diff_output: str
+    changes: list[DiffLine]
+    additions: int
+    deletions: int
+    unchanged: int
+    similarity: float
+    old_content: str | None
+    new_content: str | None
+```
+
+Result of a diff operation.
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `has_changes` | `bool` | True if there are any changes |
+| `change_summary` | `str` | Human-readable summary like "+5 -3" |
+
+#### Methods
+
+##### `to_dict() -> dict`
+
+Convert to dictionary for serialization.
+
+```python
+result = diff_text(old, new)
+serialized = result.to_dict()
+```
+
+### diff_text()
+
+```python
+def diff_text(
+    old: str,
+    new: str,
+    diff_type: DiffType = DiffType.UNIFIED,
+    context_lines: int = 3,
+    fromfile: str = "a/original",
+    tofile: str = "b/modified",
+) -> DiffResult
+```
+
+Generate a unified diff between two text strings.
+
+```python
+old = "Hello\nWorld"
+new = "Hello\nPython\nWorld"
+result = diff_text(old, new)
+print(result.diff_output)
+# --- a/original
+# +++ b/modified
+# @@ -1,2 +1,3 @@
+#  Hello
+# +Python
+#  World
+```
+
+### diff_json()
+
+```python
+def diff_json(
+    old: dict | list | None,
+    new: dict | list | None,
+) -> DiffResult
+```
+
+Generate a JSON Patch-style diff between two JSON-ifiable objects.
+
+```python
+old = {"name": "Alice", "age": 30}
+new = {"name": "Alice", "age": 31, "city": "NYC"}
+result = diff_json(old, new)
+print(result.diff_output)
+# [
+#   {"op": "replace", "path": "/age", "value": 31},
+#   {"op": "add", "path": "/city", "value": "NYC"}
+# ]
+```
+
+### diff_structured()
+
+```python
+def diff_structured(
+    old: dict[str, Any],
+    new: dict[str, Any],
+    ignore_keys: set[str] | None = None,
+) -> DiffResult
+```
+
+Generate a structured diff between two dictionaries.
+
+```python
+old = {"status": "draft", "title": "My Post"}
+new = {"status": "published", "title": "My Post"}
+result = diff_structured(old, new)
+```
+
+---
+
 ## ApprovalService
 
 ```python

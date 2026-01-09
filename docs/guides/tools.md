@@ -277,6 +277,168 @@ toggle_tool = ToolDefinition(
 )
 ```
 
+## Diff Support
+
+The Stageflow tool system includes diff utilities for tracking and displaying changes made by tools. Diffs are essential for:
+
+- Showing users what changed after an edit
+- Generating audit trails
+- Supporting undo/redo functionality
+- Calculating similarity metrics
+
+### Text Diff
+
+Generate unified diffs between text content:
+
+```python
+from stageflow.tools import diff_text, DiffType
+
+old_content = """Welcome to our application.
+
+Features:
+- Fast processing
+- Secure storage
+"""
+
+new_content = """Welcome to our application.
+
+Features:
+- Fast processing
+- Secure storage
+- Cloud sync
+"""
+
+result = diff_text(old_content, new_content)
+
+# Access diff output
+print(result.diff_output)
+# --- a/original
+# +++ b/modified
+# @@ -3,4 +3,5 @@
+#  Features:
+#  - Fast processing
+#  - Secure storage
+# +Cloud sync
+
+# Check statistics
+print(f"Additions: {result.additions}")  # 1
+print(f"Deletions: {result.deletions}")  # 0
+print(f"Similarity: {result.similarity}")  # 0.941
+print(f"Has changes: {result.has_changes}")  # True
+print(f"Summary: {result.change_summary}")  # "+1"
+
+# Serialize for storage
+serialized = result.to_dict()
+```
+
+### JSON Diff
+
+Generate JSON Patch format for structured data:
+
+```python
+from stageflow.tools import diff_json
+
+old_config = {
+    "theme": "dark",
+    "notifications": True,
+    "timeout": 30,
+}
+
+new_config = {
+    "theme": "light",
+    "notifications": False,
+    "timeout": 60,
+    "language": "en",
+}
+
+result = diff_json(old_config, new_config)
+print(result.diff_output)
+# [
+#   {"op": "replace", "path": "/theme", "value": "light"},
+#   {"op": "replace", "path": "/notifications", "value": false},
+#   {"op": "replace", "path": "/timeout", "value": 60},
+#   {"op": "add", "path": "/language", "value": "en"}
+# ]
+```
+
+### Structured Dict Diff
+
+Compare dictionaries with detailed field-level output:
+
+```python
+from stageflow.tools import diff_structured
+
+old_record = {"id": 1, "status": "pending", "priority": "high"}
+new_record = {"id": 1, "status": "done", "priority": "medium"}
+
+result = diff_structured(old_record, new_record, ignore_keys={"id"})
+print(result.diff_output)
+# --- old
+# +++ new
+# - priority: 'high'
+# + priority: 'medium'
+# - status: 'pending'
+# + status: 'done'
+```
+
+### Using Diffs with Tools
+
+Combine diffs with undoable tools to track changes:
+
+```python
+from stageflow.tools import (
+    ToolDefinition,
+    ToolInput,
+    ToolOutput,
+    diff_text,
+    UndoMetadata,
+)
+
+# In-memory storage for demo (use database in production)
+_document_content: dict[str, str] = {}
+
+async def edit_document_handler(input: ToolInput) -> ToolOutput:
+    doc_id = input.payload["document_id"]
+    new_content = input.payload["content"]
+
+    # Get original content
+    original = _document_content.get(doc_id, "")
+
+    # Generate diff before applying changes
+    diff_result = diff_text(original, new_content)
+
+    # Apply the edit
+    _document_content[doc_id] = new_content
+
+    return ToolOutput.ok(
+        data={
+            "document_id": doc_id,
+            "updated": True,
+            "changes_summary": diff_result.change_summary,
+            "diff": diff_result.diff_output,
+        },
+        undo_metadata={
+            "document_id": doc_id,
+            "original_content": original,
+            "diff_result": diff_result.to_dict(),
+        },
+    )
+
+async def edit_document_undo(metadata: UndoMetadata) -> None:
+    doc_id = metadata.undo_data["document_id"]
+    original = metadata.undo_data["original_content"]
+    _document_content[doc_id] = original
+
+edit_tool = ToolDefinition(
+    name="edit_document",
+    action_type="EDIT_DOCUMENT",
+    handler=edit_document_handler,
+    description="Edit a document's content",
+    undoable=True,
+    undo_handler=edit_document_undo,
+)
+```
+
 ### Using the Undo Store
 
 ```python

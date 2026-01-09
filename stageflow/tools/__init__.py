@@ -18,6 +18,14 @@ from .definitions import (
     UndoHandler,
     UndoMetadata,
 )
+from .diff import (
+    DiffType,
+    DiffLine,
+    DiffResult,
+    diff_text,
+    diff_json,
+    diff_structured,
+)
 from .errors import (
     ToolApprovalDeniedError,
     ToolApprovalTimeoutError,
@@ -66,6 +74,13 @@ __all__ = [
     "ToolHandler",
     "UndoHandler",
     "UndoMetadata",
+    # Diff utilities
+    "DiffType",
+    "DiffLine",
+    "DiffResult",
+    "diff_text",
+    "diff_json",
+    "diff_structured",
     # Errors
     "ToolError",
     "ToolNotFoundError",
