@@ -200,13 +200,12 @@ async def execute(self, ctx: StageContext) -> StageOutput:
 
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
-    # Stage configuration
-    timeout = ctx.config.get("timeout", 30)
-    model = ctx.config.get("model", "default")
+    # Configuration is typically provided via constructor args or injected ports
+    timeout = 30
+    model = "default"
     
     # Shared timer for consistent timing
-    timer = ctx.timer
-    elapsed = timer.elapsed_ms()
+    elapsed = ctx.timer.elapsed_ms()
 ```
 
 ### Accessing Upstream Outputs via StageInputs
@@ -287,12 +286,9 @@ class StageA:
 # Stage B (depends on A)
 class StageB:
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        
         # Access A's output
-        value = inputs.get("computed_value")  # 42
-        meta = inputs.get("metadata")  # {"source": "stage_a"}
-        
+        value = ctx.inputs.get_from("stage_a", "computed_value")
+
         return StageOutput.ok(doubled=value * 2)
 ```
 
@@ -304,15 +300,10 @@ When a stage depends on multiple upstream stages:
 # Stage C depends on both A and B
 class StageC:
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        
         # Get from specific stages
-        a_value = inputs.get_from("stage_a", "computed_value")
-        b_value = inputs.get_from("stage_b", "doubled")
-        
-        # Or get any matching key (first found)
-        any_value = inputs.get("computed_value")
-        
+        a_value = ctx.inputs.get_from("stage_a", "computed_value")
+        b_value = ctx.inputs.get_from("stage_b", "doubled")
+
         return StageOutput.ok(combined=a_value + b_value)
 ```
 
@@ -322,14 +313,12 @@ Always handle cases where upstream data might be missing:
 
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
-    inputs = ctx.config.get("inputs")
-    
     # With default value
-    value = inputs.get("optional_key", default="fallback")
+    value = ctx.inputs.get("optional_key", default="fallback")
     
     # Check before use
-    if inputs.has_output("required_stage"):
-        data = inputs.get_from("required_stage", "required_key")
+    if ctx.inputs.has_output("required_stage"):
+        data = ctx.inputs.get_from("required_stage", "required_key")
     else:
         return StageOutput.skip(reason="Missing required_key")
 ```

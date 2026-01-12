@@ -104,16 +104,23 @@ async def test_profile_enrich_stage(ctx, mock_profile_service):
 @pytest.mark.asyncio
 async def test_profile_enrich_skips_without_user_id():
     snapshot = ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=None,  # No user_id
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=None,  # No user_id
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="test",
         execution_mode="test",
     )
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="test_stage",
+        timer=PipelineTimer(),
+    )
     stage = ProfileEnrichStage()
     
     output = await stage.execute(ctx)
@@ -159,7 +166,12 @@ def test_pipeline():
 @pytest.mark.asyncio
 async def test_pipeline_execution(test_pipeline, snapshot):
     graph = test_pipeline.build()
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     results = await graph.run(ctx)
     
@@ -181,7 +193,12 @@ async def test_data_flows_between_stages(snapshot):
     )
     
     graph = pipeline.build()
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     results = await graph.run(ctx)
     
@@ -209,7 +226,12 @@ async def test_parallel_stages_run_concurrently(snapshot):
     )
     
     graph = pipeline.build()
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     start = time.time()
     results = await graph.run(ctx)
@@ -233,7 +255,12 @@ async def test_pipeline_cancellation(snapshot):
     )
     
     graph = pipeline.build()
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     with pytest.raises(UnifiedPipelineCancelled) as exc_info:
         await graph.run(ctx)
@@ -584,12 +611,14 @@ def session_id():
 @pytest.fixture
 def base_snapshot(user_id, session_id):
     return ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=session_id,
-        user_id=user_id,
-        org_id=uuid4(),
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=session_id,
+            user_id=user_id,
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+        ),
         topology="test",
         execution_mode="test",
     )
@@ -597,16 +626,29 @@ def base_snapshot(user_id, session_id):
 
 @pytest.fixture
 def ctx(base_snapshot):
-    return StageContext(snapshot=base_snapshot)
+    return StageContext(
+        snapshot=base_snapshot,
+        inputs=StageInputs(snapshot=base_snapshot),
+        stage_name="test_stage",
+        timer=PipelineTimer(),
+    )
 
 
 @pytest.fixture
 def ctx_with_input(base_snapshot):
     def _create(input_text: str):
         snapshot = ContextSnapshot(
-            **{**base_snapshot.__dict__, "input_text": input_text}
+            run_id=base_snapshot.run_id,
+            topology=base_snapshot.topology,
+            execution_mode=base_snapshot.execution_mode,
+            input_text=input_text,
         )
-        return StageContext(snapshot=snapshot)
+        return StageContext(
+            snapshot=snapshot,
+            inputs=StageInputs(snapshot=snapshot),
+            stage_name="test_stage",
+            timer=PipelineTimer(),
+        )
     return _create
 ```
 

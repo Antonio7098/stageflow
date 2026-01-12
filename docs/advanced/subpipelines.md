@@ -84,27 +84,24 @@ parent_value = child_ctx.get_parent_data("some_key", default=None)
 from uuid import uuid4
 from stageflow import StageContext, StageKind, StageOutput, Pipeline
 
-class ToolExecutorStage:
+class ToolDispatcher(Stage):
     """Stage that executes tools via subpipelines."""
     
-    name = "tool_executor"
-    kind = StageKind.WORK
-
-    def __init__(self, tool_pipeline_factory):
-        self.tool_pipeline_factory = tool_pipeline_factory
+    name = "tool_dispatcher"
+    kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        tool_calls = inputs.get("tool_calls", []) if inputs else []
+        tool_calls = ctx.inputs.get("tool_calls", [])
         
         results = []
-        for tool_call in tool_calls:
-            # Create child pipeline for this tool
-            tool_pipeline = self.tool_pipeline_factory(tool_call.type)
-            
-            # Fork context for child run
-            child_run_id = uuid4()
-            correlation_id = uuid4()
+        for call in tool_calls:
+            # Create child pipeline for each tool call
+            child_ctx = ctx.pipeline_ctx.fork_child(
+                child_run_id=uuid4(),
+                correlation_id=uuid4(),
+                topology=f"tool_{call.type}",
+                execution_mode="tool_execution",
+            )
             
             # Execute child pipeline
             result = await self._run_child_pipeline(
@@ -286,7 +283,7 @@ Parent cancellation should cascade to children:
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
     # Check for cancellation before spawning children
-    if ctx.config.get("canceled"):
+    if ctx.pipeline_ctx.canceled:
         return StageOutput.cancel(reason="Parent cancelled")
     
     # Track child tasks for cancellation

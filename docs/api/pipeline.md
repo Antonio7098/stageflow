@@ -411,8 +411,7 @@ class ProcessStage:
     name = "process"
     kind = StageKind.TRANSFORM
     async def execute(self, ctx):
-        inputs = ctx.config.get("inputs")
-        text = inputs.get("text") if inputs else ""
+        text = ctx.inputs.get("text", "")
         return StageOutput.ok(result=text.upper())
 
 # Build pipeline
@@ -429,7 +428,12 @@ pipeline_registry.register("example", pipeline)
 async def run():
     graph = pipeline.build()
     snapshot = ContextSnapshot(...)
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     try:
         results = await graph.run(ctx)

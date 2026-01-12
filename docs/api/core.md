@@ -307,13 +307,8 @@ class ProcessingStage:
         input_text = ctx.snapshot.input_text
         user_id = ctx.snapshot.user_id
         
-        # Access config
-        timeout = ctx.config.get("timeout", 30)
-        
         # Access upstream outputs
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            previous_result = inputs.get("result")
+        previous_result = ctx.inputs.get("result")
         
         # Emit event
         ctx.emit_event("processing.started", {"input_length": len(input_text or "")})

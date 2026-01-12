@@ -64,13 +64,11 @@ Bugs or invalid state in the application.
 
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
-    inputs = ctx.config.get("inputs")
-    
     # Validate required inputs
-    if not inputs or not inputs.has("required_key"):
+    if not ctx.inputs.has_output("required_stage"):
         return StageOutput.fail(error="Missing required input: required_key")
     
-    value = inputs.get("required_key")
+    value = ctx.inputs.get_from("required_stage", "required_key")
     if not isinstance(value, str):
         return StageOutput.fail(error=f"Expected string, got {type(value).__name__}")
 ```
