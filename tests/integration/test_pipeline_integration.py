@@ -10,8 +10,9 @@ from uuid import uuid4
 
 import pytest
 
-from stageflow.context import ContextSnapshot
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import (
+    PipelineTimer,
     StageArtifact,
     StageContext,
     StageKind,
@@ -19,6 +20,7 @@ from stageflow.core import (
     StageStatus,
 )
 from stageflow.pipeline.dag import UnifiedStageGraph, UnifiedStageSpec
+from stageflow.stages.inputs import StageInputs
 
 # === Test Fixtures ===
 
@@ -27,17 +29,33 @@ def create_snapshot(
     topology: str = "test_pipeline",
 ) -> ContextSnapshot:
     """Create a test ContextSnapshot."""
-    return ContextSnapshot(
+    run_id = RunIdentity(
         pipeline_run_id=uuid4(),
         request_id=uuid4(),
         session_id=uuid4(),
         user_id=uuid4(),
         org_id=uuid4(),
         interaction_id=uuid4(),
+    )
+    return ContextSnapshot(
+        run_id=run_id,
         topology=topology,
-
         execution_mode="test",
-        extensions={"key": "value"}
+    )
+
+
+def create_context(
+    snapshot: ContextSnapshot | None = None,
+    topology: str = "test_pipeline",
+) -> StageContext:
+    """Create a test StageContext."""
+    snap = snapshot or create_snapshot(topology=topology)
+    inputs = StageInputs(snapshot=snap)
+    return StageContext(
+        snapshot=snap,
+        inputs=inputs,
+        stage_name="test_stage",
+        timer=PipelineTimer(),
     )
 
 
@@ -79,7 +97,7 @@ class TestStageGraphIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         results = await graph.run(ctx)
 
@@ -120,7 +138,7 @@ class TestStageGraphIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         start = datetime.now(UTC)
         results = await graph.run(ctx)
@@ -143,7 +161,7 @@ class TestStageGraphIntegration:
         )
 
         graph = UnifiedStageGraph(specs=[spec])
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         results = await graph.run(ctx)
 
@@ -166,8 +184,8 @@ class TestStageInputsIntegration:
             return StageOutput.ok(data={"key": "value1", "number": 42})
 
         async def stage2(ctx: StageContext) -> StageOutput:
-            inputs = ctx.config.get("inputs")
-            if inputs and hasattr(inputs, "prior_outputs"):
+            inputs = ctx.inputs
+            if inputs and inputs.prior_outputs:
                 prior = inputs.prior_outputs
                 if "stage1" in prior:
                     stage2_received_data.append(prior["stage1"].data)
@@ -179,7 +197,7 @@ class TestStageInputsIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         await graph.run(ctx)
 
@@ -217,7 +235,7 @@ class TestErrorHandlingIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         results_dict = await graph.run(ctx)
 
@@ -260,7 +278,7 @@ class TestConditionalExecutionIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
         results = await graph.run(ctx)
 
         assert "normal" in execution_order
@@ -292,7 +310,7 @@ class TestConditionalExecutionIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         results = await graph.run(ctx)
 
@@ -325,7 +343,7 @@ class TestArtifactEventIntegration:
         )
 
         graph = UnifiedStageGraph(specs=[spec])
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         results = await graph.run(ctx)
 
@@ -362,7 +380,7 @@ class TestEndToEndPipeline:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot("chat_fast"))
+        ctx = create_context(topology="chat_fast")
 
         results = await graph.run(ctx)
 
@@ -398,7 +416,7 @@ class TestEndToEndPipeline:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot("voice_accurate"))
+        ctx = create_context(topology="voice_accurate")
 
         results = await graph.run(ctx)
 
@@ -427,7 +445,7 @@ class TestPerformanceIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         start = datetime.now(UTC)
         results = await graph.run(ctx)
@@ -458,7 +476,7 @@ class TestPerformanceIntegration:
         ]
 
         graph = UnifiedStageGraph(specs=specs)
-        ctx = StageContext(snapshot=create_snapshot())
+        ctx = create_context()
 
         results = await graph.run(ctx)
 

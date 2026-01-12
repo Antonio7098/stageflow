@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/auth/events.py
+# hypothesis_version: 6.150.0
+
+['AuthFailureEvent', 'AuthLoginEvent', 'auth.failure', 'auth.login', 'ip_address', 'org_id', 'pipeline_run_id', 'reason', 'request_id', 'resource_org_id', 'session_id', 'tenant.access_denied', 'timestamp', 'type', 'user_agent', 'user_id', 'user_org_id']

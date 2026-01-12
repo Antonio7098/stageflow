@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/auth/errors.py
+# hypothesis_version: 6.150.0
+
+['AuthenticationError', 'Invalid token', 'InvalidTokenError', 'MissingClaimsError', 'Token has expired', 'TokenExpiredError', 'auth_error', 'cross_tenant_access', 'invalid_token', 'missing_claims', 'token_expired']

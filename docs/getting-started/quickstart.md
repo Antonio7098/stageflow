@@ -35,9 +35,8 @@ class AddExclamationStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        # Get output from previous stage via inputs
-        inputs = ctx.config.get("inputs")
-        text = inputs.get("text", "") if inputs else ""
+        # Get output from previous stage via StageInputs
+        text = ctx.inputs.get_from("uppercase", "text", default="")
         
         # Transform and return
         result = f"{text}!!!"
@@ -73,15 +72,17 @@ The `ContextSnapshot` carries input data and metadata through the pipeline:
 
 ```python
 from uuid import uuid4
-from stageflow.context import ContextSnapshot
+from stageflow.context import ContextSnapshot, RunIdentity
 
 snapshot = ContextSnapshot(
-    pipeline_run_id=uuid4(),
-    request_id=uuid4(),
-    session_id=uuid4(),
-    user_id=uuid4(),
-    org_id=None,
-    interaction_id=uuid4(),
+    run_id=RunIdentity(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=uuid4(),
+        org_id=None,
+        interaction_id=uuid4(),
+    ),
     topology="quickstart",
     execution_mode="default",
     input_text="hello world",  # Our input
@@ -94,14 +95,21 @@ Build the graph and execute:
 
 ```python
 import asyncio
-from stageflow import StageContext
+from stageflow import StageContext, PipelineTimer
+from stageflow.stages import StageInputs
 
 async def main():
     # Build executable graph
     graph = pipeline.build()
     
-    # Create execution context
-    ctx = StageContext(snapshot=snapshot)
+    # Create execution context (StageInputs + StageContext)
+    inputs = StageInputs(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=inputs,
+        stage_name="pipeline",
+        timer=PipelineTimer(),
+    )
     
     # Run the pipeline
     results = await graph.run(ctx)
@@ -121,8 +129,9 @@ Here's the full working code:
 import asyncio
 from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot
+from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 
 
 class UppercaseStage:
@@ -139,8 +148,7 @@ class AddExclamationStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        text = inputs.get("text", "") if inputs else ""
+        text = ctx.inputs.get_from("uppercase", "text", default="")
         return StageOutput.ok(text=f"{text}!!!", excited=True)
 
 
@@ -159,12 +167,14 @@ async def main():
     
     # Create context
     snapshot = ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="quickstart",
         execution_mode="default",
         input_text="hello world",
@@ -172,7 +182,12 @@ async def main():
     
     # Run
     graph = pipeline.build()
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline",
+        timer=PipelineTimer(),
+    )
     results = await graph.run(ctx)
     
     # Output

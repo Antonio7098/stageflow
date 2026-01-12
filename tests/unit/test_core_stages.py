@@ -18,6 +18,7 @@ from uuid import uuid4
 
 import pytest
 
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import (
     PipelineTimer,
     Stage,
@@ -29,6 +30,17 @@ from stageflow.core import (
     StageStatus,
     create_stage_context,
 )
+
+
+def _make_snapshot(**kwargs) -> ContextSnapshot:
+    """Create a ContextSnapshot with defaults, allowing overrides."""
+    run_id_kwargs = {}
+    for field in ["pipeline_run_id", "request_id", "session_id", "user_id", "org_id", "interaction_id"]:
+        if field in kwargs:
+            run_id_kwargs[field] = kwargs.pop(field)
+
+    run_id = RunIdentity(**run_id_kwargs) if run_id_kwargs else RunIdentity()
+    return ContextSnapshot(run_id=run_id, **kwargs)
 
 
 class TestStageKind:
@@ -210,6 +222,76 @@ class TestStageOutput:
         assert output.error == "Retry needed"
         assert output.data["retry_after"] == 60
 
+    # === Duration tracking tests ===
+
+    def test_duration_ms_default_none(self):
+        """Test StageOutput.duration_ms defaults to None."""
+        output = StageOutput(status=StageStatus.OK)
+        assert output.duration_ms is None
+
+    def test_duration_ms_initialization(self):
+        """Test StageOutput with explicit duration_ms."""
+        output = StageOutput(status=StageStatus.OK, duration_ms=150)
+        assert output.duration_ms == 150
+
+    def test_with_duration_creates_copy(self):
+        """Test with_duration creates a new StageOutput with duration set."""
+        original = StageOutput.ok(result="success")
+        with_dur = original.with_duration(100)
+
+        # Original unchanged
+        assert original.duration_ms is None
+        # New instance has duration
+        assert with_dur.duration_ms == 100
+        # Data preserved
+        assert with_dur.data == original.data
+        assert with_dur.status == original.status
+
+    def test_with_duration_preserves_all_fields(self):
+        """Test with_duration preserves all fields."""
+        artifact = StageArtifact(type="test", payload={})
+        event = StageEvent(type="test", data={})
+        original = StageOutput(
+            status=StageStatus.FAIL,
+            data={"key": "value"},
+            artifacts=[artifact],
+            events=[event],
+            error="test error",
+        )
+        with_dur = original.with_duration(250)
+
+        assert with_dur.status == StageStatus.FAIL
+        assert with_dur.data == {"key": "value"}
+        assert with_dur.artifacts == [artifact]
+        assert with_dur.events == [event]
+        assert with_dur.error == "test error"
+        assert with_dur.duration_ms == 250
+
+    # === fail() with response parameter tests ===
+
+    def test_fail_factory_with_response_alias(self):
+        """Test StageOutput.fail() accepts response as alias for error."""
+        output = StageOutput.fail(response="API error")
+        assert output.status == StageStatus.FAIL
+        assert output.error == "API error"
+
+    def test_fail_factory_error_takes_precedence(self):
+        """Test StageOutput.fail() error takes precedence over response."""
+        output = StageOutput.fail(error="Primary error", response="Ignored")
+        assert output.error == "Primary error"
+
+    def test_fail_factory_neither_error_nor_response(self):
+        """Test StageOutput.fail() with no error or response provides default."""
+        output = StageOutput.fail()
+        assert output.status == StageStatus.FAIL
+        assert output.error == "Unknown error"
+
+    def test_fail_factory_with_response_and_data(self):
+        """Test StageOutput.fail() with response and data."""
+        output = StageOutput.fail(response="API failed", data={"code": 500})
+        assert output.error == "API failed"
+        assert output.data == {"code": 500}
+
 
 class TestStageArtifact:
     """Tests for StageArtifact dataclass."""
@@ -341,13 +423,12 @@ class TestPipelineTimer:
 
 
 class TestStageContext:
-    """Tests for StageContext class."""
+    """Tests for StageContext frozen dataclass."""
 
     @pytest.fixture
     def mock_snapshot(self):
         """Create a mock snapshot for testing."""
-        from stageflow.context import ContextSnapshot
-        return ContextSnapshot(
+        return _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
             session_id=uuid4(),
@@ -358,140 +439,154 @@ class TestStageContext:
             execution_mode="test",
         )
 
-    def test_context_initialization(self, mock_snapshot):
-        """Test StageContext initializes with snapshot."""
-        ctx = StageContext(snapshot=mock_snapshot)
+    @pytest.fixture
+    def mock_inputs(self, mock_snapshot):
+        """Create mock StageInputs for testing."""
+        from stageflow.stages.inputs import StageInputs
+        return StageInputs(snapshot=mock_snapshot)
+
+    @pytest.fixture
+    def mock_timer(self):
+        """Create a PipelineTimer for testing."""
+        return PipelineTimer()
+
+    def test_context_initialization(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test StageContext initializes with all required fields."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
         assert ctx.snapshot == mock_snapshot
+        assert ctx.inputs == mock_inputs
+        assert ctx.stage_name == "test_stage"
+        assert ctx.timer == mock_timer
+        assert ctx.event_sink is None
 
-    def test_context_with_config(self, mock_snapshot):
-        """Test StageContext with config."""
-        config = {"custom_key": "custom_value"}
-        ctx = StageContext(snapshot=mock_snapshot, config=config)
-        assert ctx.config["custom_key"] == "custom_value"
+    def test_context_with_event_sink(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test StageContext with event_sink."""
+        class MockEventSink:
+            def try_emit(self, *, type: str, data: dict):
+                pass
 
-    def test_context_config_default_empty(self, mock_snapshot):
-        """Test StageContext config defaults to empty dict."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        assert ctx.config == {}
+        sink = MockEventSink()
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+            event_sink=sink,
+        )
+        assert ctx.event_sink is sink
 
-    def test_context_started_at(self, mock_snapshot):
-        """Test StageContext started_at is set."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        assert ctx.started_at is not None
+    def test_context_is_frozen(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test StageContext is immutable (frozen dataclass)."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
+        with pytest.raises(FrozenInstanceError):
+            ctx.stage_name = "modified"
+
+    def test_context_has_slots(self):
+        """Verify StageContext uses slots."""
+        assert hasattr(StageContext, "__slots__")
+
+    def test_started_at_from_timer(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test started_at property returns timer's started_at."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
+        assert ctx.started_at == mock_timer.started_at
         assert isinstance(ctx.started_at, datetime)
 
-    def test_timer_property_returns_timer(self, mock_snapshot):
-        """Test timer property returns PipelineTimer."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        timer = ctx.timer
-        assert isinstance(timer, PipelineTimer)
-
-    def test_timer_with_custom_timer_in_config(self, mock_snapshot):
-        """Test timer uses custom timer from config if provided."""
-        custom_timer = PipelineTimer()
-        ctx = StageContext(snapshot=mock_snapshot, config={"timer": custom_timer})
-        assert ctx.timer is custom_timer
-
-    def test_timer_started_at_matches_context(self, mock_snapshot):
-        """Test custom timer started_at matches context started_at."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        custom_timer = PipelineTimer()
-        object.__setattr__(
-            custom_timer, "_pipeline_start_ms", int(ctx.started_at.timestamp() * 1000)
+    def test_pipeline_run_id_from_snapshot(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test pipeline_run_id comes from snapshot."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
         )
-        ctx_with_timer = StageContext(snapshot=mock_snapshot, config={"timer": custom_timer})
-        assert ctx_with_timer.timer.pipeline_start_ms == int(ctx.started_at.timestamp() * 1000)
+        assert ctx.pipeline_run_id == mock_snapshot.pipeline_run_id
+
+    def test_request_id_from_snapshot(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test request_id comes from snapshot."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
+        assert ctx.request_id == mock_snapshot.request_id
+
+    def test_execution_mode_from_snapshot(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test execution_mode comes from snapshot."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
+        assert ctx.execution_mode == mock_snapshot.execution_mode
+
+    def test_to_dict(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test to_dict includes stage_name and started_at."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
+        result = ctx.to_dict()
+        assert result["stage_name"] == "test_stage"
+        assert "started_at" in result
+
+    def test_try_emit_event_with_sink(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test try_emit_event emits through event sink."""
+        events_emitted = []
+
+        class MockEventSink:
+            def try_emit(self, *, type: str, data: dict):
+                events_emitted.append({"type": type, "data": data})
+
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+            event_sink=MockEventSink(),
+        )
+        ctx.try_emit_event("test.event", {"key": "value"})
+
+        assert len(events_emitted) == 1
+        assert events_emitted[0]["type"] == "test.event"
+        assert events_emitted[0]["data"]["key"] == "value"
+        assert "pipeline_run_id" in events_emitted[0]["data"]
+        assert "execution_mode" in events_emitted[0]["data"]
+
+    def test_try_emit_event_without_sink(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test try_emit_event does not raise when no event sink."""
+        ctx = StageContext(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
+        # Should not raise
+        ctx.try_emit_event("test.event", {"key": "value"})
 
     def test_now_classmethod(self):
         """Test StageContext.now() class method."""
         now = StageContext.now()
         assert isinstance(now, datetime)
         assert now.tzinfo is not None
-
-    def test_emit_event(self, mock_snapshot):
-        """Test emit_event adds to outputs."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        ctx.emit_event("test_event", {"key": "value"})
-        outputs = ctx.collect_outputs()
-        assert len(outputs) == 1
-        assert len(outputs[0].events) == 1
-        assert outputs[0].events[0].type == "test_event"
-        # Events are enriched with correlation IDs
-        event_data = outputs[0].events[0].data
-        assert event_data["key"] == "value"
-        assert "pipeline_run_id" in event_data
-        assert "request_id" in event_data
-        assert "execution_mode" in event_data
-
-    def test_emit_multiple_events(self, mock_snapshot):
-        """Test emitting multiple events."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        ctx.emit_event("event1", {"n": 1})
-        ctx.emit_event("event2", {"n": 2})
-        outputs = ctx.collect_outputs()
-        assert len(outputs) == 2
-        assert outputs[0].events[0].type == "event1"
-        assert outputs[1].events[0].type == "event2"
-
-    def test_add_artifact(self, mock_snapshot):
-        """Test add_artifact adds to outputs."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        ctx.add_artifact("audio", {"format": "mp3"})
-        outputs = ctx.collect_outputs()
-        assert len(outputs) == 1
-        assert len(outputs[0].artifacts) == 1
-        assert outputs[0].artifacts[0].type == "audio"
-        assert outputs[0].artifacts[0].payload == {"format": "mp3"}
-
-    def test_add_multiple_artifacts(self, mock_snapshot):
-        """Test adding multiple artifacts."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        ctx.add_artifact("type1", {"id": 1})
-        ctx.add_artifact("type2", {"id": 2})
-        outputs = ctx.collect_outputs()
-        artifacts = outputs[0].artifacts + outputs[1].artifacts
-        assert len(artifacts) == 2
-
-    def test_collect_outputs_empty_initially(self, mock_snapshot):
-        """Test collect_outputs returns empty list initially."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        assert ctx.collect_outputs() == []
-
-    def test_get_output_data_finds_value(self, mock_snapshot):
-        """Test get_output_data finds value in outputs."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        ctx.add_artifact("test", {})  # This doesn't add to data
-        # Use emit_event which does add to output
-        ctx.emit_event("test", {})
-        ctx.collect_outputs()
-        # The event output has status OK, not data with our key
-        # Let's add data directly
-        from stageflow.core import StageOutput
-        object.__setattr__(ctx, "_outputs", [StageOutput.ok(key="value")])
-        assert ctx.get_output_data("key") == "value"
-
-    def test_get_output_data_with_default(self, mock_snapshot):
-        """Test get_output_data returns default when key not found."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        assert ctx.get_output_data("missing") is None
-        assert ctx.get_output_data("missing", "default") == "default"
-
-    def test_get_output_data_nested_search(self, mock_snapshot):
-        """Test get_output_data searches all outputs."""
-        ctx = StageContext(snapshot=mock_snapshot)
-        from stageflow.core import StageOutput
-        object.__setattr__(ctx, "_outputs", [
-            StageOutput.ok(first="value1"),
-            StageOutput.ok(second="value2"),
-            StageOutput.ok(third="value3"),
-        ])
-        assert ctx.get_output_data("second") == "value2"
-        assert ctx.get_output_data("third") == "value3"
-        assert ctx.get_output_data("first") == "value1"
-
-    def test_context_has_slots(self):
-        """Verify StageContext uses slots."""
-        assert hasattr(StageContext, "__slots__")
 
 
 class TestCreateStageContext:
@@ -500,8 +595,7 @@ class TestCreateStageContext:
     @pytest.fixture
     def mock_snapshot(self):
         """Create a mock snapshot."""
-        from stageflow.context import ContextSnapshot
-        return ContextSnapshot(
+        return _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
             session_id=uuid4(),
@@ -512,22 +606,56 @@ class TestCreateStageContext:
             execution_mode="test",
         )
 
-    def test_factory_creates_context(self, mock_snapshot):
-        """Test factory creates StageContext."""
-        ctx = create_stage_context(snapshot=mock_snapshot)
+    @pytest.fixture
+    def mock_inputs(self, mock_snapshot):
+        """Create mock StageInputs for testing."""
+        from stageflow.stages.inputs import StageInputs
+        return StageInputs(snapshot=mock_snapshot)
+
+    @pytest.fixture
+    def mock_timer(self):
+        """Create a PipelineTimer for testing."""
+        return PipelineTimer()
+
+    def test_factory_creates_context(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test factory creates StageContext with all required fields."""
+        ctx = create_stage_context(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
         assert isinstance(ctx, StageContext)
         assert ctx.snapshot == mock_snapshot
+        assert ctx.inputs == mock_inputs
+        assert ctx.stage_name == "test_stage"
+        assert ctx.timer == mock_timer
 
-    def test_factory_with_config(self, mock_snapshot):
-        """Test factory passes config to context."""
-        config = {"custom": "value"}
-        ctx = create_stage_context(snapshot=mock_snapshot, config=config)
-        assert ctx.config == config
+    def test_factory_with_event_sink(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test factory passes event_sink to context."""
+        class MockEventSink:
+            def try_emit(self, *, type: str, data: dict):
+                pass
 
-    def test_factory_with_none_config(self, mock_snapshot):
-        """Test factory handles None config."""
-        ctx = create_stage_context(snapshot=mock_snapshot, config=None)
-        assert ctx.config == {}
+        sink = MockEventSink()
+        ctx = create_stage_context(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+            event_sink=sink,
+        )
+        assert ctx.event_sink is sink
+
+    def test_factory_event_sink_defaults_none(self, mock_snapshot, mock_inputs, mock_timer):
+        """Test factory defaults event_sink to None."""
+        ctx = create_stage_context(
+            snapshot=mock_snapshot,
+            inputs=mock_inputs,
+            stage_name="test_stage",
+            timer=mock_timer,
+        )
+        assert ctx.event_sink is None
 
 
 class TestStageProtocol:

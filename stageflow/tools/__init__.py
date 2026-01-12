@@ -59,7 +59,7 @@ from .events import (
 )
 from .executor import ToolExecutor
 from .executor_v2 import AdvancedToolExecutor, ExecutionResult, ToolExecutorConfig
-from .registry import ToolRegistry, get_tool_registry, register_tool, tool
+from .registry import ToolRegistry, clear_tool_registry, get_tool_registry, register_tool, tool
 from .undo import UndoStore, clear_undo_store, get_undo_store, set_undo_store
 
 __all__ = [
@@ -104,6 +104,7 @@ __all__ = [
     "ToolRegistry",
     "get_tool_registry",
     "register_tool",
+    "clear_tool_registry",
     "tool",
     # Executors
     "ToolExecutor",

@@ -6,10 +6,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from stageflow.context import ContextSnapshot
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import StageContext
+from stageflow.core.timer import PipelineTimer
 from stageflow.events import NoOpEventSink
 from stageflow.stages.context import PipelineContext
+from stageflow.stages.inputs import StageInputs
 from stageflow.tools import (
     AdvancedToolExecutor,
     DictContextAdapter,
@@ -20,6 +22,35 @@ from stageflow.tools import (
     ToolNotFoundError,
     ToolOutput,
 )
+
+
+def _make_snapshot(**kwargs) -> ContextSnapshot:
+    """Create a ContextSnapshot with defaults, allowing overrides."""
+    run_id_kwargs = {}
+    for field in ["pipeline_run_id", "request_id", "session_id", "user_id", "org_id", "interaction_id"]:
+        if field in kwargs:
+            run_id_kwargs[field] = kwargs.pop(field)
+
+    run_id = RunIdentity(**run_id_kwargs) if run_id_kwargs else RunIdentity()
+    return ContextSnapshot(run_id=run_id, **kwargs)
+
+
+def _make_stage_context(
+    snapshot: ContextSnapshot,
+    *,
+    stage_name: str = "test_stage",
+    event_sink=None,
+) -> StageContext:
+    """Create a StageContext with sensible defaults for testing."""
+    inputs = StageInputs(snapshot=snapshot)
+    timer = PipelineTimer()
+    return StageContext(
+        snapshot=snapshot,
+        inputs=inputs,
+        stage_name=stage_name,
+        timer=timer,
+        event_sink=event_sink,
+    )
 
 
 @dataclass(frozen=True)
@@ -53,7 +84,7 @@ class TestAdvancedToolExecutorWithStageContext:
     @pytest.fixture
     def stage_context(self):
         """Create a StageContext for testing."""
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
             session_id=uuid4(),
@@ -63,7 +94,7 @@ class TestAdvancedToolExecutorWithStageContext:
             topology="test_topology",
             execution_mode="practice",
         )
-        return StageContext(snapshot=snapshot)
+        return _make_stage_context(snapshot)
 
     @pytest.mark.asyncio
     async def test_execute_with_stage_context(self, executor, stage_context):
@@ -111,17 +142,12 @@ class TestAdvancedToolExecutorWithStageContext:
     @pytest.mark.asyncio
     async def test_behavior_gating_allowed(self, executor):
         """Should allow tool when behavior matches."""
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
             execution_mode="doc_edit",
         )
-        ctx = StageContext(snapshot=snapshot)
+        ctx = _make_stage_context(snapshot)
 
         executor.register(ToolDefinition(
             name="doc_tool",
@@ -276,17 +302,11 @@ class TestAdvancedToolExecutorErrors:
     @pytest.fixture
     def context(self):
         """Create a context for testing."""
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
-            execution_mode=None,
         )
-        return StageContext(snapshot=snapshot)
+        return _make_stage_context(snapshot)
 
     @pytest.mark.asyncio
     async def test_tool_not_found(self, executor, context):
@@ -327,17 +347,12 @@ class TestToolInputFromAction:
 
     def test_from_action_with_stage_context(self):
         """Should create ToolInput from StageContext."""
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
             execution_mode="practice",
         )
-        ctx = StageContext(snapshot=snapshot)
+        ctx = _make_stage_context(snapshot)
 
         action = MockAction(
             id=uuid4(),

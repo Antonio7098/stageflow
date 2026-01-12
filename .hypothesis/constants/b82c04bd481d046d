@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/core/stage_enums.py
+# hypothesis_version: 6.150.0
+
+['agent', 'cancel', 'enrich', 'fail', 'guard', 'ok', 'retry', 'route', 'skip', 'transform', 'work']

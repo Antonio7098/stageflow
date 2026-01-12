@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/observability/__init__.py
+# hypothesis_version: 6.150.0
+
+[500, 'CIRCUIT_OPEN', 'CircuitBreaker', 'PipelineRunLogger', 'ProviderCallLogger', 'TIMEOUT', 'UNKNOWN', 'WideEventEmitter', 'circuit breaker', 'code', 'error', 'failure', 'get_circuit_breaker', 'message', 'pipeline_run_logger', 'provider_call_logger', 'retryable', 'stage', 'type']

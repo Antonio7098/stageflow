@@ -123,4 +123,22 @@ def register_tool(tool_instance: Tool) -> None:
     registry.register(tool_instance)
 
 
-__all__ = ["ToolRegistry", "get_tool_registry", "tool", "register_tool"]
+def clear_tool_registry() -> None:
+    """Clear all tools from the global registry.
+
+    This is primarily useful for testing to ensure a clean state
+    between tests. After calling this function, get_tool_registry()
+    will return a fresh registry instance.
+
+    Example:
+        # In test setup or teardown
+        clear_tool_registry()
+
+        # Register fresh tools for this test
+        register_tool(MyTestTool())
+    """
+    global _registry
+    _registry = None
+
+
+__all__ = ["ToolRegistry", "get_tool_registry", "tool", "register_tool", "clear_tool_registry"]

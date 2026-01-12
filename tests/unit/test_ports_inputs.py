@@ -16,7 +16,7 @@ from uuid import uuid4
 
 import pytest
 
-from stageflow.context import ContextSnapshot
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import (
     StageOutput,
 )
@@ -32,6 +32,23 @@ from stageflow.stages.ports import (
     create_core_ports,
     create_llm_ports,
 )
+
+
+def _make_snapshot() -> ContextSnapshot:
+    """Create a minimal ContextSnapshot for testing."""
+    return ContextSnapshot(
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+        ),
+        topology="test",
+        execution_mode="test",
+    )
+
 
 # === Test CorePorts ===
 
@@ -224,17 +241,7 @@ class TestStageInputs:
 
     def test_default_values(self):
         """Test StageInputs default values."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         inputs = StageInputs(snapshot=snapshot)
         assert inputs.snapshot is snapshot
         assert inputs.prior_outputs == {}
@@ -242,22 +249,11 @@ class TestStageInputs:
 
     def test_with_values(self):
         """Test StageInputs with values."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         prior_outputs = {
             "stage_a": StageOutput.ok(data={"value": 42}),
             "stage_b": StageOutput.ok(data={"text": "hello"}),
         }
-
         ports = CorePorts(db=object())
 
         inputs = StageInputs(
@@ -271,34 +267,14 @@ class TestStageInputs:
 
     def test_frozen_immutable(self):
         """Test StageInputs is frozen/immutable."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         inputs = StageInputs(snapshot=snapshot)
         with pytest.raises(FrozenInstanceError):
             inputs.snapshot = object()
 
     def test_slots_optimization(self):
         """Test StageInputs uses __slots__ for memory efficiency."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         inputs = StageInputs(snapshot=snapshot)
         assert hasattr(inputs, '__slots__')
         # Frozen dataclasses with slots prevent attribute addition
@@ -310,17 +286,7 @@ class TestStageInputs:
 
     def test_get(self):
         """Test StageInputs.get method."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         prior_outputs = {
             "stage_a": StageOutput.ok(data={"value": 42, "shared": "from_a"}),
             "stage_b": StageOutput.ok(data={"text": "hello", "shared": "from_b"}),
@@ -341,17 +307,7 @@ class TestStageInputs:
 
     def test_get_from(self):
         """Test StageInputs.get_from method."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         prior_outputs = {
             "stage_a": StageOutput.ok(data={"value": 42}),
             "stage_b": StageOutput.ok(data={"text": "hello"}),
@@ -376,17 +332,7 @@ class TestStageInputs:
 
     def test_get_output(self):
         """Test StageInputs.get_output method."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         output = StageOutput.ok(data={"value": 42})
         prior_outputs = {"stage_a": output}
 
@@ -407,17 +353,7 @@ class TestStageInputsFactory:
 
     def test_create_stage_inputs_minimal(self):
         """Test create_stage_inputs with minimal arguments."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         inputs = create_stage_inputs(snapshot=snapshot)
         assert isinstance(inputs, StageInputs)
         assert inputs.snapshot is snapshot
@@ -426,17 +362,7 @@ class TestStageInputsFactory:
 
     def test_create_stage_inputs_with_all(self):
         """Test create_stage_inputs with all arguments."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         prior_outputs = {"stage_a": StageOutput.ok(data={"value": 42})}
         ports = LLMPorts(llm_provider=object())
 
@@ -452,51 +378,21 @@ class TestStageInputsFactory:
 
     def test_create_stage_inputs_with_core_ports(self):
         """Test create_stage_inputs with CorePorts."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         ports = CorePorts(db=object())
         inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
         assert inputs.ports is ports
 
     def test_create_stage_inputs_with_llm_ports(self):
         """Test create_stage_inputs with LLMPorts."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         ports = LLMPorts(llm_provider=object())
         inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
         assert inputs.ports is ports
 
     def test_create_stage_inputs_with_audio_ports(self):
         """Test create_stage_inputs with AudioPorts."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-            topology="test",
-            execution_mode="test",
-        )
-
+        snapshot = _make_snapshot()
         ports = AudioPorts(tts_provider=object())
         inputs = create_stage_inputs(snapshot=snapshot, ports=ports)
         assert inputs.ports is ports

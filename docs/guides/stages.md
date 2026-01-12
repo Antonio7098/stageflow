@@ -133,8 +133,7 @@ class PersistStage:
         self.db = db
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        response = inputs.get("response") if inputs else None
+        response = ctx.inputs.get("response")
         
         if response:
             await self.db.save_interaction(
@@ -219,25 +218,19 @@ Access outputs from dependency stages via `StageInputs`:
 from stageflow.stages.inputs import StageInputs
 
 async def execute(self, ctx: StageContext) -> StageOutput:
-    inputs: StageInputs = ctx.config.get("inputs")
+    # Get specific key from any upstream stage (searches all)
+    processed_text = ctx.inputs.get("text")
     
-    if inputs:
-        # Get specific key from any upstream stage (searches all)
-        processed_text = inputs.get("text")
-        
-        # Get from a specific stage (preferred - explicit dependency)
-        router_decision = inputs.get_from("router", "route", default="general")
-        
-        # Check if a stage has output
-        if inputs.has_output("validator"):
-            validator_output = inputs.get_output("validator")
-        
-        # Access the snapshot through inputs
-        user_id = inputs.snapshot.user_id
-        
-        # Access injected services through ports
-        if inputs.ports.llm_provider:
-            response = await inputs.ports.llm_provider.chat(...)
+    # Get from a specific stage (preferred - explicit dependency)
+    router_decision = ctx.inputs.get_from("router", "route", default="general")
+    
+    # Check if a stage has output
+    if ctx.inputs.has_output("validator"):
+        validator_output = ctx.inputs.get_output("validator")
+    
+    # Access injected services through ports
+    if ctx.inputs.ports and ctx.inputs.ports.llm_provider:
+        response = await ctx.inputs.ports.llm_provider.chat(...)
 ```
 
 ### Injected Services (Modular Ports)
@@ -248,32 +241,30 @@ Stages can access injected services through modular ports:
 from stageflow.stages.ports import CorePorts, LLMPorts, AudioPorts
 
 async def execute(self, ctx: StageContext) -> StageOutput:
-    inputs = ctx.config.get("inputs")
-    
     # Access specific port types
-    core_ports: CorePorts = inputs.ports.core if inputs.ports else CorePorts()
-    llm_ports: LLMPorts = inputs.ports.llm if inputs.ports else LLMPorts()
-    audio_ports: AudioPorts = inputs.ports.audio if inputs.ports else AudioPorts()
+    ports = ctx.inputs.ports or CorePorts()
+    llm_ports: LLMPorts | None = getattr(ctx.inputs.ports, "llm", None) if ctx.inputs.ports else None
+    audio_ports: AudioPorts | None = getattr(ctx.inputs.ports, "audio", None) if ctx.inputs.ports else None
     
     # Database access (CorePorts)
-    if core_ports.db:
-        await core_ports.db.save_interaction(...)
+    if ports.db:
+        await ports.db.save_interaction(...)
     
     # LLM operations (LLMPorts)
-    if llm_ports.llm_provider:
+    if llm_ports and llm_ports.llm_provider:
         response = await llm_ports.llm_provider.chat(messages)
     
     # Token streaming (LLMPorts)
-    if llm_ports.send_token:
+    if llm_ports and llm_ports.send_token:
         await llm_ports.send_token("Hello")
     
     # Audio streaming (AudioPorts)
-    if audio_ports.send_audio_chunk:
+    if audio_ports and audio_ports.send_audio_chunk:
         await audio_ports.send_audio_chunk(audio_bytes, "wav", 0, False)
     
     # Status updates (CorePorts)
-    if core_ports.send_status:
-        await core_ports.send_status("stage_name", "completed", {"data": result})
+    if ports.send_status:
+        await ports.send_status(ctx.stage_name, "completed", {"data": result})
 ```
 
 ### Creating Ports
@@ -320,19 +311,19 @@ inputs = create_stage_inputs(
 ```
 
 
-### From Stage Configuration
+### Supplying Stage Configuration
 
-Stages can receive configuration at runtime:
+Stages typically receive configuration through their constructor or via injected ports rather than through the context. For example:
 
 ```python
-async def execute(self, ctx: StageContext) -> StageOutput:
-    # Access configuration
-    timeout = ctx.config.get("timeout", 30)
-    model = ctx.config.get("model", "default")
-    
-    # Timer for consistent timing
-    timer = ctx.timer
-    elapsed = timer.elapsed_ms()
+class SummarizeStage:
+    def __init__(self, *, default_model: str = "gpt-4o-mini"):
+        self.default_model = default_model
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        model = self.default_model
+        elapsed = ctx.timer.elapsed_ms()
+        ...
 ```
 
 ## Producing Output

@@ -15,6 +15,10 @@ from stageflow.core import StageArtifact as Artifact
 from stageflow.events import EventSink, get_event_sink
 
 if TYPE_CHECKING:
+    from stageflow.context import ContextSnapshot
+    from stageflow.context.output_bag import OutputBag
+    from stageflow.core import StageContext
+    from stageflow.stages.ports import AudioPorts, CorePorts, LLMPorts
     from stageflow.utils.frozen import FrozenDict
 
 
@@ -254,6 +258,69 @@ class PipelineContext:
             **data,
         }
         self.event_sink.try_emit(type=type, data=enriched_data)
+
+    def derive_for_stage(
+        self,
+        stage_name: str,
+        snapshot: ContextSnapshot,
+        output_bag: OutputBag,
+        *,
+        declared_deps: frozenset[str] | set[str] | list[str] | None = None,
+        ports: CorePorts | LLMPorts | AudioPorts | None = None,
+        strict: bool = True,
+    ) -> StageContext:
+        """Derive a StageContext for a specific stage from this PipelineContext.
+
+        This method creates an immutable StageContext for stage execution,
+        bridging between the mutable PipelineContext (used during pipeline
+        orchestration) and the immutable StageContext (used during stage
+        execution).
+
+        Args:
+            stage_name: Name of the stage being executed.
+            snapshot: The immutable ContextSnapshot with run identity and enrichments.
+            output_bag: The OutputBag containing prior stage outputs.
+            declared_deps: Set of declared dependency stage names for validation.
+            ports: Injected capabilities (db, callbacks, services) for the stage.
+            strict: If True, raises error for undeclared dependency access.
+
+        Returns:
+            StageContext ready for stage execution.
+        """
+        from stageflow.core import StageContext
+        from stageflow.core.timer import PipelineTimer
+        from stageflow.stages.inputs import StageInputs
+
+        # Convert deps to frozenset if provided
+        deps: frozenset[str]
+        if declared_deps is None:
+            deps = frozenset()
+        elif isinstance(declared_deps, frozenset):
+            deps = declared_deps
+        else:
+            deps = frozenset(declared_deps)
+
+        # Get prior outputs from the output bag
+        prior_outputs = output_bag.outputs()
+
+        # Create StageInputs with validated dependency access
+        inputs = StageInputs(
+            snapshot=snapshot,
+            prior_outputs=prior_outputs,
+            ports=ports,
+            declared_deps=deps,
+            stage_name=stage_name,
+            strict=strict,
+        )
+
+        # Create the immutable StageContext
+        return StageContext(
+            snapshot=snapshot,
+            inputs=inputs,
+            stage_name=stage_name,
+            timer=PipelineTimer(),
+            event_sink=self.event_sink,
+        )
 
 
 __all__ = [

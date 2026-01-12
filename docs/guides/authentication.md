@@ -255,8 +255,8 @@ from stageflow.auth import (
 
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
-    # Auth context is stored by AuthInterceptor
-    auth_context = ctx.config.get("_auth_context")
+    # Auth context is injected via StageInputs ports
+    auth_context = getattr(ctx.inputs.ports, "auth", None) if ctx.inputs.ports else None
     
     if auth_context:
         user_id = auth_context.user_id
@@ -338,7 +338,7 @@ class ItemStage:
 ```python
 class AdminStage:
     async def execute(self, ctx: StageContext) -> StageOutput:
-        auth = ctx.config.get("_auth_context")
+        auth = getattr(ctx.inputs.ports, "auth", None) if ctx.inputs.ports else None
         
         if not auth or not auth.is_admin():
             return StageOutput.cancel(

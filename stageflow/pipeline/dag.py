@@ -365,7 +365,7 @@ class UnifiedStageGraph:
             },
         )
 
-        shared_timer = ctx.config.get("timer") or PipelineTimer()
+        shared_timer = ctx.timer or PipelineTimer()
 
         completed: dict[str, StageOutput] = {}
         in_degree: dict[str, int] = {
@@ -482,7 +482,7 @@ class UnifiedStageGraph:
             if dep_name in spec.dependencies
         }
 
-        inputs = ctx.config.get("inputs")
+        inputs = ctx.inputs
         ports = inputs.ports if inputs else None
 
         from stageflow.stages.inputs import create_stage_inputs
@@ -491,15 +491,16 @@ class UnifiedStageGraph:
             snapshot=ctx.snapshot,
             prior_outputs=prior_outputs,
             ports=ports,
+            declared_deps=spec.dependencies,
+            stage_name=name,
         )
 
         stage_ctx = StageContext(
             snapshot=ctx.snapshot,
-            config={
-                "inputs": new_inputs,
-                "timer": shared_timer,
-                "event_sink": ctx.config.get("event_sink"),  # Pass through for observability
-            },
+            inputs=new_inputs,
+            stage_name=name,
+            timer=shared_timer,
+            event_sink=ctx.event_sink,
         )
 
         return name, await self._run_stage(spec, stage_ctx)
@@ -519,12 +520,8 @@ class UnifiedStageGraph:
 
         # Handle conditional stages
         if spec.conditional:
-            skip_reason = ctx.get_output_data("skip_reason")
-            if skip_reason is None:
-                # Also check prior_outputs from dependencies
-                inputs = ctx.config.get("inputs")
-                if inputs is not None:
-                    skip_reason = inputs.get("skip_reason")
+            # Check prior_outputs from dependencies for skip_reason
+            skip_reason = ctx.inputs.get("skip_reason") if ctx.inputs else None
             if skip_reason:
                 logger.info(
                     f"Skipping conditional stage: {spec.name}",
@@ -535,14 +532,15 @@ class UnifiedStageGraph:
                     },
                 )
                 # Emit stage.skipped event for observability
-                event_sink = ctx.config.get("event_sink")
-                if event_sink:
-                    event_sink.try_emit(
+                if ctx.event_sink:
+                    ctx.event_sink.try_emit(
                         type=f"stage.{spec.name}.skipped",
                         data={
                             "stage": spec.name,
                             "reason": skip_reason,
-                            "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
+                            "pipeline_run_id": str(ctx.pipeline_run_id)
+                            if ctx.pipeline_run_id
+                            else None,
                             "request_id": str(ctx.request_id) if ctx.request_id else None,
                         },
                     )
@@ -554,6 +552,9 @@ class UnifiedStageGraph:
 
             result = self._normalize_output(spec.name, raw_output, started_at)
             duration_ms = self._duration_ms(started_at, ended_at)
+
+            # Add duration to the result for per-stage tracking
+            result = result.with_duration(duration_ms)
 
             logger.info(
                 f"Stage {spec.name} completed with status={result.status.value}",
@@ -567,15 +568,16 @@ class UnifiedStageGraph:
 
             # Emit stage.skipped event if stage returned SKIP status
             if result.status == StageStatus.SKIP:
-                event_sink = ctx.config.get("event_sink")
-                if event_sink:
-                    event_sink.try_emit(
+                if ctx.event_sink:
+                    ctx.event_sink.try_emit(
                         type=f"stage.{spec.name}.skipped",
                         data={
                             "stage": spec.name,
                             "reason": result.data.get("reason", "Stage returned skip"),
                             "duration_ms": duration_ms,
-                            "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
+                            "pipeline_run_id": str(ctx.pipeline_run_id)
+                            if ctx.pipeline_run_id
+                            else None,
                             "request_id": str(ctx.request_id) if ctx.request_id else None,
                         },
                     )

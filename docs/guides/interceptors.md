@@ -34,8 +34,8 @@ from stageflow import TimeoutInterceptor
 # Default timeout is 30 seconds
 timeout = TimeoutInterceptor()
 
-# Stages can override via context
-ctx.config["_timeout_ms"] = 60000  # 60 seconds for this stage
+# Pipelines can override by setting ctx.data["_timeout_ms"] before execution
+pipeline_ctx.data["_timeout_ms"] = 60000  # 60 seconds for this run
 ```
 
 ### CircuitBreakerInterceptor

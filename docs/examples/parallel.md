@@ -30,11 +30,7 @@ class ProfileEnrichStage:
         self.profile_service = profile_service or MockProfileService()
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            user_id = inputs.snapshot.user_id
-        else:
-            user_id = ctx.snapshot.user_id
+        user_id = ctx.snapshot.user_id
 
         if not user_id:
             return StageOutput.skip(reason="No user_id provided")
@@ -64,11 +60,7 @@ class MemoryEnrichStage:
         self.memory_service = memory_service or MockMemoryService()
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            session_id = inputs.snapshot.session_id
-        else:
-            session_id = ctx.snapshot.session_id
+        session_id = ctx.snapshot.session_id
 
         if not session_id:
             return StageOutput.skip(reason="No session_id provided")
@@ -94,11 +86,9 @@ class SummarizeStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        
         # Get outputs from both enrichment stages
-        profile = inputs.get("profile", {}) if inputs else {}
-        memory = inputs.get("memory", {}) if inputs else {}
+        profile = ctx.inputs.get("profile", {})
+        memory = ctx.inputs.get("memory", {})
 
         # Build summary
         summary_parts = []
@@ -261,9 +251,8 @@ class SummarizeStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        profile = inputs.get("profile", {}) if inputs else {}
-        memory = inputs.get("memory", {}) if inputs else {}
+        profile = ctx.inputs.get("profile", {})
+        memory = ctx.inputs.get("memory", {})
         
         summary = f"User: {profile.get('display_name', 'Unknown')}"
         if memory.get("recent_topics"):
@@ -350,20 +339,6 @@ Total: ~0.30s (not 0.55s if sequential)
 When an enrichment stage skips, the aggregator still runs:
 
 ```python
-class SummarizeStage:
-    async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        
-        # Handle potentially missing data from skipped stages
-        profile = inputs.get("profile") if inputs else None
-        memory = inputs.get("memory") if inputs else None
-        
-        parts = []
-        if profile:
-            parts.append(f"User: {profile.get('display_name', 'Unknown')}")
-        if memory:
-            parts.append(f"Topics: {', '.join(memory.get('recent_topics', []))}")
-        
         summary = " | ".join(parts) if parts else "No enrichment data available"
         
         return StageOutput.ok(summary=summary)

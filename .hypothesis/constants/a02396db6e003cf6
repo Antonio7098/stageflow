@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/tools/definitions.py
+# hypothesis_version: 6.150.0
+
+['Action', 'ToolDefinition', 'ToolHandler', 'ToolInput', 'ToolOutput', 'UndoHandler', 'UndoMetadata', 'action_id', 'action_type', 'allowed_behaviors', 'approval_message', 'artifact_type', 'artifacts', 'behavior', 'created_at', 'data', 'description', 'error', 'input_schema', 'name', 'payload', 'pipeline_run_id', 'request_id', 'requires_approval', 'success', 'tool_name', 'undo_data', 'undo_metadata', 'undoable']

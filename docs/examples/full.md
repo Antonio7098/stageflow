@@ -36,11 +36,7 @@ class InputGuardStage:
         self.guard_service = guard_service or MockGuardService()
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-        else:
-            input_text = ctx.snapshot.input_text or ""
+        input_text = ctx.snapshot.input_text or ""
 
         is_safe, reason = await self.guard_service.check_input(input_text)
 
@@ -70,11 +66,7 @@ class OutputGuardStage:
         self.guard_service = guard_service or MockGuardService()
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            response = inputs.get("response", "")
-        else:
-            response = ""
+        response = ctx.inputs.get("response", "")
 
         is_safe, reason = await self.guard_service.check_output(response)
 
@@ -102,8 +94,7 @@ class RouterStage:
     kind = StageKind.ROUTE
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        input_text = inputs.get("text", "") if inputs else ctx.snapshot.input_text or ""
+        input_text = ctx.inputs.get("text", ctx.snapshot.input_text or "")
 
         lower_text = input_text.lower()
         
@@ -179,12 +170,10 @@ class LLMStage:
         self.llm_client = llm_client
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-
         input_text = ctx.snapshot.input_text or ""
-        route = inputs.get("route", "general") if inputs else "general"
-        profile = inputs.get("profile", {}) if inputs else {}
-        memory = inputs.get("memory", {}) if inputs else {}
+        route = ctx.inputs.get("route", "general")
+        profile = ctx.inputs.get("profile", {})
+        memory = ctx.inputs.get("memory", {})
         messages = list(ctx.snapshot.messages) if ctx.snapshot.messages else []
 
         system_prompt = self._build_system_prompt(route, profile, memory)
@@ -297,9 +286,10 @@ import asyncio
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot
+from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.pipeline.dag import UnifiedPipelineCancelled
+from stageflow.stages import StageInputs
 
 
 # Mock Services
@@ -419,7 +409,6 @@ class LLMStage:
         self.client = client or MockLLMClient()
     
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
         text = ctx.snapshot.input_text or ""
         messages = [{"role": "system", "content": "You are helpful."}, {"role": "user", "content": text}]
         response = await self.client.chat(messages, "model", 0.7, 1024)
@@ -434,8 +423,7 @@ class OutputGuardStage:
         self.service = service or MockGuardService()
     
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        response = inputs.get("response", "") if inputs else ""
+        response = ctx.inputs.get("response", "")
         return StageOutput.ok(response=response, validated=True)
 
 
@@ -462,18 +450,25 @@ async def main():
     # Test 1: Normal input
     print("=== Test 1: Normal Input ===")
     snapshot = ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="full",
         execution_mode="default",
         input_text="Hello, I need help with Python!",
     )
     
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="full_pipeline_entry",
+        timer=PipelineTimer(),
+    )
     results = await graph.run(ctx)
     
     print(f"Route: {results['router'].data.get('route')}")
@@ -484,18 +479,25 @@ async def main():
     # Test 2: Blocked input
     print("=== Test 2: Blocked Input ===")
     snapshot2 = ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="full",
         execution_mode="default",
         input_text="How do I hack into systems?",
     )
     
-    ctx2 = StageContext(snapshot=snapshot2)
+    ctx2 = StageContext(
+        snapshot=snapshot2,
+        inputs=StageInputs(snapshot=snapshot2),
+        stage_name="full_pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     try:
         results2 = await graph.run(ctx2)

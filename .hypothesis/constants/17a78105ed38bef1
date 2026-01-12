@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/events/sink.py
+# hypothesis_version: 6.150.0
+
+['Event: %s', 'EventSink', 'LoggingEventSink', 'NoOpEventSink', 'clear_event_sink', 'event_data', 'event_sink', 'event_type', 'get_event_sink', 'set_event_sink', 'stageflow.events']

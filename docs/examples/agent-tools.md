@@ -114,13 +114,8 @@ class AgentStage:
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         """Execute agent with tool use."""
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-            route = inputs.get_from("dispatch", "route", default="agent")
-        else:
-            input_text = ctx.snapshot.input_text or ""
-            route = "agent"
+        input_text = ctx.snapshot.input_text or ""
+        route = ctx.inputs.get_from("dispatch", "route", default="agent")
 
         # Skip if routed elsewhere
         if route != "agent":
@@ -301,9 +296,8 @@ class AgentStage:
         self.registry.register(TogglePanelTool())
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
         input_text = ctx.snapshot.input_text or ""
-        route = inputs.get("route", "agent") if inputs else "agent"
+        route = ctx.inputs.get("route", "agent")
 
         if route != "agent":
             return StageOutput.skip(reason=f"routed_to_{route}")

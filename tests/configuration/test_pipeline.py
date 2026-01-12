@@ -351,25 +351,34 @@ class TestPipeline:
 
     async def test_build_runner_executes_stage(self):
         """Test that built runner actually executes the stage."""
-        from stageflow.context import ContextSnapshot
+        from stageflow.context import ContextSnapshot, RunIdentity
+        from stageflow.core.timer import PipelineTimer
         from stageflow.pipeline.dag import UnifiedStageGraph
+        from stageflow.stages.inputs import StageInputs
 
         pipeline = Pipeline().with_stage("simple", SimpleStage, StageKind.TRANSFORM)
         graph: UnifiedStageGraph = pipeline.build()
 
-        snapshot = ContextSnapshot(
+        run_id = RunIdentity(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
             session_id=uuid4(),
             user_id=uuid4(),
             org_id=uuid4(),
             interaction_id=uuid4(),
+        )
+        snapshot = ContextSnapshot(
+            run_id=run_id,
             topology="test",
-
             execution_mode="test",
         )
-
-        ctx = StageContext(snapshot=snapshot, config={})
+        inputs = StageInputs(snapshot=snapshot)
+        ctx = StageContext(
+            snapshot=snapshot,
+            inputs=inputs,
+            stage_name="simple",
+            timer=PipelineTimer(),
+        )
 
         # The runner should be an async callable
         result = await graph.stage_specs[0].runner(ctx)

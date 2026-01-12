@@ -4,11 +4,42 @@ from uuid import uuid4
 
 import pytest
 
-from stageflow.context import ContextSnapshot
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import StageContext
+from stageflow.core.timer import PipelineTimer
 from stageflow.protocols import ExecutionContext
 from stageflow.stages.context import PipelineContext
+from stageflow.stages.inputs import StageInputs
 from stageflow.tools.adapters import DictContextAdapter, adapt_context
+
+
+def _make_snapshot(**kwargs) -> ContextSnapshot:
+    """Create a ContextSnapshot with defaults, allowing overrides."""
+    run_id_kwargs = {}
+    for field in ["pipeline_run_id", "request_id", "session_id", "user_id", "org_id", "interaction_id"]:
+        if field in kwargs:
+            run_id_kwargs[field] = kwargs.pop(field)
+
+    run_id = RunIdentity(**run_id_kwargs) if run_id_kwargs else RunIdentity()
+    return ContextSnapshot(run_id=run_id, **kwargs)
+
+
+def _make_stage_context(
+    snapshot: ContextSnapshot,
+    *,
+    stage_name: str = "test_stage",
+    event_sink=None,
+) -> StageContext:
+    """Create a StageContext with sensible defaults for testing."""
+    inputs = StageInputs(snapshot=snapshot)
+    timer = PipelineTimer()
+    return StageContext(
+        snapshot=snapshot,
+        inputs=inputs,
+        stage_name=stage_name,
+        timer=timer,
+        event_sink=event_sink,
+    )
 
 
 class TestExecutionContextProtocol:
@@ -16,7 +47,7 @@ class TestExecutionContextProtocol:
 
     def test_stage_context_implements_protocol(self):
         """StageContext should implement ExecutionContext protocol."""
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
             session_id=uuid4(),
@@ -26,7 +57,7 @@ class TestExecutionContextProtocol:
             topology="test_topology",
             execution_mode="practice",
         )
-        ctx = StageContext(snapshot=snapshot)
+        ctx = _make_stage_context(snapshot)
 
         # Check protocol attributes exist
         assert hasattr(ctx, 'pipeline_run_id')
@@ -85,54 +116,27 @@ class TestStageContextExecutionContext:
     def test_pipeline_run_id_from_snapshot(self):
         """pipeline_run_id should come from snapshot."""
         run_id = uuid4()
-        snapshot = ContextSnapshot(
-            pipeline_run_id=run_id,
-            request_id=None,
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
-            execution_mode=None,
-        )
-        ctx = StageContext(snapshot=snapshot)
+        snapshot = _make_snapshot(pipeline_run_id=run_id)
+        ctx = _make_stage_context(snapshot)
         assert ctx.pipeline_run_id == run_id
 
     def test_request_id_from_snapshot(self):
         """request_id should come from snapshot."""
         req_id = uuid4()
-        snapshot = ContextSnapshot(
-            pipeline_run_id=None,
-            request_id=req_id,
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
-            execution_mode=None,
-        )
-        ctx = StageContext(snapshot=snapshot)
+        snapshot = _make_snapshot(request_id=req_id)
+        ctx = _make_stage_context(snapshot)
         assert ctx.request_id == req_id
 
     def test_execution_mode_from_snapshot(self):
         """execution_mode should come from snapshot."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=None,
-            request_id=None,
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
-            execution_mode="doc_edit",
-        )
-        ctx = StageContext(snapshot=snapshot)
+        snapshot = _make_snapshot(execution_mode="doc_edit")
+        ctx = _make_stage_context(snapshot)
         assert ctx.execution_mode == "doc_edit"
 
     def test_to_dict_includes_snapshot_data(self):
         """to_dict should include snapshot data."""
         run_id = uuid4()
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=run_id,
             request_id=uuid4(),
             session_id=uuid4(),
@@ -142,7 +146,7 @@ class TestStageContextExecutionContext:
             topology="chat_fast",
             execution_mode="practice",
         )
-        ctx = StageContext(snapshot=snapshot)
+        ctx = _make_stage_context(snapshot)
 
         result = ctx.to_dict()
 
@@ -150,6 +154,7 @@ class TestStageContextExecutionContext:
         assert result["execution_mode"] == "practice"
         assert result["topology"] == "chat_fast"
         assert "started_at" in result
+        assert result["stage_name"] == "test_stage"
 
     def test_try_emit_event_with_event_sink(self):
         """try_emit_event should emit through event sink when available."""
@@ -162,20 +167,12 @@ class TestStageContextExecutionContext:
             async def emit(self, *, type: str, data: dict):
                 events_emitted.append({"type": type, "data": data})
 
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
             execution_mode="practice",
         )
-        ctx = StageContext(
-            snapshot=snapshot,
-            config={"event_sink": MockEventSink()},
-        )
+        ctx = _make_stage_context(snapshot, event_sink=MockEventSink())
 
         ctx.try_emit_event("test.event", {"key": "value"})
 
@@ -186,17 +183,11 @@ class TestStageContextExecutionContext:
 
     def test_try_emit_event_without_event_sink(self):
         """try_emit_event should not raise when no event sink."""
-        snapshot = ContextSnapshot(
+        snapshot = _make_snapshot(
             pipeline_run_id=uuid4(),
             request_id=uuid4(),
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
-            execution_mode=None,
         )
-        ctx = StageContext(snapshot=snapshot)
+        ctx = _make_stage_context(snapshot)
 
         # Should not raise
         ctx.try_emit_event("test.event", {"key": "value"})
@@ -294,17 +285,8 @@ class TestAdaptContext:
 
     def test_adapt_stage_context(self):
         """Should return StageContext unchanged."""
-        snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=None,
-            session_id=None,
-            user_id=None,
-            org_id=None,
-            interaction_id=None,
-            topology=None,
-            execution_mode=None,
-        )
-        ctx = StageContext(snapshot=snapshot)
+        snapshot = _make_snapshot(pipeline_run_id=uuid4())
+        ctx = _make_stage_context(snapshot)
 
         result = adapt_context(ctx)
         assert result is ctx

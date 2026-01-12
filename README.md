@@ -27,7 +27,16 @@ pip install stageflow[dev]
 
 ```python
 import asyncio
-from stageflow import Pipeline, Stage, StageContext, StageOutput, StageKind
+from stageflow import (
+    Pipeline,
+    Stage,
+    StageContext,
+    StageOutput,
+    StageKind,
+    PipelineTimer,
+)
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 
 # Define a stage
 class GreetStage:
@@ -35,7 +44,7 @@ class GreetStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        name = ctx.config.get("name", "World")
+        name = ctx.snapshot.input_text or "World"
         return StageOutput.ok(greeting=f"Hello, {name}!")
 
 # Define another stage that depends on the first
@@ -44,9 +53,8 @@ class ShoutStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        # Access output from dependency
-        inputs = ctx.config.get("inputs")
-        greeting = inputs.get("greeting", "Hello!")
+        # Access output from dependency via StageInputs
+        greeting = ctx.inputs.get_from("greet", "greeting", default="Hello!")
         return StageOutput.ok(shouted=greeting.upper())
 
 # Build the pipeline
@@ -59,6 +67,14 @@ pipeline = (
 # Execute
 async def main():
     graph = pipeline.build()
+    snapshot = ContextSnapshot(run_id=RunIdentity(), input_text="World")
+    base_inputs = StageInputs(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=base_inputs,
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     results = await graph.run(ctx)
     print(results["shout"].data["shouted"])  # "HELLO, WORLD!"
 

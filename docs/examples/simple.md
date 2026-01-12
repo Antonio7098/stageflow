@@ -28,11 +28,7 @@ class EchoStage:
         await asyncio.sleep(0.2)
 
         # Get input from context
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-        else:
-            input_text = ctx.snapshot.input_text or ""
+        input_text = ctx.snapshot.input_text or ""
 
         # Return the echoed text
         return StageOutput.ok(
@@ -79,8 +75,9 @@ def create_simple_pipeline() -> Pipeline:
 import asyncio
 from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot
+from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 
 
 class EchoStage:
@@ -104,18 +101,25 @@ async def main():
     
     # Create the context with input
     snapshot = ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="simple",
         execution_mode="default",
         input_text="Hello, Stageflow!",
     )
     
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     # Run the pipeline
     results = await graph.run(ctx)

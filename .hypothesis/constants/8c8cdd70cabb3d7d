@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/core/timer.py
+# hypothesis_version: 6.150.0
+
+[1000.0, 1000, '_pipeline_start_ms']

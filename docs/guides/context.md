@@ -7,33 +7,39 @@ Understanding how data flows through stageflow pipelines is essential for buildi
 Stageflow uses a layered context system:
 
 1. **PipelineContext** — Execution context for a pipeline run, shared across stages and used by the engine and interceptors
-2. **ContextSnapshot** — Immutable input data derived from the pipeline context and passed through the run
-3. **StageContext** — Per-stage execution wrapper with output collection
-4. **StageInputs** — Access to upstream stage outputs
-5. **ContextBag** — Thread-safe output storage with conflict detection
+2. **ContextSnapshot** — Immutable input data derived from RunIdentity + bundles (conversation, enrichments)
+3. **StageContext** — Per-stage execution wrapper with immutable snapshot and typed `StageInputs`
+4. **StageInputs** — Filtered view of upstream stage outputs + injected ports
+5. **OutputBag** — Thread-safe, append-only output storage with attempt tracking
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      PipelineContext                        │
-│  (run identity, topology, shared data, artifacts, events)   │
+│  (run identity, topology, output bag, timer, event sink)    │
 └─────────────────────────────────────────────────────────────┘
-                             │
-                             ▼
+                            │ derive_for_stage()
+                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     ContextSnapshot                         │
-│  (immutable: user_id, input_text, messages, enrichments)    │
+│                    ContextSnapshot (immutable)               │
+│  run_id · conversation · enrichments · extensions            │
 └─────────────────────────────────────────────────────────────┘
-                             │
-                             ▼
+                            │
+                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      StageContext                           │
-│  (per-stage: snapshot access, config, output methods)       │
+│  snapshot · StageInputs · timer · event sink                │
 └─────────────────────────────────────────────────────────────┘
-                             │
-                             ▼
+                            │
+                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      StageInputs                            │
-│  (upstream outputs: get("key"), get_from("stage", "key"))   │
+│  prior_outputs + ports with strict dependency validation    │
+└─────────────────────────────────────────────────────────────┘
+                            │ writes
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       OutputBag                             │
+│  append-only StageOutput entries with attempt tracking      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -211,25 +217,21 @@ Stages receive upstream outputs through `StageInputs`, an immutable view of prio
 from stageflow.stages.inputs import StageInputs
 
 async def execute(self, ctx: StageContext) -> StageOutput:
-    inputs: StageInputs = ctx.config.get("inputs")
+    inputs: StageInputs = ctx.inputs
     
-    if inputs:
-        # Get any key from upstream outputs (searches all prior stages)
-        processed_text = inputs.get("text")
-        
-        # Get from a specific stage (preferred - explicit dependency)
-        route = inputs.get_from("router", "route", default="general")
-        
-        # Check if a stage has produced output
-        if inputs.has_output("validator"):
-            validation = inputs.get_output("validator")
-        
-        # Access the original snapshot through inputs
-        user_id = inputs.snapshot.user_id
-        
-        # Access injected services through ports
-        if inputs.ports.db:
-            await inputs.ports.db.save(...)
+    # Get any key from upstream outputs (searches all prior stages)
+    processed_text = inputs.get("text")
+    
+    # Get from a specific stage (preferred - explicit dependency)
+    route = inputs.get_from("router", "route", default="general")
+    
+    # Check if a stage has produced output
+    if inputs.has_output("validator"):
+        validation = inputs.get_output("validator")
+    
+    # Access injected services through ports
+    if inputs.ports and inputs.ports.db:
+        await inputs.ports.db.save(...)
 ```
 
 **Key `StageInputs` methods:**
@@ -323,54 +325,37 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     inputs = ctx.config.get("inputs")
     
     # With default value
-    value = inputs.get("optional_key", default="fallback") if inputs else "fallback"
+    value = inputs.get("optional_key", default="fallback")
     
     # Check before use
-    if inputs and inputs.has("required_key"):
-        data = inputs.get("required_key")
+    if inputs.has_output("required_stage"):
+        data = inputs.get_from("required_stage", "required_key")
     else:
         return StageOutput.skip(reason="Missing required_key")
 ```
 
-## ContextBag
+## OutputBag
 
-The `ContextBag` provides thread-safe output storage with conflict detection. It's used internally by the framework but can be useful for advanced scenarios.
+The `OutputBag` is the append-only store for stage outputs. It tracks write attempts for retry visibility and replaces the legacy ContextBag.
 
-### Conflict Detection
-
-The ContextBag prevents multiple stages from writing the same key:
+### Writing Outputs
 
 ```python
-from stageflow.context import ContextBag, DataConflictError
+from stageflow.context.output_bag import OutputBag
 
-bag = ContextBag()
-
-# First write succeeds
-await bag.write("key", "value1", "stage_a")
-
-# Second write from different stage raises error
-try:
-    await bag.write("key", "value2", "stage_b")
-except DataConflictError as e:
-    print(f"Conflict: {e.key} written by {e.existing_writer}, "
-          f"cannot write from {e.new_writer}")
+bag = OutputBag()
+await bag.write("stage_a", StageOutput.ok(result=42))
+await bag.write("stage_a", StageOutput.ok(result=84), allow_overwrite=True)  # retries
 ```
 
-### Reading Data
+### Reading Outputs
 
 ```python
-# Read a value
-value = bag.read("key", default=None)
+if bag.has("stage_a"):
+    entry = bag.get("stage_a")
+    print(entry.output.data, entry.attempt)
 
-# Check if key exists
-if bag.has("key"):
-    value = bag.read("key")
-
-# Get all keys
-keys = bag.keys()
-
-# Get writer of a key
-writer = bag.get_writer("key")  # "stage_a"
+prior_outputs = bag.outputs()  # pass directly into StageInputs
 ```
 
 ## Enrichments

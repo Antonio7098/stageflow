@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/utils/frozen.py
+# hypothesis_version: 6.150.0
+
+['FrozenDict', 'FrozenList', 'K', 'T', 'V', '_data']

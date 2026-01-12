@@ -26,8 +26,9 @@ This guide covers testing patterns for stageflow pipelines, stages, and intercep
 ```python
 import pytest
 from uuid import uuid4
-from stageflow import StageContext, StageOutput, StageStatus
-from stageflow.context import ContextSnapshot
+from stageflow import StageContext, StageOutput, StageStatus, PipelineTimer
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 
 from my_app.stages import UppercaseStage
 
@@ -35,12 +36,14 @@ from my_app.stages import UppercaseStage
 @pytest.fixture
 def snapshot():
     return ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="test",
         execution_mode="test",
         input_text="hello world",
@@ -49,7 +52,12 @@ def snapshot():
 
 @pytest.fixture
 def ctx(snapshot):
-    return StageContext(snapshot=snapshot)
+    return StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="test_stage",
+        timer=PipelineTimer(),
+    )
 
 
 @pytest.mark.asyncio

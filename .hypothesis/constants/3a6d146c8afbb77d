@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/core/stage_context.py
+# hypothesis_version: 6.150.0
+
+[1000, '_config', '_event_sink', '_outputs', '_pipeline_start_ms', '_snapshot', '_started_at', 'event_sink', 'execution_mode', 'inputs', 'pipeline_run_id', 'request_id', 'stage_config', 'started_at', 'timer']

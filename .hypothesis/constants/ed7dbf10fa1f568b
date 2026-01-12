@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/observability/wide_events.py
+# hypothesis_version: 6.150.0
+
+[1000, 'WideEventEmitter', 'completed', 'data_keys', 'duration_ms', 'ended_at', 'error', 'execution_mode', 'extra', 'failed', 'org_id', 'pipeline', 'pipeline.wide', 'pipeline_name', 'pipeline_run_id', 'request_id', 'service', 'session_id', 'stage', 'stage.wide', 'stage_counts', 'stage_details', 'started_at', 'status', 'topology', 'user_id']

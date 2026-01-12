@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/tools/diff.py
+# hypothesis_version: 6.150.0
+
+[0.0, 1.0, '****', '+', '+++', '+++ new', ',', '-', '---', '--- old', '@@', 'DiffLine', 'DiffResult', 'DiffType', '[', ']', 'a/original', 'add', 'additions', 'b/modified', 'changes', 'content', 'context', 'deletions', 'diff_json', 'diff_output', 'diff_structured', 'diff_text', 'diff_type', 'equal', 'json_patch', 'line_by_line', 'line_number_new', 'line_number_old', 'no changes', 'op', 'path', 'remove', 'replace', 'similarity', 'type', 'unchanged', 'unified', 'value']

@@ -28,12 +28,8 @@ class UppercaseStage:
     async def execute(self, ctx: StageContext) -> StageOutput:
         await asyncio.sleep(0.15)
 
-        # Get input from snapshot or upstream stage
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            text = inputs.get("text") or inputs.snapshot.input_text or ""
-        else:
-            text = ctx.snapshot.input_text or ""
+        # Get input from snapshot (first stage)
+        text = ctx.snapshot.input_text or ""
 
         result = text.upper()
         return StageOutput.ok(text=result, transformed=True)
@@ -51,11 +47,7 @@ class ReverseStage:
     async def execute(self, ctx: StageContext) -> StageOutput:
         await asyncio.sleep(0.15)
 
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            text = inputs.get("text") or inputs.snapshot.input_text or ""
-        else:
-            text = ctx.snapshot.input_text or ""
+        text = ctx.inputs.get("text") or ctx.snapshot.input_text or ""
 
         result = text[::-1]
         return StageOutput.ok(text=result, reversed=True)
@@ -73,11 +65,7 @@ class SummarizeStage:
     async def execute(self, ctx: StageContext) -> StageOutput:
         await asyncio.sleep(0.2)
 
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            text = inputs.get("text") or inputs.snapshot.input_text or ""
-        else:
-            text = ctx.snapshot.input_text or ""
+        text = ctx.inputs.get("text") or ctx.snapshot.input_text or ""
 
         # Simple truncation as mock summarization
         if len(text) > 100:
@@ -139,8 +127,9 @@ def create_transform_pipeline() -> Pipeline:
 import asyncio
 from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot
+from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 
 
 class UppercaseStage:
@@ -148,9 +137,7 @@ class UppercaseStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        text = inputs.get("text") if inputs else None
-        text = text or ctx.snapshot.input_text or ""
+        text = ctx.snapshot.input_text or ""
         return StageOutput.ok(text=text.upper())
 
 
@@ -159,8 +146,7 @@ class ReverseStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        text = inputs.get("text") if inputs else ""
+        text = ctx.inputs.get("text", "")
         return StageOutput.ok(text=text[::-1])
 
 
@@ -169,8 +155,7 @@ class SummarizeStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        text = inputs.get("text") if inputs else ""
+        text = ctx.inputs.get("text", "")
         summary = text[:50] + "..." if len(text) > 50 else text
         return StageOutput.ok(text=summary, original_length=len(text))
 
@@ -188,18 +173,25 @@ async def main():
     graph = pipeline.build()
     
     snapshot = ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="transform_chain",
         execution_mode="default",
         input_text="Hello, this is a test of the transform chain!",
     )
     
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
     
     # Run
     results = await graph.run(ctx)
@@ -260,13 +252,9 @@ After summarize: !NIAHC MROFSNART EHT FO TSET A SI SIHT ,OLLEH
 
 ```python
 # Get output from a specific stage
-inputs = ctx.config.get("inputs")
-if inputs:
-    # Get from any upstream stage
-    text = inputs.get("text")
-    
-    # Get from a specific stage
-    uppercase_text = inputs.get_from("uppercase", "text")
+# inside a stage execution
+text = ctx.inputs.get("text")
+uppercase_text = ctx.inputs.get_from("uppercase", "text")
 ```
 
 ## Conditional Chains
@@ -293,8 +281,7 @@ A conditional stage can return `StageOutput.skip()` to be skipped:
 ```python
 class ConditionalReverseStage:
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        text = inputs.get("text") if inputs else ""
+        text = ctx.inputs.get("text", "")
         
         # Skip if text is too short
         if len(text) < 10:

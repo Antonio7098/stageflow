@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/pipeline/subpipeline.py
+# hypothesis_version: 6.150.0
+
+[0.0, 1000, 'ChildRunTracker', 'SubpipelineResult', 'SubpipelineSpawner', 'active_children', 'active_parents', 'cascade_depth', 'child_run_id', 'cleanup_count', 'clear_child_tracker', 'correlation_id', 'current_depth', 'data', 'duration_ms', 'error', 'error_message', 'get_child_tracker', 'lookup_count', 'max_depth', 'max_depth_seen', 'parent_run_id', 'parent_stage_id', 'pipeline.canceled', 'pipeline_name', 'pipeline_run_id', 'reason', 'registration_count', 'result', 'set_child_tracker', 'success', 'timestamp', 'total_relationships', 'tree_traversal_count', 'unregistration_count', 'user_requested']

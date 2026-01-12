@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/tools/approval.py
+# hypothesis_version: 6.150.0
+
+[60.0, 'ApprovalDecision', 'ApprovalRequest', 'ApprovalService', 'ApprovalStatus', 'action_id', 'approval_message', 'approved', 'cancelled', 'created_at', 'decided_at', 'decided_by', 'denied', 'expired', 'get_approval_service', 'granted', 'id', 'no_decision', 'payload_summary', 'pending', 'pipeline_run_id', 'reason', 'request_id', 'set_approval_service', 'status', 'tool_name']

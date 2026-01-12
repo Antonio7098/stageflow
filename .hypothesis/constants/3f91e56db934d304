@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/auth/interceptors.py
+# hypothesis_version: 6.150.0
+
+[',', 'AuthInterceptor', 'JwtValidator', 'MockJwtValidator', 'Token has expired', '_', '_auth_context', '_auth_token', '_client_ip', '_org_id', '_resource_org_id', '_user_agent', '_user_id', 'auth', 'auth.failure', 'auth.login', 'auth_interceptor', 'auth_token', 'email', 'error_detail', 'expired_', 'invalid_', 'missing_', 'missing_token', 'org_enforcement', 'org_id', 'reason', 'resource_org_id', 'roles', 'session_id', 'tenant.access_denied', 'user@example.com', 'user_id', 'user_org_id', 'valid_']

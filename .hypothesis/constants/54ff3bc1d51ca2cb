@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/context/context_snapshot.py
+# hypothesis_version: 6.150.0
+
+['agent_id', 'blocks', 'content', 'created_at', 'display_name', 'document_id', 'document_type', 'documents', 'execution_mode', 'extensions', 'goals', 'input_text', 'interaction_id', 'key_facts', 'memory', 'messages', 'metadata', 'org_id', 'pipeline_name', 'pipeline_run_id', 'preferences', 'profile', 'reason', 'recent_topics', 'request_id', 'role', 'routing_decision', 'session_id', 'timestamp', 'topology', 'user_id', 'web_results']

@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/extensions.py
+# hypothesis_version: 6.150.0
+
+['ExtensionHelper', 'ExtensionRegistry', 'T', 'TypedExtension', 'active_skill_ids', 'current_level', 'from_dict', 'skill_progress']

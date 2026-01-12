@@ -16,8 +16,9 @@ from uuid import uuid4
 
 import pytest
 
-from stageflow.context import ContextSnapshot
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import (
+    PipelineTimer,
     StageContext,
     StageKind,
     StageOutput,
@@ -29,27 +30,37 @@ from stageflow.pipeline.dag import (
     UnifiedStageGraph,
     UnifiedStageSpec,
 )
+from stageflow.stages.inputs import StageInputs
 
 # === Test Fixtures ===
 
 def create_snapshot() -> ContextSnapshot:
     """Create a test ContextSnapshot."""
-    return ContextSnapshot(
+    run_id = RunIdentity(
         pipeline_run_id=uuid4(),
         request_id=uuid4(),
         session_id=uuid4(),
         user_id=uuid4(),
         org_id=uuid4(),
         interaction_id=uuid4(),
+    )
+    return ContextSnapshot(
+        run_id=run_id,
         topology="test_topology",
-
         execution_mode="test",
     )
 
 
 def create_context(snapshot: ContextSnapshot | None = None) -> StageContext:
     """Create a test StageContext."""
-    return StageContext(snapshot=snapshot or create_snapshot())
+    snap = snapshot or create_snapshot()
+    inputs = StageInputs(snapshot=snap)
+    return StageContext(
+        snapshot=snap,
+        inputs=inputs,
+        stage_name="test_stage",
+        timer=PipelineTimer(),
+    )
 
 
 # === Test UnifiedStageSpec ===
@@ -760,17 +771,34 @@ class TestUnifiedStageGraphEdgeCases:
 
     @pytest.mark.asyncio
     async def test_stage_with_events(self):
-        """Test stage that emits events."""
+        """Test stage that emits events via event_sink."""
+        events_emitted = []
 
-        async def runner(_ctx: StageContext) -> StageOutput:
-            ctx.emit_event("stage.started", {"stage": "test"})
-            ctx.emit_event("stage.completed", {"stage": "test"})
+        class MockEventSink:
+            def try_emit(self, *, type: str, data: dict):
+                events_emitted.append({"type": type, "data": data})
+
+            async def emit(self, *, type: str, data: dict):
+                events_emitted.append({"type": type, "data": data})
+
+        async def runner(ctx: StageContext) -> StageOutput:
+            if ctx.event_sink:
+                ctx.event_sink.try_emit(type="stage.started", data={"stage": "test"})
+                ctx.event_sink.try_emit(type="stage.completed", data={"stage": "test"})
             return StageOutput(status=StageStatus.OK)
 
         graph = UnifiedStageGraph(
             specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)]
         )
-        ctx = create_context()
+        snap = create_snapshot()
+        inputs = StageInputs(snapshot=snap)
+        ctx = StageContext(
+            snapshot=snap,
+            inputs=inputs,
+            stage_name="test_stage",
+            timer=PipelineTimer(),
+            event_sink=MockEventSink(),
+        )
 
         results = await graph.run(ctx)
 
@@ -779,6 +807,7 @@ class TestUnifiedStageGraphEdgeCases:
         # The result doesn't directly contain events - check if events were emitted
         # For this test, we verify the stage completed successfully
         assert result.status == StageStatus.OK
+        assert len(events_emitted) == 2
 
     @pytest.mark.asyncio
     async def test_retry_status_handling(self):

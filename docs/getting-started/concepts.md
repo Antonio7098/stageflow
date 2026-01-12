@@ -117,53 +117,52 @@ Context carries data through the pipeline. There are two main context types:
 
 ### ContextSnapshot
 
-An **immutable** view of the world passed to stages. Contains:
+An **immutable**, composition-based view of the world passed to stages. It groups related data into bundles for clarity:
 
-- **Run identity**: `pipeline_run_id`, `request_id`, `session_id`, `user_id`, `org_id`
-- **Configuration**: `topology`, `execution_mode`
-- **Input data**: `input_text`, `messages`
-- **Enrichments**: `profile`, `memory`, `documents`
-- **Extensions**: Application-specific data
+- **RunIdentity**: `pipeline_run_id`, `request_id`, `session_id`, `user_id`, `org_id`, `interaction_id`
+- **Conversation**: `messages`, `input_text`, `routing_decision`
+- **Enrichments**: `profile`, `memory`, `documents`, `web_results`
+- **Extensions**: Application-specific typed bundle
 
 ```python
-from stageflow.context import ContextSnapshot
+from uuid import uuid4
+from stageflow.context import ContextSnapshot, RunIdentity
 
 snapshot = ContextSnapshot(
-    pipeline_run_id=uuid4(),
-    request_id=uuid4(),
-    session_id=uuid4(),
-    user_id=uuid4(),
-    org_id=uuid4(),
-    interaction_id=uuid4(),
+    run_id=RunIdentity(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=uuid4(),
+        org_id=uuid4(),
+        interaction_id=uuid4(),
+    ),
     topology="chat_fast",
     execution_mode="practice",
     input_text="Hello!",
-    messages=[...],
 )
 ```
 
 ### StageContext
 
-The **execution wrapper** that stages receive. Provides:
+The **per-stage execution wrapper** that stages receive. Provides:
 
 - Access to the immutable snapshot
-- Stage configuration
-- Output collection methods
-- Event emission
+- Filtered upstream outputs via `StageInputs`
+- Shared timer and event sink
+- Convenience properties for run identity fields
 
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
-    # Read from snapshot (immutable)
+    # Snapshot data is immutable
     user_input = ctx.snapshot.input_text
     user_id = ctx.snapshot.user_id
-    
-    # Access stage config
-    timeout = ctx.config.get("timeout", 30)
-    
-    # Get outputs from dependencies
-    inputs = ctx.config.get("inputs")
-    previous_result = inputs.get("some_key") if inputs else None
-    
+
+    # Access upstream outputs
+    transcript = ctx.inputs.get("transcript")
+    route = ctx.inputs.get_from("router", "route", default="general")
+
+    ctx.try_emit_event("my_stage.started", {"route": route})
     return StageOutput.ok(...)
 ```
 
@@ -173,19 +172,16 @@ Data flows through the pipeline via stage outputs:
 
 1. **Snapshot** provides initial input (immutable)
 2. **Stage outputs** are collected as `StageOutput.data`
-3. **Downstream stages** access upstream outputs via `inputs`
+3. **Downstream stages** access upstream outputs via `StageInputs`
 
 ```python
-# Stage A produces data
 class StageA:
-    async def execute(self, ctx):
+    async def execute(self, ctx: StageContext) -> StageOutput:
         return StageOutput.ok(computed_value=42)
 
-# Stage B (depends on A) consumes it
 class StageB:
-    async def execute(self, ctx):
-        inputs = ctx.config.get("inputs")
-        value = inputs.get("computed_value")  # 42
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        value = ctx.inputs.get_from("stage_a", "computed_value")
         return StageOutput.ok(doubled=value * 2)
 ```
 

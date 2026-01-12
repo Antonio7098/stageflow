@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/tools/errors.py
+# hypothesis_version: 6.150.0
+
+['ToolDeniedError', 'ToolError', 'ToolExecutionError', 'ToolNotFoundError', 'ToolUndoError', 'action_id', 'action_type', 'allowed_behaviors', 'behavior', 'cause', 'error_type', 'message', 'reason', 'request_id', 'timeout', 'timeout_seconds', 'tool', 'user_denied']

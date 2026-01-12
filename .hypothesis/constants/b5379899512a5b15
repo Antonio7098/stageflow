@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/tools/adapters.py
+# hypothesis_version: 6.150.0
+
+['DictContextAdapter', 'adapt_context', 'execution_mode', 'pipeline_run_id', 'request_id', 'to_dict', 'try_emit_event']

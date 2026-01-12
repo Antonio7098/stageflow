@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/pipeline/registry.py
+# hypothesis_version: 6.150.0
+
+['PipelineRegistry', 'pipeline_registry']

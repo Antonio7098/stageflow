@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/tools/events.py
+# hypothesis_version: 6.150.0
+
+[0.0, 'ApprovalDecidedEvent', 'ToolCompletedEvent', 'ToolDeniedEvent', 'ToolEventBase', 'ToolFailedEvent', 'ToolInvokedEvent', 'ToolStartedEvent', 'ToolUndoFailedEvent', 'ToolUndoneEvent', 'action_id', 'allowed_behaviors', 'approval_message', 'artifacts_count', 'behavior', 'decided_by', 'decision', 'duration_ms', 'error_code', 'error_message', 'execution_error', 'output_summary', 'payload_summary', 'pipeline_run_id', 'reason', 'request_id', 'timestamp', 'tool_name']

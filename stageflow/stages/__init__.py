@@ -1,7 +1,11 @@
 """Stageflow stages module - exports stage types."""
 
 from stageflow.stages.context import PipelineContext
-from stageflow.stages.inputs import StageInputs, create_stage_inputs
+from stageflow.stages.inputs import (
+    StageInputs,
+    UndeclaredDependencyError,
+    create_stage_inputs,
+)
 from stageflow.stages.ports import (
     AudioPorts,
     CorePorts,
@@ -17,6 +21,7 @@ __all__ = [
     "StageError",
     "StageInputs",
     "StageResult",
+    "UndeclaredDependencyError",
     "CorePorts",
     "LLMPorts",
     "AudioPorts",

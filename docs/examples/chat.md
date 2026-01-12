@@ -25,11 +25,7 @@ class RouterStage:
     kind = StageKind.ROUTE
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-        else:
-            input_text = ctx.snapshot.input_text or ""
+        input_text = ctx.snapshot.input_text or ""
 
         # Simple keyword-based routing
         lower_text = input_text.lower()
@@ -64,16 +60,9 @@ class LLMStage:
         self.llm_client = llm_client
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-
-        if inputs:
-            input_text = inputs.snapshot.input_text or ""
-            route = inputs.get("route", "general")
-            messages = list(inputs.snapshot.messages) if inputs.snapshot.messages else []
-        else:
-            input_text = ctx.snapshot.input_text or ""
-            route = "general"
-            messages = list(ctx.snapshot.messages) if ctx.snapshot.messages else []
+        input_text = ctx.snapshot.input_text or ""
+        route = ctx.inputs.get("route", "general")
+        messages = list(ctx.snapshot.messages) if ctx.snapshot.messages else []
 
         # Build system prompt based on route
         system_prompt = self._get_system_prompt(route)
@@ -154,8 +143,9 @@ def create_chat_pipeline(llm_client=None) -> Pipeline:
 import asyncio
 from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot, Message
+from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
+from stageflow.context import ContextSnapshot, Message, RunIdentity
+from stageflow.stages import StageInputs
 
 
 class MockLLMClient:
@@ -202,9 +192,8 @@ class LLMStage:
         self.llm_client = llm_client
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
         input_text = ctx.snapshot.input_text or ""
-        route = inputs.get("route", "general") if inputs else "general"
+        route = ctx.inputs.get("route", "general")
         
         system_prompts = {
             "support": "You are a support agent.",
@@ -248,18 +237,25 @@ async def main():
     
     for input_text in test_inputs:
         snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
+            run_id=RunIdentity(
+                pipeline_run_id=uuid4(),
+                request_id=uuid4(),
+                session_id=uuid4(),
+                user_id=uuid4(),
+                org_id=None,
+                interaction_id=uuid4(),
+            ),
             topology="chat",
             execution_mode="default",
             input_text=input_text,
         )
         
-        ctx = StageContext(snapshot=snapshot)
+        ctx = StageContext(
+            snapshot=snapshot,
+            inputs=StageInputs(snapshot=snapshot),
+            stage_name="chat_entry",
+            timer=PipelineTimer(),
+        )
         results = await graph.run(ctx)
         
         print(f"Input: {input_text}")
@@ -384,12 +380,10 @@ class EnrichedLLMStage:
         self.llm_client = llm_client
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        inputs = ctx.config.get("inputs")
-        
         input_text = ctx.snapshot.input_text or ""
-        route = inputs.get("route", "general") if inputs else "general"
-        profile = inputs.get("profile", {}) if inputs else {}
-        memory = inputs.get("memory", {}) if inputs else {}
+        route = ctx.inputs.get("route", "general")
+        profile = ctx.inputs.get("profile", {})
+        memory = ctx.inputs.get("memory", {})
         
         # Build personalized system prompt
         system_prompt = self._build_system_prompt(route, profile, memory)

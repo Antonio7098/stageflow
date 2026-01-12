@@ -1,0 +1,1151 @@
+--                                 04:44 PM  claude-opus-4-5-20251101
+  Summary of Fixes Applied
+
+  I've successfully addressed all the issues from the beta test report (except AuthInterceptor which requires the context redesign):
+
+  1. Stage Duration Tracking: Added duration_ms field to StageOutput and with_duration() method. The DAG executor now populates this field after each stage execution.
+  2. StageOutput.fail() Signature: Added response parameter as an alias for error, maintaining backward compatibility.
+  3. ContextSnapshot Defaults: All fields now have sensible defaults (None/empty). You can now create a snapshot with ContextSnapshot() - no arguments required.
+  4. clear_tool_registry(): Implemented and exported from the tools module for test isolation.
+  5. datetime.utcnow() Deprecation: Replaced all instances with datetime.now(UTC) in the stageflow package.
+  6. Tests: Added comprehensive tests covering all new functionality.
+
+  ---
+  Context System Redesign Proposal
+
+  Based on my analysis of the codebase and your original intent, here's a proposal for a simplified, SOLID-compliant context system:
+
+  Current Problems
+
+  1. Two parallel systems coexist: Old mutable PipelineContext.data dict alongside new immutable StageInputs/StageOutput pattern
+  2. ContextBag is vestigial: Designed for conflict detection but never used in UnifiedStageGraph
+  3. Unclear hierarchy: PipelineContext vs StageContext vs ContextSnapshot relationships are confusing
+  4. String-based lookups: ctx.config.get("inputs") lacks type safety
+  5. Multiple data access patterns: stages can read from snapshot, inputs, or config
+
+  Proposed Architecture
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │                         PIPELINE SCOPE                              │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │  PipelineContext (per-pipeline-run, tracks cross-stage state)       │
+  │  - Run identity (pipeline_run_id, request_id, session_id, etc.)     │
+  │  - Topology, execution_mode                                          │
+  │  - Event sink for observability                                      │
+  │  - OutputBag: append-only collection of stage outputs               │
+  │  - Shared timer (PipelineTimer)                                      │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │ derive_for_stage(stage_name, dependencies)
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │                          STAGE SCOPE                                │
+  ├─────────────────────────────────────────────────────────────────────┤
+  │  StageContext (per-stage, immutable view + append-only output)      │
+  │  - snapshot: ContextSnapshot (frozen, immutable input state)        │
+  │  - inputs: StageInputs (outputs from declared dependencies only)    │
+  │  - ports: injected capabilities (db, callbacks, services)           │
+  │  - timer: shared PipelineTimer reference                            │
+  │  - stage_name: current stage identifier                             │
+  │  - event_emitter: fire-and-forget event emission                    │
+  │  └─> Stage.execute(StageContext) → StageOutput                      │
+  └──────────────────────────┬──────────────────────────────────────────┘
+                             │ StageOutput added to PipelineContext.output_bag
+                             ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  OutputBag (append-only, conflict-detecting output collection)      │
+  │  - write(stage_name, output: StageOutput)                           │
+  │  - get(stage_name) → StageOutput                                    │
+  │  - get_value(stage_name, key) → Any                                 │
+  │  - has(stage_name) → bool                                           │
+  │  - to_dict() → dict[str, StageOutput]                               │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Key Design Principles
+
+  1. Single Source of Truth
+
+  - PipelineContext owns the OutputBag - the single place where stage outputs accumulate
+  - Stages never directly access OutputBag; they receive filtered view via StageInputs
+
+  2. Immutable Inputs, Append-Only Outputs
+
+  - Stages receive StageContext with frozen inputs
+  - Stages return StageOutput which is added to OutputBag
+  - No mutable shared state between stages
+
+  3. Explicit Dependencies
+
+  - Stage dependencies declared in DAG spec
+  - StageInputs only contains outputs from declared dependencies
+  - Runtime error if stage tries to access undeclared dependency
+
+  4. Removal of Legacy Patterns
+
+  - Remove PipelineContext.data dict (replace with OutputBag)
+  - Remove standalone ContextBag (merge functionality into OutputBag)
+  - Remove string-based config lookups
+
+  Proposed Classes
+
+  # 1. PipelineContext - Pipeline-level orchestration context
+  @dataclass
+  class PipelineContext:
+      """Pipeline-scoped context tracking cross-stage state."""
+
+      # Run identity
+      pipeline_run_id: UUID
+      request_id: UUID
+      session_id: UUID | None
+      user_id: UUID | None
+      org_id: UUID | None
+
+      # Configuration
+      topology: str
+      execution_mode: str | None
+
+      # Shared resources
+      timer: PipelineTimer
+      event_sink: EventSink
+
+      # Output accumulation (append-only)
+      output_bag: OutputBag
+
+      # Initial input snapshot
+      initial_snapshot: ContextSnapshot
+
+      def derive_for_stage(
+          self,
+          stage_name: str,
+          dependencies: list[str],
+          ports: Ports | None = None,
+      ) -> StageContext:
+          """Create a StageContext for executing a specific stage."""
+          inputs = StageInputs(
+              snapshot=self.initial_snapshot,
+              prior_outputs={
+                  dep: self.output_bag.get(dep)
+                  for dep in dependencies
+                  if self.output_bag.has(dep)
+              },
+              ports=ports,
+          )
+          return StageContext(
+              snapshot=self.initial_snapshot,
+              inputs=inputs,
+              stage_name=stage_name,
+              timer=self.timer,
+              event_emitter=self.event_sink,
+          )
+
+      def record_output(self, stage_name: str, output: StageOutput) -> None:
+          """Record a stage's output in the bag."""
+          self.output_bag.write(stage_name, output)
+
+
+  # 2. StageContext - Per-stage execution context (immutable view)
+  @dataclass(frozen=True, slots=True)
+  class StageContext:
+      """Execution context passed to stages. Immutable input view."""
+
+      snapshot: ContextSnapshot  # Frozen input state
+      inputs: StageInputs        # Outputs from declared dependencies
+      stage_name: str            # Current stage identifier
+      timer: PipelineTimer       # Shared timing
+      event_emitter: EventSink   # Fire-and-forget events
+
+      # Convenience properties
+      @property
+      def pipeline_run_id(self) -> UUID | None:
+          return self.snapshot.pipeline_run_id
+
+      @property
+      def execution_mode(self) -> str | None:
+          return self.snapshot.execution_mode
+
+      def emit_event(self, type: str, data: dict[str, Any]) -> None:
+          """Emit an event (fire-and-forget)."""
+          self.event_emitter.try_emit(type=type, data={
+              "stage": self.stage_name,
+              "pipeline_run_id": str(self.pipeline_run_id),
+              **data,
+          })
+
+
+  # 3. OutputBag - Append-only output collection with conflict detection
+  class OutputBag:
+      """Thread-safe, append-only collection of stage outputs."""
+
+      def __init__(self) -> None:
+          self._outputs: dict[str, StageOutput] = {}
+          self._lock = asyncio.Lock()
+
+      async def write(self, stage_name: str, output: StageOutput) -> None:
+          """Write a stage output. Raises if stage already wrote."""
+          async with self._lock:
+              if stage_name in self._outputs:
+                  raise OutputConflictError(
+                      f"Stage '{stage_name}' already wrote output"
+                  )
+              self._outputs[stage_name] = output
+
+      def get(self, stage_name: str) -> StageOutput | None:
+          """Get output from a specific stage."""
+          return self._outputs.get(stage_name)
+
+      def get_value(self, stage_name: str, key: str, default: Any = None) -> Any:
+          """Get a specific value from a stage's output data."""
+          output = self._outputs.get(stage_name)
+          if output is None:
+              return default
+          return output.data.get(key, default)
+
+      def has(self, stage_name: str) -> bool:
+          """Check if a stage has written output."""
+          return stage_name in self._outputs
+
+      def to_dict(self) -> dict[str, StageOutput]:
+          """Get all outputs as a dict."""
+          return dict(self._outputs)
+
+
+  # 4. StageInputs - Immutable view of upstream outputs (unchanged but simplified)
+  @dataclass(frozen=True, slots=True)
+  class StageInputs:
+      """Immutable view of prior stage outputs for a specific stage."""
+
+      snapshot: ContextSnapshot
+      prior_outputs: dict[str, StageOutput]
+      ports: Ports | None = None
+
+      def get_from(self, stage_name: str, key: str, default: Any = None) -> Any:
+          """Get a value from a specific upstream stage's output."""
+          output = self.prior_outputs.get(stage_name)
+          if output is None:
+              return default
+          return output.data.get(key, default)
+
+      def get(self, key: str, default: Any = None) -> Any:
+          """Search all prior outputs for a key (convenience method)."""
+          for output in self.prior_outputs.values():
+              if key in output.data:
+                  return output.data[key]
+          return default
+
+  Executor Integration
+
+  # In UnifiedStageGraph._execute_node:
+  async def _execute_node(
+      self,
+      name: str,
+      pipeline_ctx: PipelineContext,
+      dependencies: list[str],
+  ) -> tuple[str, StageOutput]:
+      """Execute a single stage."""
+
+      # Derive stage context from pipeline context
+      stage_ctx = pipeline_ctx.derive_for_stage(
+          stage_name=name,
+          dependencies=dependencies,
+          ports=self._get_ports_for_stage(name),
+      )
+
+      # Execute stage
+      started_at = datetime.now(UTC)
+      output = await self._specs[name].runner(stage_ctx)
+      duration_ms = self._duration_ms(started_at, datetime.now(UTC))
+
+      # Add duration and record output
+      output = output.with_duration(duration_ms)
+      await pipeline_ctx.output_bag.write(name, output)
+
+      return name, output
+
+  Benefits
+
+  1. Clear Hierarchy: PipelineContext → derives → StageContext
+  2. Single Output Location: All outputs go to OutputBag, accessed via StageInputs
+  3. No Mutable Shared State: Stages can't mutate pipeline state
+  4. Type Safety: No string-based config lookups
+  5. SOLID Compliant:
+    - S: Each class has one job
+    - O: Can extend via protocols without modifying core
+    - L: StageContext implements ExecutionContext protocol
+    - I: Minimal interfaces (StageInputs has 3 methods)
+    - D: Stages depend on StageContext protocol, not concrete class
+
+  Migration Path
+
+  1. Phase 1: Add OutputBag to PipelineContext, keep data dict for compatibility
+  2. Phase 2: Add derive_for_stage() method, update UnifiedStageGraph to use it
+  3. Phase 3: Deprecate direct data dict access with warnings
+  4. Phase 4: Remove data dict and standalone ContextBag
+  5. Phase 5: Update AuthInterceptor to use new context structure
+
+  Questions for You
+
+  1. Should OutputBag allow overwrites for retry scenarios, or always reject duplicates?
+  2. Do you want to keep the ContextSnapshot as is, or merge some fields into a leaner structure?
+  3. Should StageContext be a frozen dataclass or a regular class with __slots__?
+  4. Do you want explicit dependency validation (error if stage accesses undeclared dependency)?
+
+  Let me know if you'd like me to implement any part of this proposal.
+
+✻ Baked for 8m 55s
+
+❯ can you elaborate on the 4 questions with tradeoff analysis please 
+
+● Tradeoff Analysis for Context System04:49 PMQuclaude-opus-4-5-20251101
+
+  Question 1: Should OutputBag allow overwrites for retry scenarios, or always reject duplicates?
+
+  Option A: Always Reject Duplicates (Strict)
+
+  async def write(self, stage_name: str, output: StageOutput) -> None:
+      async with self._lock:
+          if stage_name in self._outputs:
+              raise OutputConflictError(f"Stage '{stage_name}' already wrote output")
+          self._outputs[stage_name] = output
+  Pros: Catches bugs early (accidental double-writes)
+  Cons: Retries require workaround (new stage name or clear mechanism)
+  ────────────────────────────────────────
+  Pros: Simple mental model: one stage = one output
+  Cons: Can't handle legitimate "update" scenarios
+  ────────────────────────────────────────
+  Pros: Thread-safety is straightforward
+  Cons: Executor must handle retry logic externally
+  ────────────────────────────────────────
+  Pros: Matches "append-only" principle strictly
+  Cons:
+  Option B: Allow Overwrites (Permissive)
+
+  async def write(self, stage_name: str, output: StageOutput) -> None:
+      async with self._lock:
+          self._outputs[stage_name] = output  # Always succeeds
+  Pros: Retries "just work" (overwrite previous failed attempt)
+  Cons: Silent overwrites can hide bugs
+  ────────────────────────────────────────
+  Pros: Simpler executor logic
+  Cons: Loses audit trail of what happened
+  ────────────────────────────────────────
+  Pros: Flexible for edge cases
+  Cons: Violates append-only principle
+  ────────────────────────────────────────
+  Pros:
+  Cons: Harder to reason about in parallel execution
+  Option C: Conditional Overwrites (Hybrid)
+
+  async def write(
+      self, 
+      stage_name: str, 
+      output: StageOutput,
+      allow_overwrite: bool = False,
+  ) -> None:
+      async with self._lock:
+          if stage_name in self._outputs and not allow_overwrite:
+              raise OutputConflictError(...)
+          self._outputs[stage_name] = output
+  Pros: Default strict, opt-in permissive
+  Cons: More complex API
+  ────────────────────────────────────────
+  Pros: Executor controls retry behavior explicitly
+  Cons: Caller must know when to set flag
+  ────────────────────────────────────────
+  Pros: Best of both worlds
+  Cons: Easy to misuse (always set allow_overwrite=True)
+  Option D: Version/Attempt Tracking (Rich)
+
+  @dataclass
+  class OutputEntry:
+      output: StageOutput
+      attempt: int
+      timestamp: datetime
+
+  async def write(self, stage_name: str, output: StageOutput) -> None:
+      async with self._lock:
+          existing = self._outputs.get(stage_name)
+          attempt = (existing.attempt + 1) if existing else 1
+          self._outputs[stage_name] = OutputEntry(output, attempt, datetime.now(UTC))
+  Pros: Full history for debugging/observability
+  Cons: More complex data structure
+  ────────────────────────────────────────
+  Pros: Natural retry support with attempt tracking
+  Cons: Memory grows with retries
+  ────────────────────────────────────────
+  Pros: Great for audit logging
+  Cons: Overkill for simple pipelines
+  ────────────────────────────────────────
+  Pros: Can detect retry storms
+  Cons:
+  My Recommendation: Option C (Hybrid) or Option D (Rich) depending on your observability needs. Option C is simpler and gives you control. Option D is better if you want retry metrics and debugging visibility.
+
+  ---
+  Question 2: Keep ContextSnapshot as is, or merge into leaner structure?
+
+  Option A: Keep ContextSnapshot As-Is
+
+  Current structure with all fields (run IDs, messages, enrichments, routing, etc.)
+  Pros: Already works, no migration needed
+  Cons: Many fields unused by most stages
+  ────────────────────────────────────────
+  Pros: Rich context for agents that need everything
+  Cons: Large object passed around
+  ────────────────────────────────────────
+  Pros: Serializable for replay/testing
+  Cons: Stages must ignore irrelevant fields
+  ────────────────────────────────────────
+  Pros: Well-documented
+  Cons: Can feel like a "god object"
+  Option B: Split into Core + Extensions
+
+  @dataclass(frozen=True)
+  class CoreSnapshot:
+      """Minimal snapshot for all stages."""
+      pipeline_run_id: UUID | None = None
+      request_id: UUID | None = None
+      session_id: UUID | None = None
+      user_id: UUID | None = None
+      execution_mode: str | None = None
+      input_text: str | None = None
+
+  @dataclass(frozen=True)
+  class AgentSnapshot(CoreSnapshot):
+      """Extended snapshot for agent stages."""
+      messages: list[Message] = field(default_factory=list)
+      routing_decision: RoutingDecision | None = None
+      profile: ProfileEnrichment | None = None
+      memory: MemoryEnrichment | None = None
+      documents: list[DocumentEnrichment] = field(default_factory=list)
+  Pros: Stages get only what they need
+  Cons: Two types to maintain
+  ────────────────────────────────────────
+  Pros: Clear separation of concerns
+  Cons: Conversion between types needed
+  ────────────────────────────────────────
+  Pros: Smaller objects for simple stages
+  Cons: Breaking change for existing code
+  ────────────────────────────────────────
+  Pros: ISP compliance
+  Cons: Agents must use AgentSnapshot specifically
+  Option C: Composition over Inheritance
+
+  @dataclass(frozen=True)
+  class ContextSnapshot:
+      """Core identity and input."""
+      run_id: RunIdentity  # Grouped IDs
+      input_text: str | None = None
+      execution_mode: str | None = None
+
+      # Optional enrichment bundles (None if not needed)
+      enrichments: Enrichments | None = None
+      conversation: Conversation | None = None
+
+  @dataclass(frozen=True)
+  class RunIdentity:
+      pipeline_run_id: UUID | None = None
+      request_id: UUID | None = None
+      session_id: UUID | None = None
+      user_id: UUID | None = None
+      org_id: UUID | None = None
+
+  @dataclass(frozen=True)
+  class Enrichments:
+      profile: ProfileEnrichment | None = None
+      memory: MemoryEnrichment | None = None
+      documents: list[DocumentEnrichment] = field(default_factory=list)
+
+  @dataclass(frozen=True)
+  class Conversation:
+      messages: list[Message] = field(default_factory=list)
+      routing_decision: RoutingDecision | None = None
+  Pros: Logical grouping of related fields
+  Cons: Deeper nesting (ctx.snapshot.run_id.user_id)
+  ────────────────────────────────────────
+  Pros: Null bundles indicate "not enriched"
+  Cons: Breaking change
+  ────────────────────────────────────────
+  Pros: Easy to add new bundles
+  Cons: More types to manage
+  ────────────────────────────────────────
+  Pros: Clear what data is available
+  Cons: Serialization more complex
+  Option D: Protocol-Based Access
+
+  Keep ContextSnapshot but define protocols for what stages actually need:
+
+  class HasRunIdentity(Protocol):
+      @property
+      def pipeline_run_id(self) -> UUID | None: ...
+      @property
+      def request_id(self) -> UUID | None: ...
+
+  class HasConversation(Protocol):
+      @property
+      def messages(self) -> list[Message]: ...
+
+  # Stages declare what they need via type hints
+  class MyStage:
+      async def execute(self, ctx: StageContext[HasRunIdentity]) -> StageOutput:
+          # Type checker ensures ctx.snapshot has run identity
+          ...
+  ┌────────────────────────────────────┬───────────────────────────────────┐
+  │                Pros                │               Cons                │
+  ├────────────────────────────────────┼───────────────────────────────────┤
+  │ No structural changes needed       │ Complex generic typing            │
+  ├────────────────────────────────────┼───────────────────────────────────┤
+  │ Type-safe dependency declaration   │ Runtime doesn't enforce protocols │
+  ├────────────────────────────────────┼───────────────────────────────────┤
+  │ Stages document their requirements │ May be over-engineered            │
+  ├────────────────────────────────────┼───────────────────────────────────┤
+  │ Gradual adoption possible          │ Python protocol limitations       │
+  └────────────────────────────────────┴───────────────────────────────────┘
+  My Recommendation: Option A (Keep As-Is) for now, with a future path to Option C if complexity grows. The current ContextSnapshot works, has sensible defaults now, and changing it would be a large breaking change with limited benefit. The "unused fields" cost is minimal (they're just None).
+
+  ---
+  Question 3: Should StageContext be a frozen dataclass or regular class with __slots__?
+
+  Option A: Frozen Dataclass
+
+  @dataclass(frozen=True, slots=True)
+  class StageContext:
+      snapshot: ContextSnapshot
+      inputs: StageInputs
+      stage_name: str
+      timer: PipelineTimer
+      event_emitter: EventSink
+  Pros: Truly immutable (enforced by Python)
+  Cons: Can't add computed properties easily
+  ────────────────────────────────────────
+  Pros: Clear signal: "don't modify this"
+  Cons: No lazy initialization
+  ────────────────────────────────────────
+  Pros: Hash-able (can be dict key if needed)
+  Cons: Awkward if you need internal state
+  ────────────────────────────────────────
+  Pros: Consistent with ContextSnapshot
+  Cons: object.__setattr__ workarounds ugly
+  ────────────────────────────────────────
+  Pros: Equality comparison works automatically
+  Cons:
+  Option B: Regular Class with __slots__
+
+  class StageContext:
+      __slots__ = ("_snapshot", "_inputs", "_stage_name", "_timer", "_event_emitter")
+
+      def __init__(self, snapshot, inputs, stage_name, timer, event_emitter):
+          self._snapshot = snapshot
+          self._inputs = inputs
+          # ...
+
+      @property
+      def snapshot(self) -> ContextSnapshot:
+          return self._snapshot
+  ┌──────────────────────────────────────────┬────────────────────────────────┐
+  │                   Pros                   │              Cons              │
+  ├──────────────────────────────────────────┼────────────────────────────────┤
+  │ Can have private mutable state if needed │ Not enforced immutable         │
+  ├──────────────────────────────────────────┼────────────────────────────────┤
+  │ Flexible for future additions            │ More boilerplate               │
+  ├──────────────────────────────────────────┼────────────────────────────────┤
+  │ Properties can be computed/lazy          │ Manual equality implementation │
+  ├──────────────────────────────────────────┼────────────────────────────────┤
+  │ Can cache expensive computations         │ Convention-based immutability  │
+  └──────────────────────────────────────────┴────────────────────────────────┘
+  Option C: Frozen Dataclass with Cached Properties
+
+  @dataclass(frozen=True, slots=True)
+  class StageContext:
+      snapshot: ContextSnapshot
+      inputs: StageInputs
+      stage_name: str
+      timer: PipelineTimer
+      event_emitter: EventSink
+
+      # Use functools.cached_property for expensive computations
+      @functools.cached_property
+      def user_preferences(self) -> dict:
+          # Computed once, cached
+          return self.snapshot.profile.preferences if self.snapshot.profile else {}
+  Pros: Immutable with lazy computation
+  Cons: cached_property on frozen dataclass is tricky
+  ────────────────────────────────────────
+  Pros: Best of both worlds
+  Cons: Requires __hash__ consideration
+  ────────────────────────────────────────
+  Pros: Clean API
+  Cons: May need field(hash=False) adjustments
+  Option D: Named Tuple (Ultra-Lightweight)
+
+  class StageContext(NamedTuple):
+      snapshot: ContextSnapshot
+      inputs: StageInputs
+      stage_name: str
+      timer: PipelineTimer
+      event_emitter: EventSink
+
+      def emit_event(self, type: str, data: dict) -> None:
+          # Methods still work on NamedTuple
+          self.event_emitter.try_emit(type=type, data=data)
+  ┌───────────────────────────┬─────────────────────────────────────────┐
+  │           Pros            │                  Cons                   │
+  ├───────────────────────────┼─────────────────────────────────────────┤
+  │ Smallest memory footprint │ No default values (all fields required) │
+  ├───────────────────────────┼─────────────────────────────────────────┤
+  │ Truly immutable           │ Limited flexibility                     │
+  ├───────────────────────────┼─────────────────────────────────────────┤
+  │ Tuple unpacking works     │ Feels less "class-like"                 │
+  ├───────────────────────────┼─────────────────────────────────────────┤
+  │ Very fast                 │ Can't use field() for defaults          │
+  └───────────────────────────┴─────────────────────────────────────────┘
+  My Recommendation: Option A (Frozen Dataclass) for consistency with ContextSnapshot and StageInputs. The immutability guarantee is valuable for reasoning about stage behavior. If you need computed properties, use @property (they work fine on frozen dataclasses, they just can't cache).
+
+  ---
+  Question 4: Explicit dependency validation (error if stage accesses undeclared dependency)?
+
+  Option A: No Validation (Current Behavior)
+
+  Stages can call inputs.get_from("any_stage", "key") even if not declared as dependency.
+  ┌─────────────────────────────┬─────────────────────────────────────┐
+  │            Pros             │                Cons                 │
+  ├─────────────────────────────┼─────────────────────────────────────┤
+  │ Flexible, forgiving         │ Silent bugs when dependency missing │
+  ├─────────────────────────────┼─────────────────────────────────────┤
+  │ No additional configuration │ Order-dependent behavior possible   │
+  ├─────────────────────────────┼─────────────────────────────────────┤
+  │ Easy to prototype           │ Hard to reason about data flow      │
+  ├─────────────────────────────┼─────────────────────────────────────┤
+  │                             │ Refactoring is dangerous            │
+  └─────────────────────────────┴─────────────────────────────────────┘
+  Option B: Strict Validation (Error on Access)
+
+  @dataclass(frozen=True)
+  class StageInputs:
+      snapshot: ContextSnapshot
+      prior_outputs: dict[str, StageOutput]
+      _declared_deps: frozenset[str]  # Set at construction
+
+      def get_from(self, stage_name: str, key: str, default: Any = None) -> Any:
+          if stage_name not in self._declared_deps:
+              raise UndeclaredDependencyError(
+                  f"Stage tried to access '{stage_name}' but it's not in declared dependencies: {self._declared_deps}"
+              )
+          output = self.prior_outputs.get(stage_name)
+          return output.data.get(key, default) if output else default
+  Pros: Catches bugs at runtime immediately
+  Cons: Requires accurate dependency declaration
+  ────────────────────────────────────────
+  Pros: Forces explicit data contracts
+  Cons: More configuration overhead
+  ────────────────────────────────────────
+  Pros: Refactoring is safe (errors tell you what broke)
+  Cons: Can't do "optional" dependencies easily
+  ────────────────────────────────────────
+  Pros: Self-documenting code
+  Cons: Learning curve for new developers
+  Option C: Warn but Allow (Transitional)
+
+  def get_from(self, stage_name: str, key: str, default: Any = None) -> Any:
+      if stage_name not in self._declared_deps:
+          warnings.warn(
+              f"Accessing undeclared dependency '{stage_name}'. "
+              f"Add it to dependencies for explicit contract.",
+              UndeclaredDependencyWarning,
+          )
+      # ... proceed anyway
+  ┌──────────────────────────────┬───────────────────────────────┐
+  │             Pros             │             Cons              │
+  ├──────────────────────────────┼───────────────────────────────┤
+  │ Gradual migration path       │ Warnings can be ignored       │
+  ├──────────────────────────────┼───────────────────────────────┤
+  │ Doesn't break existing code  │ Doesn't enforce good behavior │
+  ├──────────────────────────────┼───────────────────────────────┤
+  │ Gives visibility into issues │ Technical debt accumulates    │
+  ├──────────────────────────────┼───────────────────────────────┤
+  │ Can promote to error later   │                               │
+  └──────────────────────────────┴───────────────────────────────┘
+  Option D: Declared + Optional Dependencies
+
+  @dataclass(frozen=True)
+  class StageInputs:
+      prior_outputs: dict[str, StageOutput]
+      _required_deps: frozenset[str]
+      _optional_deps: frozenset[str]
+
+      def get_from(self, stage_name: str, key: str, default: Any = None) -> Any:
+          all_allowed = self._required_deps | self._optional_deps
+          if stage_name not in all_allowed:
+              raise UndeclaredDependencyError(...)
+          # For required deps, also validate they exist
+          if stage_name in self._required_deps and stage_name not in self.prior_outputs:
+              raise MissingRequiredDependencyError(...)
+          return self.prior_outputs.get(stage_name, {}).data.get(key, default)
+  ┌─────────────────────────────────────────┬────────────────────────────┐
+  │                  Pros                   │            Cons            │
+  ├─────────────────────────────────────────┼────────────────────────────┤
+  │ Distinguishes must-have vs nice-to-have │ More complex configuration │
+  ├─────────────────────────────────────────┼────────────────────────────┤
+  │ Flexible for conditional logic          │ Two sets to maintain       │
+  ├─────────────────────────────────────────┼────────────────────────────┤
+  │ Clear contracts                         │ May be over-engineered     │
+  ├─────────────────────────────────────────┼────────────────────────────┤
+  │ Validates required deps exist           │                            │
+  └─────────────────────────────────────────┴────────────────────────────┘
+  Option E: Schema-Based Validation
+
+  @dataclass
+  class DependencySchema:
+      stage: str
+      required_keys: list[str] = field(default_factory=list)
+      optional_keys: list[str] = field(default_factory=list)
+
+  class StageInputs:
+      def __init__(self, prior_outputs, schema: list[DependencySchema]):
+          self._schema = {s.stage: s for s in schema}
+          # Validate required keys exist
+          for dep_schema in schema:
+              if dep_schema.stage in prior_outputs:
+                  output = prior_outputs[dep_schema.stage]
+                  for key in dep_schema.required_keys:
+                      if key not in output.data:
+                          raise MissingRequiredKeyError(...)
+  Pros: Full contract specification
+  Cons: Significant configuration overhead
+  ────────────────────────────────────────
+  Pros: Validates keys, not just stages
+  Cons: Schema maintenance burden
+  ────────────────────────────────────────
+  Pros: Great for large teams
+  Cons: Overkill for small pipelines
+  ────────────────────────────────────────
+  Pros: Enables tooling (doc generation, etc.)
+  Cons: Slower stage initialization
+  My Recommendation: Option B (Strict Validation) or Option C (Warn but Allow) as a transition.
+
+  For a production system, strict validation catches bugs early and makes refactoring safe. The "configuration overhead" is actually documentation - you're explicitly stating what your stage needs.
+
+  For migration, Option C lets you add validation without breaking existing code, then promote warnings to errors once everything is declared.
+
+  ---
+  Summary Table
+  Question: 1. OutputBag overwrites
+  Recommended: Hybrid (C) or Rich (D)
+  Rationale: Default strict with explicit retry support
+  ────────────────────────────────────────
+  Question: 2. ContextSnapshot structure
+  Recommended: Keep As-Is (A)
+  Rationale: Works, minimal cost, avoid breaking changes
+  ────────────────────────────────────────
+  Question: 3. StageContext type
+  Recommended: Frozen Dataclass (A)
+  Rationale: Consistency, enforced immutability
+  ────────────────────────────────────────
+  Question: 4. Dependency validation
+  Recommended: Strict (B) or Warn (C)
+  Rationale: Catches bugs, enforces contracts
+  Would you like me to implement any of these options, or do you have preferences that would help narrow down the design?
+
+✻ Brewed for 1m 6s
+
+❯ 1D, 2. C, but what about allowing the user to add their own hings that it 
+  needs to the snapshot? extendig it? 3A, 4B. walk me through my question   
+  about 2                                                                   
+
+● Great question. Let me walk you thro05:01 PMexclaude-opus-4-5-20251101ContextSnapshot with Option 2C as the base.
+
+  The Extensibility Problem
+
+  Your application might need domain-specific context that the framework can't anticipate:
+
+  # Example: A sales coaching app needs
+  - deal_context: DealInfo (opportunity details, stage, value)
+  - competitor_intel: list[CompetitorMention]
+  - compliance_flags: ComplianceContext
+
+  # Example: A medical assistant needs
+  - patient_context: PatientSummary
+  - clinical_guidelines: list[Guideline]
+  - contraindications: list[Drug]
+
+  The framework shouldn't hardcode these, but stages need type-safe access to them.
+
+  ---
+  Option 2C with Extensibility Approaches
+
+  Approach A: Extensions Dict (Current)
+
+  @dataclass(frozen=True, slots=True)
+  class ContextSnapshot:
+      run_id: RunIdentity
+      input_text: str | None = None
+      execution_mode: str | None = None
+      enrichments: Enrichments | None = None
+      conversation: Conversation | None = None
+
+      # Catch-all for custom data
+      extensions: dict[str, Any] = field(default_factory=dict)
+
+  Usage:
+  # Setting
+  snapshot = ContextSnapshot(
+      run_id=run_id,
+      extensions={
+          "deal_context": DealInfo(opportunity_id="OPP-123", value=50000),
+          "compliance_flags": ComplianceContext(pii_detected=False),
+      }
+  )
+
+  # Accessing (not type-safe)
+  deal = snapshot.extensions.get("deal_context")  # Returns Any
+  deal.value  # No autocomplete, no type checking
+  ┌───────────────────────────────────┬─────────────────────────────┐
+  │               Pros                │            Cons             │
+  ├───────────────────────────────────┼─────────────────────────────┤
+  │ Already exists, no changes needed │ No type safety on access    │
+  ├───────────────────────────────────┼─────────────────────────────┤
+  │ Infinitely flexible               │ String keys are error-prone │
+  ├───────────────────────────────────┼─────────────────────────────┤
+  │ Simple to understand              │ No IDE autocomplete         │
+  ├───────────────────────────────────┼─────────────────────────────┤
+  │ Serializable (if values are)      │ Easy to misspell keys       │
+  └───────────────────────────────────┴─────────────────────────────┘
+  ---
+  Approach B: Generic Type Parameter
+
+  from typing import Generic, TypeVar
+
+  T = TypeVar("T")
+
+  @dataclass(frozen=True, slots=True)
+  class ContextSnapshot(Generic[T]):
+      run_id: RunIdentity
+      input_text: str | None = None
+      execution_mode: str | None = None
+      enrichments: Enrichments | None = None
+      conversation: Conversation | None = None
+
+      # User-defined extension type
+      custom: T | None = None
+
+  Usage:
+  # Define your custom context
+  @dataclass(frozen=True)
+  class SalesContext:
+      deal: DealInfo
+      competitors: list[CompetitorMention]
+      compliance: ComplianceContext
+
+  # Create typed snapshot
+  snapshot: ContextSnapshot[SalesContext] = ContextSnapshot(
+      run_id=run_id,
+      custom=SalesContext(
+          deal=DealInfo(opportunity_id="OPP-123", value=50000),
+          competitors=[],
+          compliance=ComplianceContext(pii_detected=False),
+      )
+  )
+
+  # Type-safe access
+  snapshot.custom.deal.value  # ✓ Autocomplete works
+  snapshot.custom.compliance.pii_detected  # ✓ Type checked
+  ┌────────────────────────┬─────────────────────────────────────────┐
+  │          Pros          │                  Cons                   │
+  ├────────────────────────┼─────────────────────────────────────────┤
+  │ Full type safety       │ Generic syntax can be confusing         │
+  ├────────────────────────┼─────────────────────────────────────────┤
+  │ IDE autocomplete works │ Single extension point (one T)          │
+  ├────────────────────────┼─────────────────────────────────────────┤
+  │ Compile-time checking  │ Serialization needs custom handling     │
+  ├────────────────────────┼─────────────────────────────────────────┤
+  │ Self-documenting       │ ContextSnapshot[None] for no extensions │
+  └────────────────────────┴─────────────────────────────────────────┘
+  ---
+  Approach C: Typed Extension Bundles (Registry)
+
+  @dataclass(frozen=True, slots=True)
+  class ContextSnapshot:
+      run_id: RunIdentity
+      input_text: str | None = None
+      # ... core fields ...
+
+      # Typed extension registry
+      _extensions: dict[type, Any] = field(default_factory=dict)
+
+      def get_extension(self, ext_type: type[T]) -> T | None:
+          """Get a typed extension by its type."""
+          return self._extensions.get(ext_type)
+
+      def with_extension(self, extension: T) -> ContextSnapshot:
+          """Return new snapshot with extension added."""
+          new_extensions = {**self._extensions, type(extension): extension}
+          return dataclasses.replace(self, _extensions=new_extensions)
+
+  Usage:
+  # Define extension types
+  @dataclass(frozen=True)
+  class DealContext:
+      opportunity_id: str
+      value: int
+      stage: str
+
+  @dataclass(frozen=True)
+  class ComplianceContext:
+      pii_detected: bool
+      approved_topics: list[str]
+
+  # Build snapshot with extensions
+  snapshot = (
+      ContextSnapshot(run_id=run_id)
+      .with_extension(DealContext(opportunity_id="OPP-123", value=50000, stage="negotiation"))
+      .with_extension(ComplianceContext(pii_detected=False, approved_topics=["pricing"]))
+  )
+
+  # Type-safe access
+  deal = snapshot.get_extension(DealContext)  # Returns DealContext | None
+  if deal:
+      print(deal.value)  # ✓ Autocomplete, type-safe
+
+  compliance = snapshot.get_extension(ComplianceContext)
+  ┌───────────────────────────────────┬────────────────────────────────────┐
+  │               Pros                │                Cons                │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Multiple independent extensions   │ Slightly more complex API          │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Type-safe access via class lookup │ Dict lookup by type is unusual     │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Extensions are self-describing    │ with_extension creates new objects │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Easy to add/remove extensions     │ Serialization needs type registry  │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ No string keys                    │                                    │
+  └───────────────────────────────────┴────────────────────────────────────┘
+  ---
+  Approach D: Subclassing with Mixin Support
+
+  # Framework provides base
+  @dataclass(frozen=True)
+  class ContextSnapshot:
+      run_id: RunIdentity
+      input_text: str | None = None
+      enrichments: Enrichments | None = None
+      conversation: Conversation | None = None
+
+  # User extends with their fields
+  @dataclass(frozen=True)
+  class SalesSnapshot(ContextSnapshot):
+      deal: DealInfo | None = None
+      competitors: list[CompetitorMention] = field(default_factory=list)
+      compliance: ComplianceContext | None = None
+
+  Usage:
+  snapshot = SalesSnapshot(
+      run_id=run_id,
+      deal=DealInfo(opportunity_id="OPP-123", value=50000),
+      compliance=ComplianceContext(pii_detected=False),
+  )
+
+  # Direct attribute access
+  snapshot.deal.value  # ✓ Type-safe
+  snapshot.compliance.pii_detected  # ✓ Autocomplete
+  ┌─────────────────────────────┬──────────────────────────────────────────┐
+  │            Pros             │                   Cons                   │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ Most natural Python pattern │ Inheritance hierarchy can get messy      │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ Full type safety            │ Can't combine multiple extensions easily │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ IDE support is perfect      │ Framework code needs to accept base type │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ Clean attribute access      │ from_dict() needs to know subclass       │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │                             │ Frozen dataclass inheritance has quirks  │
+  └─────────────────────────────┴──────────────────────────────────────────┘
+  ---
+  Approach E: Composition with Protocol
+
+  # Framework defines what it needs
+  class HasRunIdentity(Protocol):
+      @property
+      def run_id(self) -> RunIdentity: ...
+
+  class HasConversation(Protocol):
+      @property
+      def conversation(self) -> Conversation | None: ...
+
+  # User composes their own snapshot
+  @dataclass(frozen=True)
+  class SalesSnapshot:
+      # Required by framework
+      run_id: RunIdentity
+      input_text: str | None = None
+      conversation: Conversation | None = None
+
+      # Custom fields
+      deal: DealInfo | None = None
+      competitors: list[CompetitorMention] = field(default_factory=list)
+
+  # Framework accepts anything matching protocol
+  async def execute(self, ctx: StageContext[HasRunIdentity]) -> StageOutput:
+      print(ctx.snapshot.run_id)  # Works with any snapshot type
+  ┌───────────────────────────────────┬────────────────────────────────────┐
+  │               Pros                │                Cons                │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Maximum flexibility               │ Complex type signatures            │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ User owns their snapshot entirely │ Protocols don't enforce at runtime │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Framework is decoupled            │ Harder to understand for newcomers │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Duck typing with type hints       │ Serialization is user's problem    │
+  └───────────────────────────────────┴────────────────────────────────────┘
+  ---
+  My Recommendation: Hybrid of B + C
+
+  Combine Generic type parameter with a typed extension registry:
+
+  T = TypeVar("T", bound="ExtensionBundle")
+
+  @dataclass(frozen=True)
+  class ExtensionBundle:
+      """Base class for user extension bundles."""
+      pass
+
+  @dataclass(frozen=True, slots=True)
+  class ContextSnapshot(Generic[T]):
+      """Context snapshot with optional typed extensions."""
+
+      # Core identity
+      run_id: RunIdentity = field(default_factory=RunIdentity)
+
+      # Input
+      input_text: str | None = None
+      execution_mode: str | None = None
+
+      # Standard enrichments (framework-provided)
+      enrichments: Enrichments | None = None
+      conversation: Conversation | None = None
+
+      # User-defined extension bundle (typed)
+      extensions: T | None = None
+
+      # Escape hatch for ad-hoc data
+      metadata: dict[str, Any] = field(default_factory=dict)
+
+  User defines their bundle:
+
+  @dataclass(frozen=True)
+  class SalesExtensions(ExtensionBundle):
+      """Sales-specific context extensions."""
+      deal: DealInfo | None = None
+      competitors: list[CompetitorMention] = field(default_factory=list)
+      compliance: ComplianceContext | None = None
+
+  # Type alias for convenience
+  SalesSnapshot = ContextSnapshot[SalesExtensions]
+
+  Usage:
+
+  # Creating
+  snapshot: SalesSnapshot = ContextSnapshot(
+      run_id=RunIdentity(pipeline_run_id=uuid4()),
+      input_text="What's the status of the Acme deal?",
+      extensions=SalesExtensions(
+          deal=DealInfo(opportunity_id="OPP-123", value=50000, stage="negotiation"),
+          compliance=ComplianceContext(pii_detected=False, approved_topics=["pricing"]),
+      ),
+  )
+
+  # Accessing - fully type-safe
+  snapshot.extensions.deal.value  # ✓ Autocomplete: int
+  snapshot.extensions.compliance.pii_detected  # ✓ Autocomplete: bool
+  snapshot.run_id.user_id  # ✓ Core fields still work
+
+  # Stages can declare what they need
+  class DealAnalysisStage:
+      async def execute(self, ctx: StageContext[SalesSnapshot]) -> StageOutput:
+          deal = ctx.snapshot.extensions.deal
+          if deal and deal.value > 100000:
+              return StageOutput.ok(priority="high")
+          return StageOutput.ok(priority="normal")
+
+  Framework code remains generic:
+
+  # Framework doesn't care about extension type
+  class UnifiedStageGraph:
+      async def run(self, ctx: StageContext[Any]) -> dict[str, StageOutput]:
+          # Works with any snapshot type
+          logger.info(f"Running pipeline {ctx.snapshot.run_id.pipeline_run_id}")
+          ...
+
+  ---
+  Serialization Support
+
+  For the extension bundle to serialize properly:
+
+  @dataclass(frozen=True)
+  class ContextSnapshot(Generic[T]):
+      # ... fields ...
+
+      def to_dict(self) -> dict[str, Any]:
+          result = {
+              "run_id": self.run_id.to_dict() if self.run_id else None,
+              "input_text": self.input_text,
+              # ... other fields ...
+          }
+          if self.extensions is not None:
+              # Extension bundle must implement to_dict
+              result["extensions"] = self.extensions.to_dict()
+              result["extensions_type"] = type(self.extensions).__qualname__
+          return result
+
+      @classmethod
+      def from_dict(
+          cls, 
+          data: dict[str, Any],
+          extension_types: dict[str, type[T]] | None = None,
+      ) -> ContextSnapshot[T]:
+          """Deserialize with optional extension type registry."""
+          extensions = None
+          if "extensions" in data and "extensions_type" in data:
+              ext_type_name = data["extensions_type"]
+              if extension_types and ext_type_name in extension_types:
+                  ext_cls = extension_types[ext_type_name]
+                  extensions = ext_cls.from_dict(data["extensions"])
+
+          return cls(
+              run_id=RunIdentity.from_dict(data.get("run_id", {})),
+              extensions=extensions,
+              # ... other fields ...
+          )
+
+  ---
+  Summary
+  ┌────────────────┬──────────┬──────────────────┬────────────┬────────────────┐
+  │    Approach    │  Type    │   Flexibility    │ Complexity │ Serialization  │
+  │                │  Safety  │                  │            │                │
+  ├────────────────┼──────────┼──────────────────┼────────────┼────────────────┤
+  │ A: Extensions  │ ❌ None  │ ✅ Maximum       │ ✅ Simple  │ ✅ Easy        │
+  │ dict           │          │                  │            │                │
+  ├────────────────┼──────────┼──────────────────┼────────────┼────────────────┤
+  │ B: Generic[T]  │ ✅ Full  │ ⚠️ Single bundle │ ⚠️ Medium  │ ⚠️ Needs       │
+  │                │          │                  │            │ registry       │
+  ├────────────────┼──────────┼──────────────────┼────────────┼────────────────┤
+  │ C: Type        │ ✅ Full  │ ✅ Multiple      │ ⚠️ Medium  │ ⚠️ Needs       │
+  │ registry       │          │                  │            │ registry       │
+  ├────────────────┼──────────┼──────────────────┼────────────┼────────────────┤
+  │ D: Subclassing │ ✅ Full  │ ⚠️ Inheritance   │ ✅ Simple  │ ❌ Hard        │
+  │                │          │ issues           │            │                │
+  ├────────────────┼──────────┼──────────────────┼────────────┼────────────────┤
+  │ E: Protocols   │ ✅ Full  │ ✅ Maximum       │ ❌ Complex │ ❌ User's      │
+  │                │          │                  │            │ problem        │
+  ├────────────────┼──────────┼──────────────────┼────────────┼────────────────┤
+  │ B+C Hybrid     │ ✅ Full  │ ✅ Bundle +      │ ⚠️ Medium  │ ⚠️ Needs       │
+  │                │          │ escape hatch     │            │ registry       │
+  └────────────────┴──────────┴──────────────────┴────────────┴────────────────┘
+  Recommended: Generic[T] with ExtensionBundle base class gives you:
+  - Full type safety with IDE support
+  - User-defined extension bundles
+  - Framework code stays generic
+  - metadata dict as escape hatch for ad-hoc data
+  - Clear serialization contract
+
+  Would you like me to draft the full implementation of this approach integrated with Option 2C's composition structure?
+
