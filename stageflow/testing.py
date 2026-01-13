@@ -10,6 +10,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from stageflow.context import ContextSnapshot, Message
+from stageflow.context.conversation import Conversation
+from stageflow.context.identity import RunIdentity
 from stageflow.core import StageContext, StageOutput
 from stageflow.events import NoOpEventSink
 from stageflow.stages.context import PipelineContext
@@ -29,7 +31,7 @@ def create_test_snapshot(
     execution_mode: str | None = "test",
     input_text: str | None = None,
     messages: list[Message] | None = None,
-    extensions: dict[str, Any] | None = None,
+    extensions: Any | None = None,
     **kwargs: Any,
 ) -> ContextSnapshot:
     """Create a ContextSnapshot for testing with sensible defaults.
@@ -47,7 +49,7 @@ def create_test_snapshot(
         execution_mode: Execution mode (default: "test")
         input_text: Input text for the pipeline
         messages: Message history
-        extensions: Extension data
+        extensions: Extension data (dict or ExtensionBundle)
         **kwargs: Additional ContextSnapshot fields
 
     Returns:
@@ -59,18 +61,39 @@ def create_test_snapshot(
             user_id=uuid4(),
         )
     """
-    return ContextSnapshot(
-        pipeline_run_id=pipeline_run_id or uuid4(),
-        request_id=request_id or uuid4(),
-        session_id=session_id or uuid4(),
-        user_id=user_id or uuid4(),
+    # Build RunIdentity with all IDs
+    # Use a sentinel to distinguish between "not provided" and "explicitly None"
+    _NOT_PROVIDED = object()
+
+    def _resolve_id(value: UUID | None, default_factory: object = _NOT_PROVIDED) -> UUID | None:
+        # If the value wasn't provided as a kwarg, generate a default
+        # But if explicitly passed as None, keep it None
+        if default_factory is _NOT_PROVIDED:
+            return value if value is not None else uuid4()
+        return value
+
+    # Check if values were explicitly passed in kwargs
+    run_id = RunIdentity(
+        pipeline_run_id=pipeline_run_id if pipeline_run_id is not None else uuid4(),
+        request_id=request_id if request_id is not None else uuid4(),
+        session_id=session_id,  # Allow explicit None
+        user_id=user_id if user_id is not None else uuid4(),
         org_id=org_id,
-        interaction_id=interaction_id or uuid4(),
+        interaction_id=interaction_id if interaction_id is not None else uuid4(),
+    )
+
+    # Build Conversation if messages provided
+    conversation = None
+    if messages:
+        conversation = Conversation(messages=messages)
+
+    return ContextSnapshot(
+        run_id=run_id,
+        conversation=conversation,
         topology=topology,
         execution_mode=execution_mode,
         input_text=input_text,
-        messages=messages or [],
-        extensions=extensions or {},
+        extensions=extensions,
         **kwargs,
     )
 
@@ -78,22 +101,24 @@ def create_test_snapshot(
 def create_test_stage_context(
     *,
     snapshot: ContextSnapshot | None = None,
-    config: dict[str, Any] | None = None,
     inputs: StageInputs | None = None,
     prior_outputs: dict[str, StageOutput] | None = None,
     ports: CorePorts | LLMPorts | AudioPorts | None = None,
+    stage_name: str = "test_stage",
     event_sink: Any | None = None,
+    declared_deps: frozenset[str] | None = None,
     **snapshot_kwargs: Any,
 ) -> StageContext:
     """Create a StageContext for testing with sensible defaults.
 
     Args:
         snapshot: ContextSnapshot to use (creates one if not provided)
-        config: Stage configuration dict
         inputs: StageInputs for upstream data access
         prior_outputs: Dict of prior stage outputs (used if inputs not provided)
         ports: Modular ports for service injection (CorePorts, LLMPorts, or AudioPorts)
+        stage_name: Name of the stage (default: "test_stage")
         event_sink: Event sink for observability (default: NoOpEventSink)
+        declared_deps: Declared dependencies for inputs validation
         **snapshot_kwargs: Passed to create_test_snapshot if snapshot not provided
 
     Returns:
@@ -108,27 +133,33 @@ def create_test_stage_context(
         # Access inputs
         value = ctx.inputs.get("value")  # Returns 42
     """
+    from stageflow.core import PipelineTimer
+
     if snapshot is None:
         snapshot = create_test_snapshot(**snapshot_kwargs)
 
-    # Build config
-    final_config = config.copy() if config else {}
-
     # Set up inputs if not provided
-    if inputs is None and (prior_outputs or ports):
+    if inputs is None:
+        # Determine declared_deps from prior_outputs if not specified
+        if declared_deps is None and prior_outputs:
+            declared_deps = frozenset(prior_outputs.keys())
+
         inputs = create_stage_inputs(
             snapshot=snapshot,
             prior_outputs=prior_outputs or {},
             ports=ports,
+            declared_deps=declared_deps,
+            stage_name=stage_name,
+            strict=False,  # Relaxed for testing
         )
 
-    if inputs is not None:
-        final_config["inputs"] = inputs
-
-    # Set event sink
-    final_config["event_sink"] = event_sink or NoOpEventSink()
-
-    return StageContext(snapshot=snapshot, config=final_config)
+    return StageContext(
+        snapshot=snapshot,
+        inputs=inputs,
+        stage_name=stage_name,
+        timer=PipelineTimer(),
+        event_sink=event_sink or NoOpEventSink(),
+    )
 
 
 def create_test_pipeline_context(
