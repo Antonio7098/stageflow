@@ -1,0 +1,40 @@
+{
+  "template": {
+    "id": "BUG-YYYYMMDD-XX",
+    "title": "Short summary of the defect",
+    "status": "open | in_progress | closed",
+    "severity": "low | medium | high | critical",
+    "area": "subsystem or feature name",
+    "introduced_in": "git commit hash or version where the bug first appeared",
+    "fixed_in": "git commit hash or version containing the fix",
+    "reported_by": "person or automation that caught the bug",
+    "owner": "engineer responsible for the fix",
+    "created_at": "ISO-8601 timestamp when the bug was logged",
+    "resolved_at": "ISO-8601 timestamp when the bug was closed (null if open)",
+    "description": "Detailed description, reproduction steps, and observed behavior",
+    "resolution": "Summary of the fix or mitigation",
+    "links": [
+      "Optional URLs to PRs, tickets, dashboards"
+    ]
+  },
+  "bugs": [
+    {
+      "id": "BUG-20260114-01",
+      "title": "StageInputs silently returned defaults for None keys",
+      "status": "closed",
+      "severity": "high",
+      "area": "stages.inputs",
+      "introduced_in": "unknown (pre-existing)",
+      "fixed_in": "bfc01a25aabf9f3b566c2164b5ca8c71d5340a95",
+      "reported_by": "agent-7 QA runs",
+      "owner": "Cascade",
+      "created_at": "2026-01-14T11:05:00Z",
+      "resolved_at": "2026-01-14T11:15:00Z",
+      "description": "Backpressure summaries and tenant isolation stages lost upstream data because StageInputs allowed None/empty keys, causing ctx.inputs.get_from('tenant_audit', None) to return empty defaults.",
+      "resolution": "Added key validation guard in StageInputs.get/get_from/require_from, updated documentation, and expanded regression tests to fail fast when invalid keys are used.",
+      "links": [
+        "https://github.com/Antonio7098/stageflow/commit/bfc01a25aabf9f3b566c2164b5ca8c71d5340a95"
+      ]
+    }
+  ]
+}

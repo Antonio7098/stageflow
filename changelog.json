@@ -1,0 +1,48 @@
+{
+  "template": {
+    "version": "vYYYY.MM.DD or semantic version",
+    "date": "ISO-8601 release date",
+    "changes": [
+      {
+        "type": "added | changed | fixed | removed",
+        "area": "subsystem or feature name",
+        "description": "Concise summary of the change",
+        "commit": "git hash or link",
+        "issues": [
+          "Optional list of bug IDs or tickets"
+        ]
+      }
+    ]
+  },
+  "entries": [
+    {
+      "version": "v2026.01.14",
+      "date": "2026-01-14",
+      "changes": [
+        {
+          "type": "fixed",
+          "area": "stages.inputs",
+          "description": "StageInputs now validates keys to prevent None/empty lookups from silently dropping upstream data.",
+          "commit": "bfc01a25aabf9f3b566c2164b5ca8c71d5340a95",
+          "issues": [
+            "BUG-20260114-01"
+          ]
+        },
+        {
+          "type": "added",
+          "area": "docs",
+          "description": "Added StageInputs API reference, updated stage guide, and linked docs to reflect validation rules.",
+          "commit": "bfc01a25aabf9f3b566c2164b5ca8c71d5340a95",
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "ci",
+          "description": "Introduced GitHub Actions workflow to run pytest across unit, integration, property, execution, framework, contract, configuration, and utils suites.",
+          "commit": "pending",
+          "issues": []
+        }
+      ]
+    }
+  ]
+}
