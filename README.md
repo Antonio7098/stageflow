@@ -17,12 +17,12 @@ A DAG-based pipeline orchestration framework for building observable, composable
 Latest release: v0.2.0
 
 ```bash
-pip install stageflow
+pip install stageflow-core
 ```
 
 For development:
 ```bash
-pip install stageflow[dev]
+pip install stageflow-core[dev]
 ```
 
 ## Quick Start

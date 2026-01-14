@@ -9,7 +9,7 @@ Stageflow requires:
 ## Installing from PyPI
 
 ```bash
-pip install stageflow
+pip install stageflow-core
 ```
 
 ## Installing from Source
@@ -28,10 +28,10 @@ Stageflow has optional dependencies for specific features:
 
 ```bash
 # For development and testing
-pip install stageflow[dev]
+pip install stageflow-core[dev]
 
 # For documentation generation
-pip install stageflow[docs]
+pip install stageflow-core[docs]
 ```
 
 ## Verifying Installation
