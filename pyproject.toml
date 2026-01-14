@@ -47,6 +47,10 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.8",
 ]
+websearch = [
+    "httpx>=0.25",
+    "selectolax>=0.3",
+]
 
 [project.urls]
 Homepage = "https://github.com/stageflow/stageflow"
