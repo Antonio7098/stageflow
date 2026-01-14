@@ -1,4 +1,4 @@
-git add pyproject.toml && GIT_EDITOR=true git rebase --continue#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Orchestrate a Stageflow release ensuring versions, tags, and docs stay in sync."""
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import tomllib
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 CHECK_SCRIPT = REPO_ROOT / "scripts" / "check_version_sync.py"

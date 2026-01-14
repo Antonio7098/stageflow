@@ -8,10 +8,9 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
-from typing import Iterable
-
 import tomllib
+from collections.abc import Iterable
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
