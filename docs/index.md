@@ -40,12 +40,12 @@ results = await graph.run(ctx)
 The docs are organized into the following sections:
 
 - [Getting Started](getting-started/) - installation, quickstart, concepts
-- [Guides](guides/) - stages, pipelines, governance, observability, tools
+- [Guides](guides/) - stages, pipelines, governance, observability, release workflow, tools
 - [Examples](examples/) - runnable pipeline examples
 - [API Reference](api/) - detailed API documentation
 - [Advanced Topics](advanced/) - composition, subpipelines, custom interceptors, testing
 
-> **New in Stageflow 1.5**
+> **New in Stageflow 0.2.0**
 > - Standardized `LLMResponse`, `STTResponse`, and `TTSResponse` dataclasses for provider telemetry
 > - Streaming telemetry helpers (`ChunkQueue`, `StreamingBuffer`) with `stream.*` events
 > - Analytics `BufferedExporter` overflow callbacks for backpressure-aware exporters
@@ -78,6 +78,7 @@ The docs are organized into the following sections:
 - [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
 - [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
 - [**Authentication**](guides/authentication.md) — Secure your pipelines with auth interceptors
+- [**Releasing**](guides/releasing.md) — Step-by-step instructions for cutting a new Stageflow release
 
 ### Examples
 - [**Simple Pipeline**](examples/simple.md) — Single-stage echo pipeline
