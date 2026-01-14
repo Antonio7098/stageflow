@@ -70,10 +70,12 @@ class TestJSONFileExporter:
         try:
             exporter = JSONFileExporter(path)
 
-            await exporter.export(AnalyticsEvent(
-                event_type="test.event",
-                data={"key": "value"},
-            ))
+            await exporter.export(
+                AnalyticsEvent(
+                    event_type="test.event",
+                    data={"key": "value"},
+                )
+            )
             await exporter.flush()
             await exporter.close()
 
@@ -96,9 +98,7 @@ class TestJSONFileExporter:
         try:
             exporter = JSONFileExporter(path)
 
-            events = [
-                AnalyticsEvent(event_type=f"event.{i}") for i in range(5)
-            ]
+            events = [AnalyticsEvent(event_type=f"event.{i}") for i in range(5)]
             await exporter.export_batch(events)
             await exporter.close()
 
@@ -120,10 +120,12 @@ class TestConsoleExporter:
         """Should print event to console."""
         exporter = ConsoleExporter(colorize=False, verbose=True)
 
-        await exporter.export(AnalyticsEvent(
-            event_type="test.event",
-            stage_name="my_stage",
-        ))
+        await exporter.export(
+            AnalyticsEvent(
+                event_type="test.event",
+                stage_name="my_stage",
+            )
+        )
 
         captured = capsys.readouterr()
         assert "test.event" in captured.out
@@ -152,7 +154,7 @@ class TestBufferedExporter:
                 self.batch_count = 0
                 self.event_count = 0
 
-            async def export(self, event):
+            async def export(self, _event):
                 self.event_count += 1
 
             async def export_batch(self, events):
@@ -190,7 +192,7 @@ class TestBufferedExporter:
             def __init__(self):
                 self.event_count = 0
 
-            async def export(self, event):
+            async def export(self, _event):
                 self.event_count += 1
 
             async def export_batch(self, events):
@@ -227,8 +229,8 @@ class TestCompositeExporter:
                 self.name = name
                 self.events = []
 
-            async def export(self, event):
-                self.events.append(event)
+            async def export(self, _event):
+                self.events.append(_event)
 
             async def export_batch(self, events):
                 self.events.extend(events)
@@ -262,8 +264,8 @@ class TestAnalyticsSink:
             def __init__(self):
                 self.events = []
 
-            async def export(self, event):
-                self.events.append(event)
+            async def export(self, _event):
+                self.events.append(_event)
 
             async def export_batch(self, events):
                 self.events.extend(events)
@@ -295,8 +297,8 @@ class TestAnalyticsSink:
             def __init__(self):
                 self.events = []
 
-            async def export(self, event):
-                self.events.append(event)
+            async def export(self, _event):
+                self.events.append(_event)
 
             async def export_batch(self, events):
                 pass
@@ -324,8 +326,8 @@ class TestAnalyticsSink:
             def __init__(self):
                 self.events = []
 
-            async def export(self, event):
-                self.events.append(event)
+            async def export(self, _event):
+                self.events.append(_event)
 
             async def export_batch(self, events):
                 pass
@@ -357,7 +359,7 @@ class TestBufferedExporterOverflow:
             overflow_calls.append((dropped_count, buffer_size))
 
         class NullExporter:
-            async def export(self, event):
+            async def export(self, _event):
                 pass
 
             async def export_batch(self, events):
@@ -401,7 +403,7 @@ class TestBufferedExporterOverflow:
             overflow_calls.append((dropped_count, buffer_size))
 
         class NullExporter:
-            async def export(self, event):
+            async def export(self, _event):
                 pass
 
             async def export_batch(self, events):
@@ -438,7 +440,7 @@ class TestBufferedExporterOverflow:
         """Should provide buffer statistics."""
 
         class NullExporter:
-            async def export(self, event):
+            async def export(self, _event):
                 pass
 
             async def export_batch(self, events):
@@ -475,11 +477,11 @@ class TestBufferedExporterOverflow:
     async def test_callback_errors_dont_affect_export(self):
         """Should continue working even if callback raises."""
 
-        def bad_callback(dropped_count: int, buffer_size: int) -> None:
+        def bad_callback(_dropped_count: int, _buffer_size: int) -> None:
             raise RuntimeError("Callback failed!")
 
         class NullExporter:
-            async def export(self, event):
+            async def export(self, _event):
                 pass
 
             async def export_batch(self, events):
@@ -520,8 +522,8 @@ class TestBufferedExporterOverflow:
             def __init__(self):
                 self.events = []
 
-            async def export(self, event):
-                self.events.append(event)
+            async def export(self, _event):
+                self.events.append(_event)
 
             async def export_batch(self, events):
                 self.events.extend(events)

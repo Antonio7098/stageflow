@@ -8,7 +8,6 @@ Tests:
 - @tool decorator
 """
 
-
 from stageflow.tools import (
     BaseTool,
     ToolInput,
@@ -28,7 +27,7 @@ class DummyTool(BaseTool):
     description = "A dummy tool for testing"
     action_type = "DUMMY_ACTION"
 
-    async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
+    async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:  # noqa: ARG002
         return ToolOutput.ok(data={"result": "dummy"})
 
 
@@ -39,7 +38,7 @@ class AnotherTool(BaseTool):
     description = "Another tool"
     action_type = "ANOTHER_ACTION"
 
-    async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
+    async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:  # noqa: ARG002
         return ToolOutput.ok(data={"result": "another"})
 
 
@@ -228,7 +227,7 @@ class TestToolDecorator:
             description = "A decorated tool"
             action_type = "DECORATED_ACTION"
 
-            async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
+            async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:  # noqa: ARG002
                 return ToolOutput.ok()
 
         # Tool should be registered via factory
@@ -244,7 +243,7 @@ class TestToolDecorator:
             description = "Test"
             action_type = "TEST_ACTION"
 
-            async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
+            async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:  # noqa: ARG002
                 return ToolOutput.ok()
 
         # Class should still be usable
@@ -260,7 +259,7 @@ class TestToolDecorator:
             description = "Meta"
             action_type = "META_ACTION"
 
-            async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
+            async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:  # noqa: ARG002
                 return ToolOutput.ok()
 
         assert MetaTool._tool_action_type == "META_ACTION"

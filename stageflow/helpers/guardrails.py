@@ -108,7 +108,7 @@ class GuardrailCheck(Protocol):
     Implement this protocol to create custom guardrail checks.
     """
 
-    def check(self, content: str, context: dict[str, Any] | None = None) -> GuardrailResult:
+    def check(self, content: str, _context: dict[str, Any] | None = None) -> GuardrailResult:
         """Check content against the guardrail.
 
         Args:
@@ -196,7 +196,7 @@ class PIIDetector:
         self._redaction_char = redaction_char
         self._detect_types = detect_types or set(self.PATTERNS.keys())
 
-    def check(self, content: str, context: dict[str, Any] | None = None) -> GuardrailResult:
+    def check(self, content: str, _context: dict[str, Any] | None = None) -> GuardrailResult:
         """Check content for PII."""
         violations: list[PolicyViolation] = []
         transformed = content
@@ -218,7 +218,9 @@ class PIIDetector:
 
                 if self._redact:
                     redacted = self._redaction_char * len(match.group())
-                    transformed = transformed[:match.start()] + redacted + transformed[match.end():]
+                    transformed = (
+                        transformed[: match.start()] + redacted + transformed[match.end() :]
+                    )
 
         return GuardrailResult(
             passed=len(violations) == 0,
@@ -241,7 +243,8 @@ class ContentFilter:
 
     # Basic profanity list (extend in production)
     DEFAULT_PROFANITY = {
-        "damn", "hell",  # Mild
+        "damn",
+        "hell",  # Mild
         # Add more as needed - keeping minimal for this example
     }
 
@@ -266,7 +269,7 @@ class ContentFilter:
         self._blocked_patterns = blocked_patterns or []
         self._max_severity = max_severity
 
-    def check(self, content: str, context: dict[str, Any] | None = None) -> GuardrailResult:
+    def check(self, content: str, _context: dict[str, Any] | None = None) -> GuardrailResult:
         """Check content for blocked patterns and profanity."""
         violations: list[PolicyViolation] = []
         words = set(re.findall(r"\b\w+\b", content.lower()))
@@ -340,7 +343,7 @@ class InjectionDetector:
         if additional_patterns:
             self._patterns.extend(additional_patterns)
 
-    def check(self, content: str, context: dict[str, Any] | None = None) -> GuardrailResult:
+    def check(self, content: str, _context: dict[str, Any] | None = None) -> GuardrailResult:
         """Check for injection attempts."""
         violations: list[PolicyViolation] = []
 
@@ -390,7 +393,7 @@ class ContentLengthCheck:
         self._max_tokens = max_tokens
         self._min_chars = min_chars
 
-    def check(self, content: str, context: dict[str, Any] | None = None) -> GuardrailResult:
+    def check(self, content: str, _context: dict[str, Any] | None = None) -> GuardrailResult:
         """Check content length."""
         violations: list[PolicyViolation] = []
         char_count = len(content)
@@ -492,8 +495,7 @@ class GuardrailStage:
 
             # Filter by severity threshold
             significant_violations = [
-                v for v in result.violations
-                if v.severity >= self._config.violation_threshold
+                v for v in result.violations if v.severity >= self._config.violation_threshold
             ]
             all_violations.extend(significant_violations)
 

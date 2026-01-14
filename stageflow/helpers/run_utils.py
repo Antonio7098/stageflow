@@ -422,7 +422,7 @@ class PipelineRunner:
         input_text: str | None = None,
         execution_mode: str = "practice",
         snapshot: ContextSnapshot | None = None,
-        config: dict[str, Any] | None = None,
+        _config: dict[str, Any] | None = None,
         **snapshot_kwargs: Any,
     ) -> RunResult:
         """Run a pipeline and return results.

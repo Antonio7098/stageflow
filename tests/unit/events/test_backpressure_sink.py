@@ -84,9 +84,7 @@ class TestBackpressureAwareEventSink:
             await sink.emit(type="test.event", data={"key": "value"})
             # Give worker time to process
             await asyncio.sleep(0.2)
-            downstream.emit.assert_called_once_with(
-                type="test.event", data={"key": "value"}
-            )
+            downstream.emit.assert_called_once_with(type="test.event", data={"key": "value"})
         finally:
             await sink.stop()
 
@@ -136,9 +134,7 @@ class TestBackpressureAwareEventSink:
         slow_downstream = AsyncMock()
         slow_downstream.emit = AsyncMock(side_effect=lambda **_: asyncio.sleep(10))
 
-        sink = BackpressureAwareEventSink(
-            slow_downstream, max_queue_size=1, on_drop=on_drop
-        )
+        sink = BackpressureAwareEventSink(slow_downstream, max_queue_size=1, on_drop=on_drop)
         await sink.start()
         try:
             sink.try_emit(type="event.1", data={"a": 1})
@@ -155,10 +151,10 @@ class TestBackpressureAwareEventSink:
         events_received: list[str] = []
 
         class CollectorSink:
-            async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:
+            async def emit(self, *, type: str, _data: dict[str, Any] | None) -> None:
                 events_received.append(type)
 
-            def try_emit(self, *, type: str, data: dict[str, Any] | None) -> None:
+            def try_emit(self, *, type: str, _data: dict[str, Any] | None) -> None:
                 events_received.append(type)
 
         sink = BackpressureAwareEventSink(CollectorSink(), max_queue_size=100)
@@ -260,11 +256,11 @@ class TestBackpressureAwareEventSink:
         events_received = 0
 
         class CounterSink:
-            async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:
+            async def emit(self, *, _type: str, _data: dict[str, Any] | None) -> None:
                 nonlocal events_received
                 events_received += 1
 
-            def try_emit(self, *, type: str, data: dict[str, Any] | None) -> None:
+            def try_emit(self, *, _type: str, _data: dict[str, Any] | None) -> None:
                 nonlocal events_received
                 events_received += 1
 

@@ -21,7 +21,7 @@ class MockStage:
     name = "mock"
     kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         return StageOutput.ok(message="success")
 
 
@@ -31,7 +31,7 @@ class FailingStage:
     name = "failing"
     kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         raise ValueError("Intentional failure")
 
 
@@ -188,10 +188,7 @@ class TestPipelineRunner:
 
         # Test that we can at least create a pipeline - full execution
         # requires the DAG executor which has its own tests
-        pipeline = (
-            Pipeline()
-            .with_stage("test", MockStage, StageKind.TRANSFORM)
-        )
+        pipeline = Pipeline().with_stage("test", MockStage, StageKind.TRANSFORM)
 
         # Verify the pipeline can be built
         graph = pipeline.build()
@@ -205,10 +202,7 @@ class TestPipelineRunner:
         """
         PipelineRunner(verbose=False)
 
-        pipeline = (
-            Pipeline()
-            .with_stage("failing", FailingStage, StageKind.TRANSFORM)
-        )
+        pipeline = Pipeline().with_stage("failing", FailingStage, StageKind.TRANSFORM)
 
         # Verify the pipeline can be built even with a failing stage
         graph = pipeline.build()
