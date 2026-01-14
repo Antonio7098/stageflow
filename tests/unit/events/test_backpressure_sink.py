@@ -151,10 +151,10 @@ class TestBackpressureAwareEventSink:
         events_received: list[str] = []
 
         class CollectorSink:
-            async def emit(self, *, type: str, _data: dict[str, Any] | None) -> None:
+            async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:  # noqa: ARG002
                 events_received.append(type)
 
-            def try_emit(self, *, type: str, _data: dict[str, Any] | None) -> None:
+            def try_emit(self, *, type: str, data: dict[str, Any] | None) -> None:  # noqa: ARG002
                 events_received.append(type)
 
         sink = BackpressureAwareEventSink(CollectorSink(), max_queue_size=100)
@@ -256,11 +256,11 @@ class TestBackpressureAwareEventSink:
         events_received = 0
 
         class CounterSink:
-            async def emit(self, *, _type: str, _data: dict[str, Any] | None) -> None:
+            async def emit(self, *, type: str, data: dict[str, Any] | None) -> None:  # noqa: ARG002
                 nonlocal events_received
                 events_received += 1
 
-            def try_emit(self, *, _type: str, _data: dict[str, Any] | None) -> None:
+            def try_emit(self, *, type: str, data: dict[str, Any] | None) -> None:  # noqa: ARG002
                 nonlocal events_received
                 events_received += 1
 
