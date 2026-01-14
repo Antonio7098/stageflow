@@ -177,21 +177,21 @@ Stageflow follows **SOLID principles** with a clear separation:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Your Application                       │
+│                        Your Application                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Adapters (implement protocols)                              │
-│  - DatabaseEventSink                                         │
-│  - PostgresRunStore                                          │
-│  - EnvConfigProvider                                         │
+│  Adapters (implement protocols)                             │
+│  - DatabaseEventSink                                        │
+│  - PostgresRunStore                                         │
+│  - EnvConfigProvider                                        │
 ├─────────────────────────────────────────────────────────────┤
-│                     stageflow (core)                         │
-│  ┌─────────┐  ┌─────────┐  ┌─────────────┐  ┌─────────┐   │
-│  │ Pipeline │  │  Graph  │  │ Interceptors│  │ Events  │   │
-│  └─────────┘  └─────────┘  └─────────────┘  └─────────┘   │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                    Ports (protocols)                  │   │
-│  │  EventSink | RunStore | ConfigProvider               │   │
-│  └─────────────────────────────────────────────────────┘   │
+│                     stageflow (core)                        │
+│  ┌─────────┐  ┌─────────┐  ┌─────────────┐  ┌─────────┐     │
+│  │ Pipeline│  │  Graph  │  │ Interceptors│  │ Events  │     │
+│  └─────────┘  └─────────┘  └─────────────┘  └─────────┘     │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                    Ports (protocols)                │    │
+│  │  EventSink | RunStore | ConfigProvider              │    │
+│  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
