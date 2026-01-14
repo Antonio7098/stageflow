@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
- name = "stageflow"
+ name = "stageflow-core"
  version = "0.2.0"
  description = "A DAG-based pipeline orchestration framework for building observable, composable stage pipelines"
 readme = "README.md"

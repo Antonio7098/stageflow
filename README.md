@@ -14,13 +14,15 @@ A DAG-based pipeline orchestration framework for building observable, composable
 
 ## Installation
 
+Latest release: v0.2.0
+
 ```bash
-pip install stageflow
+pip install stageflow-core
 ```
 
 For development:
 ```bash
-pip install stageflow[dev]
+pip install stageflow-core[dev]
 ```
 
 ## Quick Start
@@ -175,21 +177,21 @@ Stageflow follows **SOLID principles** with a clear separation:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Your Application                       │
+│                        Your Application                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Adapters (implement protocols)                              │
-│  - DatabaseEventSink                                         │
-│  - PostgresRunStore                                          │
-│  - EnvConfigProvider                                         │
+│  Adapters (implement protocols)                             │
+│  - DatabaseEventSink                                        │
+│  - PostgresRunStore                                         │
+│  - EnvConfigProvider                                        │
 ├─────────────────────────────────────────────────────────────┤
-│                     stageflow (core)                         │
-│  ┌─────────┐  ┌─────────┐  ┌─────────────┐  ┌─────────┐   │
-│  │ Pipeline │  │  Graph  │  │ Interceptors│  │ Events  │   │
-│  └─────────┘  └─────────┘  └─────────────┘  └─────────┘   │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                    Ports (protocols)                  │   │
-│  │  EventSink | RunStore | ConfigProvider               │   │
-│  └─────────────────────────────────────────────────────┘   │
+│                     stageflow (core)                        │
+│  ┌─────────┐  ┌─────────┐  ┌─────────────┐  ┌─────────┐     │
+│  │ Pipeline│  │  Graph  │  │ Interceptors│  │ Events  │     │
+│  └─────────┘  └─────────┘  └─────────────┘  └─────────┘     │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                    Ports (protocols)                │    │
+│  │  EventSink | RunStore | ConfigProvider              │    │
+│  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
 

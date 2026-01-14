@@ -282,27 +282,27 @@ After summarize: !NIAHC MROFSNART EHT FO TSET A SI SIHT ,OLLEH
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ ContextSnapshot                                              │
+│ ContextSnapshot                                             │
 │   input_text: "Hello, this is a test..."                    │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ UppercaseStage                                               │
+│ UppercaseStage                                              │
 │   reads: ctx.snapshot.input_text                            │
 │   outputs: {text: "HELLO, THIS IS A TEST..."}               │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ ReverseStage                                                 │
+│ ReverseStage                                                │
 │   reads: inputs.get("text") → "HELLO, THIS IS A TEST..."    │
 │   outputs: {text: "...TSET A SI SIHT ,OLLEH"}               │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ SummarizeStage                                               │
+│ SummarizeStage                                              │
 │   reads: inputs.get("text") → "...TSET A SI SIHT ,OLLEH"    │
 │   outputs: {text: "...TSET A SI SIHT ,OLLEH", ...}          │
 └─────────────────────────────────────────────────────────────┘

@@ -12,7 +12,7 @@ This guide covers testing patterns for stageflow pipelines, stages, and intercep
     /                      \
    /    Unit Tests          \
   /     (200-500)            \
- /_____________________________\
+ /____________________________\
 ```
 
 - **Unit tests**: Fast, isolated, no external dependencies
