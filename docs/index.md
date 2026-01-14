@@ -41,19 +41,14 @@ The docs are organized into the following sections:
 
 - [Getting Started](getting-started/) - installation, quickstart, concepts
 - [Guides](guides/) - stages, pipelines, dependencies, governance, observability, release workflow, tools, approval
-- [Examples](examples/) - runnable pipeline examples
-- [API Reference](api/) - detailed API documentation
-- [Advanced Topics](advanced/) - composition, subpipelines, custom interceptors, testing
+- [Examples](examples/) - simple pipeline, transform chain, parallel enrichment, chat pipeline, full pipeline, agent with tools
+- [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
+- [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.2.0**
-> - Standardized `LLMResponse`, `STTResponse`, and `TTSResponse` dataclasses for provider telemetry
-> - Streaming telemetry helpers (`ChunkQueue`, `StreamingBuffer`) with `stream.*` events
-> - Analytics `BufferedExporter` overflow callbacks for backpressure-aware exporters
-> - Tool parsing helper (`ToolRegistry.parse_and_resolve`) with observability for unresolved tool calls
-> - **Event Backpressure** - `BackpressureAwareEventSink` with bounded queues and metrics
-> - **Structured Cancellation** - `CleanupRegistry` and `StructuredTaskGroup` for proper resource cleanup
-> - **Multi-Tenant Isolation** - `TenantContext`, `TenantIsolationValidator`, and `TenantAwareLogger`
-> - **Distributed Tracing** - OpenTelemetry integration with correlation ID propagation
+> **New in Stageflow 0.3.0**
+> 
+> - **Web Search**: Integrate web search into your pipelines with the new `WebSearch` stage.
+> - **Improved Error Handling**: Enhanced error handling and recovery mechanisms for more robust pipelines.
 
 ## Links
 
