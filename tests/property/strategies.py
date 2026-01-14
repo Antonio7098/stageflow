@@ -93,7 +93,7 @@ def stage_spec_lists(
 
     specs = []
 
-    for i, name in enumerate(names):
+    for _i, name in enumerate(names):
         kind = draw(stage_kinds())
 
         # Only depend on earlier stages (ensures no cycles)

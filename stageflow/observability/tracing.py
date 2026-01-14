@@ -18,7 +18,7 @@ actual tracing.
 from __future__ import annotations
 
 import logging
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -38,7 +38,6 @@ _correlation_id: ContextVar[UUID | None] = ContextVar("correlation_id", default=
 # Try to import OpenTelemetry, fall back to no-op if not available
 try:
     from opentelemetry import trace
-    from opentelemetry.context import Context, attach, detach, get_current
     from opentelemetry.trace import SpanKind, Status, StatusCode, Tracer
     from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
@@ -205,28 +204,24 @@ class TraceContext:
 
         # Parse custom headers
         if headers.get("x-correlation-id"):
-            try:
+            with suppress(ValueError):
                 ctx = TraceContext(
                     trace_id=ctx.trace_id,
                     span_id=ctx.span_id,
                     correlation_id=UUID(headers["x-correlation-id"]),
                 )
-            except ValueError:
-                pass
 
         if headers.get("x-pipeline-run-id"):
-            try:
+            with suppress(ValueError):
                 ctx = TraceContext(
                     trace_id=ctx.trace_id,
                     span_id=ctx.span_id,
                     correlation_id=ctx.correlation_id,
                     pipeline_run_id=UUID(headers["x-pipeline-run-id"]),
                 )
-            except ValueError:
-                pass
 
         if headers.get("x-request-id"):
-            try:
+            with suppress(ValueError):
                 ctx = TraceContext(
                     trace_id=ctx.trace_id,
                     span_id=ctx.span_id,
@@ -234,11 +229,9 @@ class TraceContext:
                     pipeline_run_id=ctx.pipeline_run_id,
                     request_id=UUID(headers["x-request-id"]),
                 )
-            except ValueError:
-                pass
 
         if headers.get("x-org-id"):
-            try:
+            with suppress(ValueError):
                 ctx = TraceContext(
                     trace_id=ctx.trace_id,
                     span_id=ctx.span_id,
@@ -247,8 +240,6 @@ class TraceContext:
                     request_id=ctx.request_id,
                     org_id=UUID(headers["x-org-id"]),
                 )
-            except ValueError:
-                pass
 
         # Parse baggage
         baggage = {}

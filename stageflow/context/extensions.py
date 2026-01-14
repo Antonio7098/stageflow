@@ -23,7 +23,6 @@ Example:
 
 from __future__ import annotations
 
-from abc import ABC
 from dataclasses import dataclass, fields, is_dataclass
 from typing import Any, TypeVar
 
@@ -31,7 +30,7 @@ T = TypeVar("T", bound="ExtensionBundle")
 
 
 @dataclass(frozen=True)
-class ExtensionBundle(ABC):
+class ExtensionBundle:
     """Base class for user-defined context extensions.
 
     Subclass this to create typed extension bundles for domain-specific

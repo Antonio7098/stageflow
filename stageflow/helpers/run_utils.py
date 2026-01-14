@@ -37,7 +37,7 @@ from uuid import UUID, uuid4
 
 from stageflow.context import ContextSnapshot
 from stageflow.context.identity import RunIdentity
-from stageflow.core import PipelineTimer, StageContext, StageOutput
+from stageflow.core import PipelineTimer, StageContext
 from stageflow.events import set_event_sink
 from stageflow.pipeline.dag import UnifiedPipelineCancelled, UnifiedStageGraph
 

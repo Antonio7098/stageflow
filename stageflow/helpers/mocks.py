@@ -23,15 +23,14 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import base64
 import hashlib
-import json
 import random
 import re
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, AsyncIterator, Callable
-from uuid import UUID, uuid4
+from typing import Any
+from uuid import uuid4
 
 
 @dataclass
@@ -714,7 +713,7 @@ class MockToolExecutor:
         self,
         *,
         tools: dict[str, Callable[[dict[str, Any]], Any]] | None = None,
-        default_output: Any = {"status": "ok"},
+        default_output: Any = None,
         latency_ms: float = 10,
         fail_rate: float = 0.0,
     ) -> None:
@@ -726,6 +725,8 @@ class MockToolExecutor:
             latency_ms: Simulated latency.
             fail_rate: Probability of failure.
         """
+        if default_output is None:
+            default_output = {"status": "ok"}
         self._tools = tools or {}
         self._default_output = default_output
         self._latency_ms = latency_ms

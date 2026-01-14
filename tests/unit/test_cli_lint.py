@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-
-from stageflow import Pipeline, StageKind, StageOutput, StageContext
+from stageflow import Pipeline, StageContext, StageKind, StageOutput
 from stageflow.cli.lint import (
     DependencyIssue,
     DependencyLintResult,
     IssueSeverity,
-    lint_pipeline,
     analyze_stage_source,
+    lint_pipeline,
 )
 
 

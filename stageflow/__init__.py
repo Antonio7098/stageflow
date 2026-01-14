@@ -45,6 +45,14 @@ For type-safe extensions, use the ExtensionRegistry in stageflow.extensions.
 """
 
 # Core stage types
+# CLI and linting
+from stageflow.cli.lint import (
+    DependencyIssue,
+    DependencyLintResult,
+    IssueSeverity,
+    lint_pipeline,
+    lint_pipeline_file,
+)
 from stageflow.core import (
     PipelineTimer,
     Stage,
@@ -72,32 +80,6 @@ from stageflow.extensions import (
     ExtensionHelper,
     ExtensionRegistry,
     TypedExtension,
-)
-
-# CLI and linting
-from stageflow.cli.lint import (
-    DependencyIssue,
-    DependencyLintResult,
-    IssueSeverity,
-    lint_pipeline,
-    lint_pipeline_file,
-)
-
-# Projector
-from stageflow.projector.service import (
-    WSMessageProjector,
-    WSMessageProjector as ProjectorService,  # Backward compatibility
-    WSMetadata,
-    WSOutboundMessage,
-    WSStatusUpdatePayload,
-    _coerce_uuid_str,
-)
-
-# Testing utilities
-from stageflow.testing import (
-    create_test_snapshot,
-    create_test_stage_context,
-    create_test_pipeline_context,
 )
 
 # Observability protocols
@@ -155,6 +137,18 @@ from stageflow.pipeline.subpipeline import (
     get_subpipeline_spawner,
 )
 
+# Projector
+from stageflow.projector.service import (
+    WSMessageProjector,
+    WSMetadata,
+    WSOutboundMessage,
+    WSStatusUpdatePayload,
+    _coerce_uuid_str,
+)
+from stageflow.projector.service import (
+    WSMessageProjector as ProjectorService,  # Backward compatibility
+)
+
 # Protocols
 from stageflow.protocols import (
     ConfigProvider,
@@ -182,6 +176,12 @@ from stageflow.stages.ports import (
 from stageflow.stages.result import (
     StageError,
     StageResult,
+)
+
+# Testing utilities (optional)
+from stageflow.testing import (
+    create_test_snapshot,
+    create_test_stage_context,
 )
 
 __all__ = [

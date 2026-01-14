@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
 from uuid import uuid4
 
-from stageflow import Pipeline, StageKind, StageOutput, StageContext
+import pytest
+
+from stageflow import Pipeline, StageContext, StageKind, StageOutput
 from stageflow.helpers.run_utils import (
     ObservableEventSink,
     PipelineRunner,
@@ -183,7 +184,7 @@ class TestPipelineRunner:
         Note: Full pipeline execution is tested in integration tests.
         This tests basic runner functionality.
         """
-        runner = PipelineRunner(verbose=False, capture_events=True)
+        PipelineRunner(verbose=False, capture_events=True)
 
         # Test that we can at least create a pipeline - full execution
         # requires the DAG executor which has its own tests
@@ -202,7 +203,7 @@ class TestPipelineRunner:
 
         Note: Full failure testing is done in integration tests.
         """
-        runner = PipelineRunner(verbose=False)
+        PipelineRunner(verbose=False)
 
         pipeline = (
             Pipeline()

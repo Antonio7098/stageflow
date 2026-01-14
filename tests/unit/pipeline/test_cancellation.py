@@ -1,7 +1,6 @@
 """Tests for structured cancellation support."""
 
 import asyncio
-from typing import Any
 
 import pytest
 

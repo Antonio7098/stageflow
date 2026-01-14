@@ -99,7 +99,7 @@ class CleanupRegistry:
                 await asyncio.wait_for(callback(), timeout=per_callback_timeout)
                 self._completed.append(name)
                 logger.debug(f"Cleanup completed: {name}")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._failed.append((name, TimeoutError(f"Cleanup timed out: {name}")))
                 logger.warning(f"Cleanup timed out: {name}")
             except asyncio.CancelledError:
@@ -317,7 +317,7 @@ async def run_with_cleanup(
     finally:
         try:
             await asyncio.wait_for(cleanup(), timeout=cleanup_timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Cleanup timed out")
         except Exception:
             logger.exception("Cleanup failed")

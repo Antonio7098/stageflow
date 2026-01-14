@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 import pytest
@@ -10,13 +9,11 @@ import pytest
 from stageflow.helpers.streaming import (
     AudioChunk,
     AudioFormat,
-    StreamConfig,
+    BackpressureMonitor,
     ChunkQueue,
     StreamingBuffer,
-    BackpressureMonitor,
-    EventEmitter,
-    encode_audio_for_logging,
     calculate_audio_duration_ms,
+    encode_audio_for_logging,
 )
 
 

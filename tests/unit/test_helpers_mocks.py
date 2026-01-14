@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from stageflow.helpers.mocks import (
+    MockAuthProvider,
+    MockJWTClaims,
     MockLLMProvider,
     MockSTTProvider,
-    MockTTSProvider,
-    MockAuthProvider,
     MockToolExecutor,
-    MockCompletion,
-    MockTranscription,
-    MockJWTClaims,
+    MockTTSProvider,
 )
 
 
@@ -133,7 +130,7 @@ class TestMockSTTProvider:
         result2 = await stt.transcribe(b"same audio data")
 
         # Different audio should cycle
-        result3 = await stt.transcribe(b"different audio")
+        await stt.transcribe(b"different audio")
 
         assert result1.text == result2.text
 

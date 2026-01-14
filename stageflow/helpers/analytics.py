@@ -27,8 +27,8 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -352,10 +352,9 @@ class BufferedExporter:
                 self._dropped_count += 1
                 # Notify via callback
                 if self._on_overflow is not None:
-                    try:
+                    import contextlib
+                    with contextlib.suppress(Exception):
                         self._on_overflow(self._dropped_count, len(self._buffer))
-                    except Exception:
-                        pass  # Don't let callback errors affect export
 
             self._buffer.append(event)
 
@@ -364,11 +363,10 @@ class BufferedExporter:
             if fill_ratio >= self._high_water_mark and not self._high_water_warned:
                 self._high_water_warned = True
                 if self._on_overflow is not None:
-                    try:
+                    import contextlib
+                    with contextlib.suppress(Exception):
                         # Signal high water with negative dropped_count as convention
                         self._on_overflow(-1, len(self._buffer))
-                    except Exception:
-                        pass
             elif fill_ratio < self._high_water_mark * 0.5:
                 # Reset warning when buffer drains significantly
                 self._high_water_warned = False
@@ -405,10 +403,8 @@ class BufferedExporter:
 
         if self._flush_task:
             self._flush_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._flush_task
-            except asyncio.CancelledError:
-                pass
 
         await self.flush()
         await self._exporter.close()
@@ -507,10 +503,7 @@ class AnalyticsSink:
 
         # If includes specified, check them
         if self._include:
-            for pattern in self._include:
-                if pattern in event_type:
-                    return True
-            return False
+            return any(pattern in event_type for pattern in self._include)
 
         return True
 

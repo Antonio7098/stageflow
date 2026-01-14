@@ -8,7 +8,7 @@ These tests verify that:
 
 from __future__ import annotations
 
-from hypothesis import given, settings, HealthCheck
+from hypothesis import HealthCheck, given, settings
 
 from tests.property.strategies import stage_spec_lists
 

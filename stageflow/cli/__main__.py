@@ -61,7 +61,7 @@ Examples:
         return 0
 
     if args.command == "lint":
-        from stageflow.cli.lint import lint_pipeline_file, IssueSeverity, DependencyLintResult
+        from stageflow.cli.lint import DependencyLintResult, IssueSeverity, lint_pipeline_file
 
         try:
             result = lint_pipeline_file(args.file)

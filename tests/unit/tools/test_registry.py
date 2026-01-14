@@ -8,7 +8,6 @@ Tests:
 - @tool decorator
 """
 
-import pytest
 
 from stageflow.tools import (
     BaseTool,

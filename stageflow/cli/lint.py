@@ -24,7 +24,7 @@ import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from stageflow.pipeline.pipeline import Pipeline
@@ -372,7 +372,6 @@ class DependencyAccessVisitor(ast.NodeVisitor):
                     stage_name = node.args[0].value
                     if isinstance(stage_name, str):
                         self.accessed_stages.append((stage_name, node.lineno))
-
         self.generic_visit(node)
 
 

@@ -16,7 +16,6 @@ from stageflow.observability.wide_events import WideEventEmitter
 from stageflow.pipeline.cancellation import (
     CancellationToken,
     CleanupRegistry,
-    StructuredTaskGroup,
 )
 from stageflow.pipeline.interceptors import (
     BaseInterceptor,
@@ -659,20 +658,19 @@ class UnifiedStageGraph:
             )
 
             # Emit stage.skipped event if stage returned SKIP status
-            if result.status == StageStatus.SKIP:
-                if ctx.event_sink:
-                    ctx.event_sink.try_emit(
-                        type=f"stage.{spec.name}.skipped",
-                        data={
-                            "stage": spec.name,
-                            "reason": result.data.get("reason", "Stage returned skip"),
-                            "duration_ms": duration_ms,
-                            "pipeline_run_id": str(ctx.pipeline_run_id)
-                            if ctx.pipeline_run_id
-                            else None,
-                            "request_id": str(ctx.request_id) if ctx.request_id else None,
-                        },
-                    )
+            if result.status == StageStatus.SKIP and ctx.event_sink:
+                ctx.event_sink.try_emit(
+                    type=f"stage.{spec.name}.skipped",
+                    data={
+                        "stage": spec.name,
+                        "reason": result.data.get("reason", "Stage returned skip"),
+                        "duration_ms": duration_ms,
+                        "pipeline_run_id": str(ctx.pipeline_run_id)
+                        if ctx.pipeline_run_id
+                        else None,
+                        "request_id": str(ctx.request_id) if ctx.request_id else None,
+                    },
+                )
 
             if result.status == StageStatus.FAIL:
                 logger.error(

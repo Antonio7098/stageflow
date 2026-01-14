@@ -9,11 +9,12 @@ This module provides the EventSink protocol and default implementations:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Callable
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger("stageflow.events")
@@ -192,7 +193,7 @@ class BackpressureAwareEventSink:
         if drain and not self._queue.empty():
             try:
                 await asyncio.wait_for(self._drain(), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._logger.warning(
                     "Drain timeout, some events may be lost",
                     extra={"remaining": self._queue.qsize()},
@@ -200,10 +201,8 @@ class BackpressureAwareEventSink:
 
         if self._worker_task:
             self._worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._worker_task
-            except asyncio.CancelledError:
-                pass
             self._worker_task = None
 
         self._logger.info(
@@ -237,7 +236,7 @@ class BackpressureAwareEventSink:
                     )
                 finally:
                     self._queue.task_done()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break

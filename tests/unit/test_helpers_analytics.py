@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -12,11 +11,11 @@ import pytest
 
 from stageflow.helpers.analytics import (
     AnalyticsEvent,
-    JSONFileExporter,
-    ConsoleExporter,
+    AnalyticsSink,
     BufferedExporter,
     CompositeExporter,
-    AnalyticsSink,
+    ConsoleExporter,
+    JSONFileExporter,
 )
 
 

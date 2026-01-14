@@ -13,7 +13,6 @@ Tests:
 
 from dataclasses import FrozenInstanceError, dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 from uuid import uuid4
 
 import pytest

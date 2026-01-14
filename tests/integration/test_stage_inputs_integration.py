@@ -1,11 +1,12 @@
 """Integration tests for StageInputs with key validation and error handling."""
 
-import pytest
 from uuid import uuid4
+
+import pytest
 
 from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import StageOutput
-from stageflow.stages.inputs import StageInputs, UndeclaredDependencyError, create_stage_inputs
+from stageflow.stages.inputs import UndeclaredDependencyError, create_stage_inputs
 
 
 def _make_snapshot():
@@ -46,7 +47,7 @@ class TestStageInputsIntegration:
                 memory={"last_login": "2024-01-01", "sessions": 5}
             ),
         }
-        
+
         declared_deps = frozenset(["auth_stage", "router_stage", "enrich_stage"])
         inputs = create_stage_inputs(
             snapshot=_make_snapshot(),
@@ -55,17 +56,17 @@ class TestStageInputsIntegration:
             stage_name="process_stage",
             strict=True
         )
-        
+
         # Valid access patterns
         assert inputs.get_from("auth_stage", "token") == "abc123"
         assert inputs.get_from("router_stage", "route") == "support"
         assert inputs.get_from("enrich_stage", "profile") == {"tier": "premium", "preferences": {"language": "en"}}
-        
+
         # Search across stages
         assert inputs.get("token") == "abc123"  # Found in auth_stage
         assert inputs.get("route") == "support"  # Found in router_stage
         assert inputs.get("nonexistent", "default") == "default"
-        
+
         # Required access
         assert inputs.require_from("auth_stage", "user_id") == "user_456"
 
@@ -75,7 +76,7 @@ class TestStageInputsIntegration:
             "declared_stage": StageOutput.ok(value="value1"),
             "undeclared_stage": StageOutput.ok(value="value2"),
         }
-        
+
         inputs = create_stage_inputs(
             snapshot=_make_snapshot(),
             prior_outputs=prior_outputs,
@@ -83,14 +84,14 @@ class TestStageInputsIntegration:
             stage_name="test_stage",
             strict=True
         )
-        
+
         # Can access declared dependency
         assert inputs.get_from("declared_stage", "value") == "value1"
-        
+
         # Cannot access undeclared dependency
         with pytest.raises(UndeclaredDependencyError) as exc_info:
             inputs.get_from("undeclared_stage", "data")
-        
+
         assert exc_info.value.stage_name == "undeclared_stage"
         assert exc_info.value.accessing_stage == "test_stage"
         assert "declared_stage" in exc_info.value.declared_deps
@@ -101,7 +102,7 @@ class TestStageInputsIntegration:
             "stage_a": StageOutput.ok(value="value_a"),
             "stage_b": StageOutput.ok(value="value_b"),
         }
-        
+
         inputs = create_stage_inputs(
             snapshot=_make_snapshot(),
             prior_outputs=prior_outputs,
@@ -109,7 +110,7 @@ class TestStageInputsIntegration:
             stage_name="test_stage",
             strict=False  # Non-strict mode
         )
-        
+
         # Can access both stages in non-strict mode
         assert inputs.get_from("stage_a", "value") == "value_a"
         assert inputs.get_from("stage_b", "value") == "value_b"
@@ -123,31 +124,31 @@ class TestStageInputsIntegration:
                 usage={"prompt_tokens": 10, "completion_tokens": 5}
             ),
         }
-        
+
         inputs = create_stage_inputs(
             snapshot=_make_snapshot(),
             prior_outputs=prior_outputs,
             stage_name="test_stage"
         )
-        
+
         # These common programming errors now raise clear exceptions:
-        
+
         # 1. None key (common when refactoring)
         with pytest.raises(TypeError, match="StageInputs key must be provided"):
             inputs.get(None)
-        
+
         # 2. Empty string key (common when using variables that are unset)
         with pytest.raises(ValueError, match="StageInputs key cannot be empty"):
             inputs.get("")
-        
+
         # 3. Non-string key (common when passing wrong variable type)
         with pytest.raises(TypeError, match="StageInputs key must be a string"):
             inputs.get(123)
-        
+
         # 4. get_from with None key
         with pytest.raises(TypeError, match="StageInputs key must be provided"):
             inputs.get_from("llm_stage", None)
-        
+
         # 5. require_from with invalid key
         with pytest.raises(TypeError, match="StageInputs key must be provided"):
             inputs.require_from("llm_stage", None)
@@ -157,7 +158,7 @@ class TestStageInputsIntegration:
         prior_outputs = {
             "auth_stage": StageOutput.ok(token="abc123"),
         }
-        
+
         inputs = create_stage_inputs(
             snapshot=_make_snapshot(),
             prior_outputs=prior_outputs,
@@ -165,7 +166,7 @@ class TestStageInputsIntegration:
             stage_name="process_stage",
             strict=True
         )
-        
+
         # Undeclared dependency error should include context
         try:
             inputs.get_from("missing_stage", "key")
@@ -173,13 +174,13 @@ class TestStageInputsIntegration:
             assert "process_stage" in str(e)
             assert "missing_stage" in str(e)
             assert "auth_stage" in str(e)
-        
+
         # Key validation errors should be clear
         try:
             inputs.get_from("auth_stage", "")
         except ValueError as e:
             assert "cannot be empty" in str(e).lower()
-        
+
         try:
             inputs.get_from("auth_stage", None)
         except TypeError as e:
@@ -215,7 +216,7 @@ class TestStageInputsIntegration:
                 metadata={"format": "text", "length": 31}
             ),
         }
-        
+
         declared_deps = frozenset(prior_outputs.keys())
         inputs = create_stage_inputs(
             snapshot=_make_snapshot(),
@@ -224,23 +225,23 @@ class TestStageInputsIntegration:
             stage_name="final_stage",
             strict=True
         )
-        
+
         # Test accessing data from the pipeline
         assert inputs.get_from("input_validation", "valid") is True
         assert inputs.get_from("auth_check", "authenticated") is True
         assert inputs.get_from("content_filter", "allowed") is True
         assert inputs.get_from("llm_process", "response") == "Hi there! How can I help you?"
         assert inputs.get_from("output_format", "formatted_response") == "Hi there! How can I help you?"
-        
+
         # Test searching for common keys
         assert inputs.get("response") == "Hi there! How can I help you?"
         assert inputs.get("user_id") == "user_123"
         assert inputs.get("model") == "gpt-4"
-        
+
         # Test required access for critical data
         user_id = inputs.require_from("auth_check", "user_id")
         assert user_id == "user_123"
-        
+
         # Test accessing complete outputs
         llm_output = inputs.get_output("llm_process")
         assert llm_output is not None
@@ -252,25 +253,25 @@ class TestStageInputsIntegration:
             "stage1": StageOutput.ok(key1="value1", key2="value2"),
             "stage2": StageOutput.ok(nested={"data": "value"}),
         }
-        
+
         inputs = create_stage_inputs(
             snapshot=_make_snapshot(),
             prior_outputs=prior_outputs,
             stage_name="test_stage"
         )
-        
+
         # All these valid patterns should continue to work:
         assert inputs.get("key1") == "value1"
         assert inputs.get("key1", "default") == "value1"
         assert inputs.get("missing", "default") == "default"
-        
+
         assert inputs.get_from("stage1", "key1") == "value1"
         assert inputs.get_from("stage1", "key2") == "value2"
         assert inputs.get_from("stage1", "missing", "default") == "default"
-        
+
         assert inputs.has_output("stage1") is True
         assert inputs.has_output("missing") is False
-        
+
         output = inputs.get_output("stage1")
         assert output is not None
         assert output.data["key1"] == "value1"

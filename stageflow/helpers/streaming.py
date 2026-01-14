@@ -27,11 +27,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, AsyncIterator, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 # Type alias for event emitter callback
 EventEmitter = Callable[[str, dict[str, Any]], None]
@@ -293,10 +293,9 @@ class ChunkQueue(Generic[T]):
     def _emit_event(self, event_type: str, data: dict[str, Any]) -> None:
         """Emit a telemetry event if emitter is configured."""
         if self._event_emitter is not None:
-            try:
+            import contextlib
+            with contextlib.suppress(Exception):
                 self._event_emitter(event_type, data)
-            except Exception:
-                pass  # Don't let telemetry errors affect queue operation
 
     async def put(self, item: T) -> bool:
         """Put an item in the queue.
@@ -408,10 +407,9 @@ class ChunkQueue(Generic[T]):
             "total_blocked_ms": self._monitor.stats.total_blocked_ms,
         })
         # Try to signal end without blocking or dropping items
-        try:
+        import contextlib
+        with contextlib.suppress(asyncio.QueueFull):
             self._queue.put_nowait(None)
-        except asyncio.QueueFull:
-            pass  # Will be detected via _closed flag in get()
 
     @property
     def is_closed(self) -> bool:
@@ -507,10 +505,9 @@ class StreamingBuffer:
     def _emit_event(self, event_type: str, data: dict[str, Any]) -> None:
         """Emit a telemetry event if emitter is configured."""
         if self._event_emitter is not None:
-            try:
+            import contextlib
+            with contextlib.suppress(Exception):
                 self._event_emitter(event_type, data)
-            except Exception:
-                pass  # Don't let telemetry errors affect buffer operation
 
     def add_chunk(self, chunk: AudioChunk) -> int:
         """Add a chunk to the buffer.
