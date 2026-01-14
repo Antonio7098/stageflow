@@ -7,8 +7,8 @@ from stageflow.websearch.client import (
     WebSearchConfig,
     create_mock_client,
 )
-from stageflow.websearch.fetcher import FetchConfig, MockFetcher
 from stageflow.websearch.extractor import ExtractionConfig
+from stageflow.websearch.fetcher import FetchConfig, MockFetcher
 from stageflow.websearch.navigator import NavigationConfig
 
 

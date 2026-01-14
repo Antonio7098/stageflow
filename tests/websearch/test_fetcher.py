@@ -1,6 +1,5 @@
 """Tests for websearch fetcher module."""
 
-import asyncio
 
 import pytest
 

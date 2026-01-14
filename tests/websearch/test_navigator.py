@@ -3,11 +3,11 @@
 import pytest
 
 from stageflow.websearch.navigator import (
+    SELECTOLAX_AVAILABLE,
     FallbackNavigator,
     NavigationConfig,
     NavigationResult,
     get_default_navigator,
-    SELECTOLAX_AVAILABLE,
 )
 
 if SELECTOLAX_AVAILABLE:

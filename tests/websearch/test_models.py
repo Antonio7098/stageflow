@@ -1,6 +1,5 @@
 """Tests for websearch data models."""
 
-import pytest
 
 from stageflow.websearch.models import (
     ExtractedLink,

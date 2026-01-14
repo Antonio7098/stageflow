@@ -3,11 +3,11 @@
 import pytest
 
 from stageflow.websearch.extractor import (
+    SELECTOLAX_AVAILABLE,
     ExtractionConfig,
     ExtractionResult,
     FallbackContentExtractor,
     get_default_extractor,
-    SELECTOLAX_AVAILABLE,
 )
 
 if SELECTOLAX_AVAILABLE:
