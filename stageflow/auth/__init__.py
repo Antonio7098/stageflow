@@ -19,6 +19,16 @@ from stageflow.auth.interceptors import (
     MockJwtValidator,
     OrgEnforcementInterceptor,
 )
+from stageflow.auth.tenant import (
+    TenantAwareLogger,
+    TenantContext,
+    TenantIsolationError,
+    TenantIsolationValidator,
+    clear_current_tenant,
+    get_current_tenant,
+    require_tenant,
+    set_current_tenant,
+)
 
 __all__ = [
     "AuthContext",
@@ -34,5 +44,13 @@ __all__ = [
     "OrgContext",
     "OrgEnforcementInterceptor",
     "TenantAccessDeniedEvent",
+    "TenantAwareLogger",
+    "TenantContext",
+    "TenantIsolationError",
+    "TenantIsolationValidator",
     "TokenExpiredError",
+    "clear_current_tenant",
+    "get_current_tenant",
+    "require_tenant",
+    "set_current_tenant",
 ]

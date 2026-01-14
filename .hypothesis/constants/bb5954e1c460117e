@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/auth/tenant.py
+# hypothesis_version: 6.150.0
+
+['T', 'TenantAwareLogger', 'TenantContext', 'TenantIsolationError', 'access', 'actual_org_id', 'clear_current_tenant', 'current_tenant', 'event', 'expected_org_id', 'get_current_tenant', 'metadata', 'operation', 'org_id', 'require_tenant', 'resource_id', 'resource_type', 'session_id', 'set_current_tenant', 'tenant_violation', 'unknown', 'user_id']

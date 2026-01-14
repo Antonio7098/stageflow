@@ -414,6 +414,87 @@ except UnifiedPipelineCancelled as e:
 
 ---
 
+## Structured Cancellation
+
+### UnifiedStageGraph with Cleanup
+
+```python
+from stageflow.pipeline.dag import UnifiedStageGraph
+from stageflow.pipeline.cancellation import CleanupRegistry
+
+# Create graph with cleanup support
+graph = UnifiedStageGraph(specs, cleanup_timeout=10.0)
+
+# Register cleanup callbacks
+graph.register_cleanup(cleanup_database, name="db_cleanup")
+graph.register_cleanup(close_connections, name="conn_cleanup")
+
+# Run with automatic cleanup
+try:
+    results = await graph.run(ctx)
+finally:
+    # Cleanup runs automatically on success, error, or cancellation
+    pass
+```
+
+### CleanupRegistry
+
+```python
+from stageflow.pipeline.cancellation import CleanupRegistry
+
+registry = CleanupRegistry()
+
+# Register cleanup callbacks (LIFO order)
+registry.register(cleanup_connections, name="connections")
+registry.register(cleanup_files, name="files")
+
+# Run all cleanups
+completed, failed = await registry.run_all(timeout=5.0)
+
+# Check results
+print(f"Completed: {completed}")
+print(f"Failed: {failed}")
+```
+
+### CancellationToken
+
+```python
+from stageflow.pipeline.cancellation import CancellationToken
+
+token = CancellationToken()
+
+# Check for cancellation
+if token.is_cancelled:
+    print("Operation cancelled:", token.reason)
+
+# Register cancellation callback
+token.on_cancel(lambda: print("Cancelled!"))
+
+# Request cancellation
+token.cancel("User requested stop")
+```
+
+### StructuredTaskGroup
+
+```python
+from stageflow.pipeline.cancellation import StructuredTaskGroup
+
+async def run_with_cleanup():
+    async with StructuredTaskGroup() as tg:
+        # Register cleanup
+        tg.cleanup_registry.register(cleanup_resources)
+        
+        # Create tasks
+        tg.create_task(task1())
+        tg.create_task(task2())
+        tg.create_task(task3())
+        
+        # If any task fails, all others are cancelled
+        # and cleanup runs automatically
+```
+
+---
+
 ## Usage Example
 
 ```python
@@ -428,6 +509,7 @@ from stageflow import (
 )
 from stageflow.context import ContextSnapshot
 from stageflow.pipeline.dag import UnifiedPipelineCancelled
+from stageflow.pipeline.cancellation import CleanupRegistry
 
 # Define stages
 class InputStage:

@@ -13,6 +13,11 @@ from stageflow.core import (
     StageStatus,
 )
 from stageflow.observability.wide_events import WideEventEmitter
+from stageflow.pipeline.cancellation import (
+    CancellationToken,
+    CleanupRegistry,
+    StructuredTaskGroup,
+)
 from stageflow.pipeline.interceptors import (
     BaseInterceptor,
     get_default_interceptors,
@@ -327,17 +332,42 @@ class UnifiedStageGraph:
     - Dependency-driven execution (topological sort)
     - Parallel execution where possible
     - Conditional stage support
-    - Cancellation support
+    - Cancellation support with structured cleanup
     - Structured logging with stage events
     """
 
     def __init__(
         self,
         specs: Iterable[UnifiedStageSpec],
+        *,
+        cleanup_timeout: float = 10.0,
     ) -> None:
         self._specs = {spec.name: spec for spec in specs}
         if len(self._specs) == 0:
             raise ValueError("UnifiedStageGraph requires at least one UnifiedStageSpec")
+        self._cleanup_timeout = cleanup_timeout
+        self._cleanup_registry: CleanupRegistry | None = None
+        self._cancel_token: CancellationToken | None = None
+
+    @property
+    def cleanup_registry(self) -> CleanupRegistry | None:
+        """Get the cleanup registry for the current execution."""
+        return self._cleanup_registry
+
+    @property
+    def cancel_token(self) -> CancellationToken | None:
+        """Get the cancellation token for the current execution."""
+        return self._cancel_token
+
+    def register_cleanup(self, callback, *, name: str | None = None) -> None:
+        """Register a cleanup callback for the current execution.
+
+        Args:
+            callback: Async function to call during cleanup.
+            name: Optional name for logging/debugging.
+        """
+        if self._cleanup_registry is not None:
+            self._cleanup_registry.register(callback, name=name)
 
     @property
     def stage_specs(self) -> list[UnifiedStageSpec]:
@@ -349,6 +379,9 @@ class UnifiedStageGraph:
 
     async def run(self, ctx: StageContext) -> dict[str, StageOutput]:
         """Execute the DAG with the given context.
+
+        Uses structured cancellation to ensure proper resource cleanup
+        when the pipeline is cancelled or encounters an error.
 
         Args:
             ctx: StageContext containing the snapshot and config
@@ -365,6 +398,10 @@ class UnifiedStageGraph:
             },
         )
 
+        # Initialize cleanup registry and cancellation token for this execution
+        self._cleanup_registry = CleanupRegistry()
+        self._cancel_token = CancellationToken()
+
         shared_timer = ctx.timer or PipelineTimer()
 
         completed: dict[str, StageOutput] = {}
@@ -373,60 +410,42 @@ class UnifiedStageGraph:
         }
         active_tasks: set[asyncio.Task[tuple[str, StageOutput]]] = set()
 
+        async def run_cleanup() -> None:
+            """Run all registered cleanup callbacks."""
+            if self._cleanup_registry and self._cleanup_registry.pending_count > 0:
+                logger.info(
+                    f"Running {self._cleanup_registry.pending_count} cleanup callbacks",
+                    extra={"event": "cleanup_started"},
+                )
+                completed_cleanups, failed_cleanups = await self._cleanup_registry.run_all(
+                    timeout=self._cleanup_timeout
+                )
+                logger.info(
+                    "Cleanup completed",
+                    extra={
+                        "event": "cleanup_completed",
+                        "completed": completed_cleanups,
+                        "failed": [name for name, _ in failed_cleanups],
+                    },
+                )
+
         def schedule_stage(name: str) -> None:
             task = asyncio.create_task(self._execute_node(name, ctx, completed, shared_timer))
             active_tasks.add(task)
 
-        ready_nodes = [name for name, count in in_degree.items() if count == 0]
-        for name in ready_nodes:
-            schedule_stage(name)
+        try:
+            ready_nodes = [name for name, count in in_degree.items() if count == 0]
+            for name in ready_nodes:
+                schedule_stage(name)
 
-        while len(completed) < len(self._specs):
-            if not active_tasks:
-                pending = sorted(set(self._specs) - set(completed))
-                error_msg = f"Deadlocked stage graph; remaining stages: {pending}"
-                logger.error(
-                    "Deadlock detected in stage graph",
-                    extra={
-                        "event": "deadlock",
-                        "pending_stages": pending,
-                    },
-                )
-                raise RuntimeError(error_msg)
-
-            done, _ = await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
-
-            for task in done:
-                active_tasks.remove(task)
-
-                if task.exception():
-                    for t in active_tasks:
-                        t.cancel()
-                    if active_tasks:
-                        await asyncio.gather(*active_tasks, return_exceptions=True)
-
-                    exc = task.exception()
-                    logger.error(
-                        f"Stage task execution failed: {exc}",
-                        extra={
-                            "event": "stage_failed",
-                            "error": str(exc),
-                        },
-                        exc_info=True,
-                    )
-                    raise exc  # type: ignore[misc]
-
-                stage_name, stage_output = task.result()
-                completed[stage_name] = stage_output
-
-                if stage_output.status == StageStatus.CANCEL:
+            while len(completed) < len(self._specs):
+                # Check for cooperative cancellation
+                if self._cancel_token and self._cancel_token.is_cancelled:
                     logger.info(
-                        f"Pipeline cancelled by stage {stage_name}: {stage_output.data.get('cancel_reason', 'no reason')}",
+                        f"Pipeline cancelled via token: {self._cancel_token.reason}",
                         extra={
-                            "event": "pipeline_cancelled",
-                            "stage": stage_name,
-                            "reason": stage_output.data.get("cancel_reason", ""),
-                            "stages_completed": list(completed.keys()),
+                            "event": "pipeline_cancelled_token",
+                            "reason": self._cancel_token.reason,
                         },
                     )
                     for t in active_tasks:
@@ -434,37 +453,110 @@ class UnifiedStageGraph:
                     if active_tasks:
                         await asyncio.gather(*active_tasks, return_exceptions=True)
                     raise UnifiedPipelineCancelled(
-                        stage=stage_name,
-                        reason=stage_output.data.get("cancel_reason", "Pipeline cancelled"),
+                        stage="<external>",
+                        reason=self._cancel_token.reason or "Cancelled via token",
                         results=completed,
                     )
 
-                logger.info(
-                    f"Stage {stage_name} completed with status={stage_output.status.value}, data_keys={list(stage_output.data.keys())}",
-                    extra={
-                        "event": "stage_completed",
-                        "stage": stage_name,
-                        "status": stage_output.status.value,
-                        "data_keys": list(stage_output.data.keys()),
-                    },
-                )
+                if not active_tasks:
+                    pending = sorted(set(self._specs) - set(completed))
+                    error_msg = f"Deadlocked stage graph; remaining stages: {pending}"
+                    logger.error(
+                        "Deadlock detected in stage graph",
+                        extra={
+                            "event": "deadlock",
+                            "pending_stages": pending,
+                        },
+                    )
+                    raise RuntimeError(error_msg)
 
-                for potential_child, spec in self._specs.items():
-                    if stage_name in spec.dependencies:
-                        in_degree[potential_child] -= 1
-                        if in_degree[potential_child] == 0:
-                            schedule_stage(potential_child)
+                done, _ = await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
 
-        logger.info(
-            "UnifiedStageGraph execution completed",
-            extra={
-                "event": "graph_completed",
-                "stages_completed": list(completed.keys()),
-                "stage_count": len(completed),
-            },
-        )
+                for task in done:
+                    active_tasks.remove(task)
 
-        return completed
+                    if task.exception():
+                        # Cancel remaining tasks
+                        if self._cancel_token:
+                            self._cancel_token.cancel("Stage failed")
+                        for t in active_tasks:
+                            t.cancel()
+                        if active_tasks:
+                            await asyncio.gather(*active_tasks, return_exceptions=True)
+
+                        exc = task.exception()
+                        logger.error(
+                            f"Stage task execution failed: {exc}",
+                            extra={
+                                "event": "stage_failed",
+                                "error": str(exc),
+                            },
+                            exc_info=True,
+                        )
+                        raise exc  # type: ignore[misc]
+
+                    stage_name, stage_output = task.result()
+                    completed[stage_name] = stage_output
+
+                    if stage_output.status == StageStatus.CANCEL:
+                        logger.info(
+                            f"Pipeline cancelled by stage {stage_name}: {stage_output.data.get('cancel_reason', 'no reason')}",
+                            extra={
+                                "event": "pipeline_cancelled",
+                                "stage": stage_name,
+                                "reason": stage_output.data.get("cancel_reason", ""),
+                                "stages_completed": list(completed.keys()),
+                            },
+                        )
+                        if self._cancel_token:
+                            self._cancel_token.cancel(f"Cancelled by stage {stage_name}")
+                        for t in active_tasks:
+                            t.cancel()
+                        if active_tasks:
+                            await asyncio.gather(*active_tasks, return_exceptions=True)
+                        raise UnifiedPipelineCancelled(
+                            stage=stage_name,
+                            reason=stage_output.data.get("cancel_reason", "Pipeline cancelled"),
+                            results=completed,
+                        )
+
+                    logger.info(
+                        f"Stage {stage_name} completed with status={stage_output.status.value}, data_keys={list(stage_output.data.keys())}",
+                        extra={
+                            "event": "stage_completed",
+                            "stage": stage_name,
+                            "status": stage_output.status.value,
+                            "data_keys": list(stage_output.data.keys()),
+                        },
+                    )
+
+                    for potential_child, spec in self._specs.items():
+                        if stage_name in spec.dependencies:
+                            in_degree[potential_child] -= 1
+                            if in_degree[potential_child] == 0:
+                                schedule_stage(potential_child)
+
+            logger.info(
+                "UnifiedStageGraph execution completed",
+                extra={
+                    "event": "graph_completed",
+                    "stages_completed": list(completed.keys()),
+                    "stage_count": len(completed),
+                },
+            )
+
+            return completed
+
+        except Exception:
+            # Run cleanup on any exception (including cancellation)
+            await run_cleanup()
+            raise
+        finally:
+            # Always run cleanup, even on success
+            await run_cleanup()
+            # Clear the registry and token
+            self._cleanup_registry = None
+            self._cancel_token = None
 
     async def _execute_node(
         self,

@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/observability/tracing.py
+# hypothesis_version: 6.150.0
+
+['-', '016x', '032x', 'NoOpSpan', 'OTEL_AVAILABLE', 'StageflowTracer', 'T', 'TraceContext', '_status', '_status_description', 'baggage', 'clear_correlation_id', 'correlation_id', 'created_at', 'exception', 'exception.message', 'exception.type', 'get_correlation_id', 'get_span_id', 'get_trace_id', 'org_id', 'parent_span_id', 'pipeline_run_id', 'request_id', 'set_correlation_id', 'span_id', 'stageflow', 'trace_id', 'traceparent', 'x-baggage-', 'x-correlation-id', 'x-org-id', 'x-pipeline-run-id', 'x-request-id']

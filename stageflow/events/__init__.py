@@ -5,6 +5,8 @@
 from typing import Any
 
 from stageflow.events.sink import (
+    BackpressureAwareEventSink,
+    BackpressureMetrics,
     EventSink,
     LoggingEventSink,
     NoOpEventSink,
@@ -26,6 +28,8 @@ async def emit_event(*, type: str, data: dict[str, Any] | None) -> None:
 register_event_sink = set_event_sink
 
 __all__ = [
+    "BackpressureAwareEventSink",
+    "BackpressureMetrics",
     "EventSink",
     "LoggingEventSink",
     "NoOpEventSink",

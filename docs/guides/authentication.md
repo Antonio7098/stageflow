@@ -10,6 +10,9 @@ The auth system provides:
 - **OrgContext** — Organization/tenant information with features
 - **AuthInterceptor** — JWT validation middleware
 - **OrgEnforcementInterceptor** — Tenant isolation enforcement
+- **TenantContext** — Tenant-scoped operations with validation
+- **TenantIsolationValidator** — Track and validate tenant isolation
+- **TenantAwareLogger** — Automatic tenant context in logs
 
 ## AuthContext
 
@@ -423,6 +426,74 @@ elif auth.has_role("document_viewer"):
     ...
 ```
 
+## Multi-Tenant Isolation
+
+### TenantContext
+
+For tenant-scoped operations with validation:
+
+```python
+from stageflow.auth import TenantContext, TenantIsolationError
+from uuid import uuid4
+
+tenant_ctx = TenantContext(org_id=uuid4())
+
+# Validate access to resources
+try:
+    tenant_ctx.validate_access(resource.org_id, operation="read_document")
+except TenantIsolationError as e:
+    print(f"Access denied: {e}")
+
+# Get tenant-aware logger
+logger = tenant_ctx.get_logger("my_service")
+logger.info("Processing request")  # Includes org_id automatically
+```
+
+### TenantIsolationValidator
+
+Track and validate tenant isolation across execution:
+
+```python
+from stageflow.auth import TenantIsolationValidator
+
+validator = TenantIsolationValidator(expected_org_id=org_id, strict=False)
+
+# Record all resource accesses
+validator.record_access(resource.org_id, resource_type="document")
+validator.record_access(other_org_id, resource_type="document")  # Violation
+
+# Check for violations
+violations = validator.get_violations()
+if violations:
+    print(f"Cross-tenant violations: {len(violations)}")
+
+# Verify isolation
+if not validator.is_isolated():
+    raise SecurityError("Tenant isolation violated")
+```
+
+### Tenant Context Variables
+
+Manage tenant context across async boundaries:
+
+```python
+from stageflow.auth import (
+    set_current_tenant,
+    get_current_tenant,
+    require_tenant,
+    clear_current_tenant
+)
+
+# Set current tenant
+set_current_tenant(org_id)
+
+# Require tenant (raises if not set)
+tenant_id = require_tenant()
+
+# Clear when done
+clear_current_tenant()
+```
+
 ### 5. Handle Auth Failures Gracefully
 
 Return appropriate errors to clients:
@@ -434,6 +505,8 @@ except AuthenticationError as e:
     return {"error": "authentication_required", "message": str(e)}
 except CrossTenantAccessError as e:
     return {"error": "access_denied", "message": "Resource not found"}
+except TenantIsolationError as e:
+    return {"error": "access_denied", "message": "Tenant isolation violation"}
 ```
 
 ## Next Steps
@@ -441,3 +514,4 @@ except CrossTenantAccessError as e:
 - [Interceptors](interceptors.md) — Learn more about middleware
 - [Error Handling](../advanced/errors.md) — Handle auth errors
 - [Testing](../advanced/testing.md) — Test auth flows
+- [Observability](observability.md) — Multi-tenant tracing and logging

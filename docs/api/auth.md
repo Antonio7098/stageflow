@@ -506,12 +506,182 @@ async def execute(self, ctx: StageContext) -> StageOutput:
 
 ---
 
+## Multi-Tenant Isolation
+
+### TenantContext
+
+```python
+from stageflow.auth import TenantContext, TenantIsolationError
+```
+
+Context for tenant-scoped operations with validation helpers.
+
+**Constructor:**
+```python
+TenantContext(
+    org_id: UUID,
+    user_id: UUID | None = None,
+    session_id: UUID | None = None,
+    metadata: dict[str, Any] = {}
+)
+```
+
+**Key Methods:**
+
+#### `validate_access(resource_org_id: UUID | None, *, operation: str = "access") -> None`
+
+Validate that access to a resource is allowed for the current tenant.
+
+**Parameters:**
+- `resource_org_id`: The org_id of the resource being accessed
+- `operation`: Description of the operation for error messages
+
+**Raises:** `TenantIsolationError` if the resource belongs to a different tenant
+
+**Example:**
+```python
+from stageflow.auth import TenantContext
+from uuid import uuid4
+
+tenant_ctx = TenantContext(org_id=uuid4())
+
+# Validate access to resource
+try:
+    tenant_ctx.validate_access(resource.org_id, operation="read_document")
+except TenantIsolationError as e:
+    print(f"Access denied: {e}")
+```
+
+#### `get_logger(name: str) -> TenantAwareLogger`
+
+Get a logger that automatically includes tenant context.
+
+**Example:**
+```python
+logger = tenant_ctx.get_logger("my_module")
+logger.info("Processing request")  # Automatically includes org_id
+```
+
+#### `from_snapshot(snapshot) -> TenantContext | None`
+
+Create TenantContext from a ContextSnapshot.
+
+**Example:**
+```python
+from stageflow.context import ContextSnapshot
+
+snapshot = ContextSnapshot()  # With org_id set
+tenant_ctx = TenantContext.from_snapshot(snapshot)
+```
+
+---
+
+### TenantIsolationValidator
+
+```python
+from stageflow.auth import TenantIsolationValidator
+```
+
+Tracks and validates tenant isolation across pipeline execution.
+
+**Constructor:**
+```python
+TenantIsolationValidator(
+    expected_org_id: UUID,
+    strict: bool = True
+)
+```
+
+**Key Methods:**
+
+#### `record_access(org_id: UUID | None, *, resource_type: str = "unknown", resource_id: str | None = None) -> bool`
+
+Record an access to a resource and check for violations.
+
+**Returns:** `True` if access is allowed, `False` if it's a violation (in non-strict mode)
+
+**Example:**
+```python
+validator = TenantIsolationValidator(expected_org_id=org_id, strict=False)
+
+# Track accesses
+validator.record_access(resource.org_id, resource_type="document", resource_id="123")
+validator.record_access(other_org_id, resource_type="document")  # Violation
+
+# Check results
+violations = validator.get_violations()
+if violations:
+    print(f"Cross-tenant violations: {len(violations)}")
+```
+
+#### `get_violations() -> list[dict[str, Any]]`
+
+Get all recorded violations.
+
+#### `is_isolated() -> bool`
+
+Check if execution was properly isolated to expected tenant.
+
+---
+
+### Tenant Context Variables
+
+```python
+from stageflow.auth import (
+    set_current_tenant,
+    get_current_tenant,
+    clear_current_tenant,
+    require_tenant
+)
+```
+
+Functions for managing tenant context across async boundaries.
+
+**Example:**
+```python
+from uuid import uuid4
+
+# Set current tenant
+set_current_tenant(org_id)
+
+# Get current tenant
+current = get_current_tenant()
+
+# Require tenant (raises if not set)
+required = require_tenant()
+
+# Clear tenant context
+clear_current_tenant()
+```
+
+---
+
+### TenantAwareLogger
+
+Logger wrapper that automatically includes tenant context in all log messages.
+
+**Example:**
+```python
+from stageflow.auth import TenantContext
+
+tenant_ctx = TenantContext(org_id=uuid4())
+logger = tenant_ctx.get_logger("my_service")
+
+logger.info("User action completed")
+# Output includes: org_id=550e8400-e29b-41d4-a716-446655440000
+```
+
+---
+
 ## Best Practices
 
 1. **Always use AuthInterceptor first** - Set priority=1 to ensure auth runs before other logic
 2. **Implement proper JWT validation** - Use production-ready JWT libraries
 3. **Use org enforcement for multi-tenant apps** - Prevent cross-tenant data access
-4. **Log auth events** - Monitor for suspicious activity patterns
-5. **Validate token format** - Ensure UUIDs are properly formatted
-6. **Handle auth errors gracefully** - Provide clear error messages to users
-7. **Use mock validator for testing** - Simplify unit test setup
+4. **Validate tenant access explicitly** - Use TenantContext.validate_access() for resource access
+5. **Track tenant isolation** - Use TenantIsolationValidator in multi-tenant pipelines
+6. **Use tenant-aware logging** - Automatically include org_id in all log messages
+7. **Log auth events** - Monitor for suspicious activity patterns
+8. **Validate token format** - Ensure UUIDs are properly formatted
+9. **Handle auth errors gracefully** - Provide clear error messages to users
+10. **Use mock validator for testing** - Simplify unit test setup

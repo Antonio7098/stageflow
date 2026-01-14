@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/events/sink.py
+# hypothesis_version: 6.150.0
+
+[0.0, 0.1, 5.0, 100.0, 1000, 'BackpressureMetrics', 'Event: %s', 'EventSink', 'LoggingEventSink', 'NoOpEventSink', 'clear_event_sink', 'drop_rate_percent', 'dropped', 'dropped_total', 'emitted', 'error', 'event_data', 'event_sink', 'event_type', 'get_event_sink', 'last_drop_time', 'last_emit_time', 'max_queue_size', 'metrics', 'queue_full_count', 'queue_size', 'remaining', 'set_event_sink', 'stageflow.events']

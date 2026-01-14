@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/core/stage_context.py
+# hypothesis_version: 6.150.0
+
+['execution_mode', 'pipeline_run_id', 'request_id', 'stage_name', 'started_at']

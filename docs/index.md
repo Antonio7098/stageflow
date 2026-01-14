@@ -28,9 +28,11 @@ results = await graph.run(ctx)
 - **DAG-Based Execution** — Stages run as soon as their dependencies resolve, enabling maximum parallelism
 - **Type-Safe Pipelines** — Define pipelines in Python code with full IDE support and compile-time safety
 - **Composable Architecture** — Combine pipelines, share stages, and build complex workflows from simple parts
-- **Built-in Observability** — Structured logging, streaming telemetry events, analytics buffering with overflow callbacks, and tracing out of the box
+- **Built-in Observability** — Structured logging, streaming telemetry events, analytics buffering with overflow callbacks, and distributed tracing out of the box
 - **Interceptor Middleware** — Add cross-cutting concerns (auth, timeouts, circuit breakers) without modifying stages
-- **Cancellation Support** — Graceful pipeline cancellation with proper cleanup
+- **Cancellation Support** — Graceful pipeline cancellation with structured cleanup and resource management
+- **Multi-Tenant Isolation** — Built-in tenant validation, isolation tracking, and tenant-aware logging
+- **Event Backpressure** — Bounded event queues with backpressure handling to prevent memory exhaustion
 - **Tool Execution System** — First-class support for agent tools with undo, approval, and behavior gating
 
 ## Documentation Structure
@@ -48,6 +50,10 @@ The docs are organized into the following sections:
 > - Streaming telemetry helpers (`ChunkQueue`, `StreamingBuffer`) with `stream.*` events
 > - Analytics `BufferedExporter` overflow callbacks for backpressure-aware exporters
 > - Tool parsing helper (`ToolRegistry.parse_and_resolve`) with observability for unresolved tool calls
+> - **Event Backpressure** - `BackpressureAwareEventSink` with bounded queues and metrics
+> - **Structured Cancellation** - `CleanupRegistry` and `StructuredTaskGroup` for proper resource cleanup
+> - **Multi-Tenant Isolation** - `TenantContext`, `TenantIsolationValidator`, and `TenantAwareLogger`
+> - **Distributed Tracing** - OpenTelemetry integration with correlation ID propagation
 
 ## Links
 

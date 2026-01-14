@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/projector/__init__.py
+# hypothesis_version: 6.150.0
+
+['ProjectorService', 'WSMessageProjector', 'WSMetadata', 'WSOutboundMessage']

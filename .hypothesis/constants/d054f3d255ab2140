@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/context/conversation.py
+# hypothesis_version: 6.150.0
+
+['Conversation', 'agent_id', 'assistant', 'content', 'messages', 'metadata', 'pipeline_name', 'reason', 'role', 'routing_decision', 'timestamp', 'topology', 'user']

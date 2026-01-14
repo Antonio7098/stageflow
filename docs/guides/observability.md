@@ -35,8 +35,9 @@ class EventSink(Protocol):
 
 ```python
 from stageflow import (
-    NoOpEventSink,      # Discards all events
-    LoggingEventSink,   # Logs events via Python logging
+    NoOpEventSink,           # Discards all events
+    LoggingEventSink,        # Logs events via Python logging
+    BackpressureAwareEventSink, # Bounded queue with backpressure
     set_event_sink,
     get_event_sink,
 )
@@ -44,8 +45,44 @@ from stageflow import (
 # Use logging sink (default)
 set_event_sink(LoggingEventSink())
 
+# Use backpressure-aware sink for production
+sink = BackpressureAwareEventSink(
+    downstream=LoggingEventSink(),
+    max_queue_size=1000,
+    on_drop=lambda type, data: print(f"Dropped: {type}")
+)
+await sink.start()
+set_event_sink(sink)
+
 # Get current sink
 sink = get_event_sink()
+```
+
+### Backpressure-Aware Event Sink
+
+For production workloads, use `BackpressureAwareEventSink` to prevent memory exhaustion:
+
+```python
+from stageflow import BackpressureAwareEventSink, LoggingEventSink
+
+# Create sink with 1000 event buffer
+sink = BackpressureAwareEventSink(
+    downstream=LoggingEventSink(),
+    max_queue_size=1000,
+    on_drop=lambda type, data: print(f"Event dropped: {type}")
+)
+
+await sink.start()
+
+# Monitor metrics
+metrics = sink.metrics
+print(f"Emitted: {metrics.emitted}")
+print(f"Dropped: {metrics.dropped}")
+print(f"Drop rate: {metrics.drop_rate}%")
+
+# Graceful shutdown
+await sink.stop(drain=True)
+```
 
 ### 4. Monitor Event Sinks
 
@@ -207,6 +244,103 @@ class MyPipelineRunLogger(PipelineRunLogger):
             stage_results=stage_results,
             extra={"customer_id": str(ctx.user_id)},
         )
+```
+
+## Distributed Tracing
+
+### Correlation ID Propagation
+
+Stageflow automatically propagates correlation IDs across async boundaries:
+
+```python
+from stageflow.observability import (
+    set_correlation_id,
+    get_correlation_id,
+    ensure_correlation_id,
+    TraceContext
+)
+
+# Set correlation ID at request start
+set_correlation_id(uuid4())
+
+# Correlation ID survives across async boundaries
+async def process_request():
+    cid = get_correlation_id()  # Available here
+    
+    # Pass to child tasks
+    ctx = TraceContext.capture()
+    await asyncio.create_task(worker(ctx))
+
+async def worker(trace_ctx: TraceContext):
+    with trace_ctx.activate():
+        cid = get_correlation_id()  # Same correlation ID
+        # Do work...
+```
+
+### OpenTelemetry Integration
+
+When OpenTelemetry is available, Stageflow provides full distributed tracing:
+
+```python
+from stageflow.observability import StageflowTracer, OTEL_AVAILABLE
+
+if OTEL_AVAILABLE:
+    tracer = StageflowTracer("my_service")
+    
+    with tracer.start_span("process_request") as span:
+        span.set_attribute("user_id", str(user_id))
+        
+        with tracer.start_span("database_query") as db_span:
+            db_span.set_attribute("table", "users")
+            results = await db.query()
+        
+        span.set_attribute("result_count", len(results))
+```
+
+### Trace Context Propagation
+
+Propagate trace context across service boundaries:
+
+```python
+from stageflow.observability import TraceContext
+
+# Capture current context
+ctx = TraceContext.capture()
+
+# Convert to HTTP headers for outbound request
+headers = ctx.to_headers()
+# headers = {
+#     "traceparent": "00-abc123-def456-01",
+#     "x-correlation-id": "550e8400-e29b-41d4-a716-446655440000",
+# }
+
+# Extract context from inbound request
+received_ctx = TraceContext.from_headers(headers)
+
+# Activate context for processing
+with received_ctx.activate():
+    # All operations here have the same trace context
+    await process_request()
+```
+
+### Multi-Tenant Tracing
+
+Include tenant information in traces for multi-tenant applications:
+
+```python
+from stageflow.observability import StageflowTracer
+from stageflow.auth import TenantContext
+
+tenant_ctx = TenantContext(org_id=org_id)
+tracer = StageflowTracer("tenant_service")
+
+with tracer.start_span("tenant_operation") as span:
+    span.set_attribute("org_id", str(tenant_ctx.org_id))
+    span.set_attribute("tenant", tenant_ctx.metadata.get("tenant_name"))
+    
+    # Tenant-aware logging
+    logger = tenant_ctx.get_logger("tenant_service")
+    logger.info("Processing tenant request")
 ```
 
 ## Logging

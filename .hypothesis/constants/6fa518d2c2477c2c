@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/helpers/analytics.py
+# hypothesis_version: 6.150.0
+
+[0.5, 0.8, 10.0, 100, 10000, '\x1b[0m', '\x1b[91m', '\x1b[92m', '\x1b[94m', '\x1b[96m', '%H:%M:%S.%f', 'AnalyticsEvent', 'AnalyticsExporter', 'AnalyticsSink', 'BufferedExporter', 'CompositeExporter', 'ConsoleExporter', 'JSONFileExporter', 'a', 'buffer_size', 'complete', 'data', 'dropped_count', 'duration_ms', 'error', 'event_type', 'fail', 'fill_ratio', 'high_water_warned', 'max_buffer_size', 'metadata', 'pipeline_run_id', 'stage', 'stage_name', 'start', 'success', 'timestamp', 'w']

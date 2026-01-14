@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/context/extensions.py
+# hypothesis_version: 6.150.0
+
+['ExtensionBundle', 'T', 'UUID', '__str__', 'date', 'datetime', 'time', 'to_dict']

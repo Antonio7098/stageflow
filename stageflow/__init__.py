@@ -96,7 +96,7 @@ from stageflow.projector.service import (
 # Testing utilities
 from stageflow.testing import (
     create_test_snapshot,
-    create_test_context,
+    create_test_stage_context,
     create_test_pipeline_context,
 )
 

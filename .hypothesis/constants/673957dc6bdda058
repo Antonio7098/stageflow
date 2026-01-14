@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/observability/__init__.py
+# hypothesis_version: 6.150.0
+
+[500, 'CIRCUIT_OPEN', 'CircuitBreaker', 'NoOpSpan', 'OTEL_AVAILABLE', 'PipelineRunLogger', 'ProviderCallLogger', 'StageflowTracer', 'TIMEOUT', 'TraceContext', 'UNKNOWN', 'WideEventEmitter', 'circuit breaker', 'clear_correlation_id', 'code', 'error', 'failure', 'get_circuit_breaker', 'get_correlation_id', 'get_span_id', 'get_trace_id', 'message', 'pipeline_run_logger', 'provider_call_logger', 'retryable', 'set_correlation_id', 'stage', 'type']

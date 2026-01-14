@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/projector/service.py
+# hypothesis_version: 6.150.0
+
+['ProjectorService', 'WSMessageProjector', 'WSMetadata', 'WSOutboundMessage', '_coerce_uuid_str', 'error', 'message_type', 'metadata', 'org_id', 'payload', 'pipelineRunId', 'pipeline_run_id', 'requestId', 'request_id', 'service', 'status.update', 'type', 'ws_projector']

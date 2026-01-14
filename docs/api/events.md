@@ -44,6 +44,47 @@ from stageflow import LoggingEventSink
 
 Logs events via Python's logging module.
 
+### BackpressureAwareEventSink
+
+```python
+from stageflow import BackpressureAwareEventSink, BackpressureMetrics
+```
+
+Event sink with bounded queue and backpressure handling. Prevents memory exhaustion under load by dropping events when the queue is full.
+
+**Key Features:**
+- Bounded `asyncio.Queue` prevents unbounded memory growth
+- `BackpressureMetrics` track emitted/dropped events
+- Graceful shutdown with queue draining
+- Configurable queue size and on-drop callbacks
+
+**Example:**
+```python
+from stageflow import BackpressureAwareEventSink, LoggingEventSink
+
+# Create sink with 1000 event buffer
+sink = BackpressureAwareEventSink(
+    downstream=LoggingEventSink(),
+    max_queue_size=1000,
+    on_drop=lambda type, data: print(f"Dropped event: {type}")
+)
+
+await sink.start()
+
+# Use the sink
+success = sink.try_emit(type="event.type", data={"key": "value"})
+if not success:
+    print("Event dropped due to backpressure")
+
+# Check metrics
+metrics = sink.metrics
+print(f"Emitted: {metrics.emitted}, Dropped: {metrics.dropped}")
+print(f"Drop rate: {metrics.drop_rate}%")
+
+# Graceful shutdown
+await sink.stop(drain=True)
+```
+
 ---
 
 ## Event Management

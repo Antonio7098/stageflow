@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/pipeline/dag.py
+# hypothesis_version: 6.150.0
+
+[10.0, 1000, '<external>', 'Cancelled via token', 'Cleanup completed', 'Pipeline canceled', 'Pipeline cancelled', 'Stage failed', 'Stage returned skip', 'StageExecutionError', 'StageGraph', 'StageSpec', 'UnifiedStageGraph', 'UnifiedStageSpec', 'a', 'cancel_reason', 'cleanup_completed', 'cleanup_started', 'completed', 'data_keys', 'deadlock', 'duration_ms', 'error', 'event', 'failed', 'graph_completed', 'graph_started', 'kind', 'pending_stages', 'pipeline_cancelled', 'pipeline_dag', 'pipeline_run_id', 'reason', 'request_id', 'skip_reason', 'stage', 'stage_completed', 'stage_count', 'stage_error', 'stage_failed', 'stage_skipped', 'stage_started', 'stages', 'stages_completed', 'started', 'status']

@@ -298,6 +298,170 @@ Parameters:
 
 ---
 
+## Distributed Tracing
+
+### StageflowTracer
+
+```python
+from stageflow.observability import StageflowTracer, OTEL_AVAILABLE
+```
+
+Tracer wrapper that works with or without OpenTelemetry. Provides a consistent API for creating spans and propagating trace context.
+
+**Constructor:**
+```python
+StageflowTracer(name: str = "stageflow")
+```
+
+**Key Methods:**
+
+#### `start_span(name: str, *, kind=None, attributes=None) -> ContextManager`
+
+Start a new span for tracing.
+
+**Parameters:**
+- `name`: Span name
+- `kind`: Span kind (server, client, etc.)
+- `attributes`: Initial span attributes
+
+**Example:**
+```python
+tracer = StageflowTracer("my_service")
+
+with tracer.start_span("process_request") as span:
+    span.set_attribute("user_id", str(user_id))
+    result = await process()
+    span.set_attribute("result_size", len(result))
+```
+
+#### `inject_context(carrier: dict[str, str]) -> None`
+
+Inject current trace context into a carrier (e.g., HTTP headers).
+
+#### `extract_context(carrier: dict[str, str]) -> TraceContext`
+
+Extract trace context from a carrier.
+
+---
+
+### TraceContext
+
+```python
+from stageflow.observability import TraceContext
+```
+
+Container for trace context that can be propagated across async boundaries.
+
+**Constructor:**
+```python
+TraceContext(
+    trace_id: str | None = None,
+    span_id: str | None = None,
+    correlation_id: UUID | None = None,
+    pipeline_run_id: UUID | None = None,
+    request_id: UUID | None = None,
+    org_id: UUID | None = None,
+    baggage: dict[str, str] = {}
+)
+```
+
+**Key Methods:**
+
+#### `capture() -> TraceContext`
+
+Capture the current trace context from contextvars.
+
+#### `activate() -> ContextManager`
+
+Activate this trace context in the current context.
+
+**Example:**
+```python
+# Capture context
+ctx = TraceContext.capture()
+
+# Pass to another task/service
+async def worker(trace_ctx: TraceContext):
+    with trace_ctx.activate():
+        # All operations here have the same trace context
+        await do_work()
+```
+
+#### `to_headers() -> dict[str, str]`
+
+Convert to HTTP headers for propagation.
+
+#### `from_headers(headers: dict[str, str]) -> TraceContext`
+
+Create TraceContext from HTTP headers.
+
+---
+
+### Correlation ID Management
+
+```python
+from stageflow.observability import (
+    set_correlation_id,
+    get_correlation_id,
+    ensure_correlation_id,
+    clear_correlation_id,
+    get_trace_context_dict
+)
+```
+
+Functions for managing correlation IDs across async boundaries.
+
+**Example:**
+```python
+from uuid import uuid4
+
+# Set correlation ID
+set_correlation_id(uuid4())
+
+# Get current correlation ID
+current = get_correlation_id()
+
+# Ensure correlation ID exists (creates if not set)
+cid = ensure_correlation_id()
+
+# Get all trace context as dict
+context = get_trace_context_dict()
+# {
+#     "trace_id": "...",
+#     "span_id": "...",
+#     "correlation_id": "...",
+# }
+
+# Clear correlation ID
+clear_correlation_id()
+```
+
+---
+
+### OpenTelemetry Integration
+
+The tracing module integrates with OpenTelemetry when available:
+
+```python
+# Check if OpenTelemetry is available
+from stageflow.observability import OTEL_AVAILABLE
+
+if OTEL_AVAILABLE:
+    # Full tracing with OpenTelemetry
+    tracer = StageflowTracer("my_service")
+    with tracer.start_span("operation") as span:
+        # Span is recorded in OpenTelemetry backend
+        pass
+else:
+    # No-op tracing - still maintains correlation IDs
+    tracer = StageflowTracer("my_service")
+    with tracer.start_span("operation") as span:
+        # Span is no-op but correlation IDs still work
+        pass
+```
+
+---
+
 ## Streaming Telemetry Events
 
 Streaming primitives emit events to your configured sink when provided an `event_emitter`.
