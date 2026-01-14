@@ -40,7 +40,7 @@ results = await graph.run(ctx)
 The docs are organized into the following sections:
 
 - [Getting Started](getting-started/) - installation, quickstart, concepts
-- [Guides](guides/) - stages, pipelines, governance, observability, release workflow, tools
+- [Guides](guides/) - stages, pipelines, dependencies, governance, observability, release workflow, tools, approval
 - [Examples](examples/) - runnable pipeline examples
 - [API Reference](api/) - detailed API documentation
 - [Advanced Topics](advanced/) - composition, subpipelines, custom interceptors, testing
@@ -73,11 +73,15 @@ The docs are organized into the following sections:
 ### Guides
 - [**Building Stages**](guides/stages.md) — Create custom stages for your pipelines
 - [**Composing Pipelines**](guides/pipelines.md) — Build complex DAGs from simple stages
+- [**Dependency Declaration**](guides/dependencies.md) — Declare and manage stage dependencies
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
 - [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
+- [**Tools & Approval Workflows**](guides/tools-approval.md) — Implement HITL approval flows for tools
 - [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
 - [**Authentication**](guides/authentication.md) — Secure your pipelines with auth interceptors
+- [**Governance & Security**](guides/governance.md) — Multi-tenant isolation, guardrails, and audit patterns
+- [**Voice & Audio**](guides/voice-audio.md) — Build voice pipelines with STT/TTS and streaming
 - [**Releasing**](guides/releasing.md) — Step-by-step instructions for cutting a new Stageflow release
 
 ### Examples
