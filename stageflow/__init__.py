@@ -193,19 +193,28 @@ __all__ = [
     "StageContext",
     "StageArtifact",
     "StageEvent",
-    "PipelineTimer",
+    "StageError",
+    "StageResult",
+    # Context utilities
     "create_stage_context",
+    # Timer
+    "PipelineTimer",
     # Pipeline types
     "Pipeline",
+    "LinearPipeline",
     "UnifiedStageSpec",
+    # DAG types
+    "StageExecutionError",
+    "StageGraph",
+    "StageSpec",
+    # Registry
     "PipelineRegistry",
     "pipeline_registry",
-    "StageSpec",
-    "StageGraph",
-    "StageExecutionError",
     # Context types
     "PipelineContext",
-    "StageResult",
+    # Testing utilities
+    "create_test_snapshot",
+    "create_test_stage_context",
     "StageError",
     "extract_service",
     # Interceptors

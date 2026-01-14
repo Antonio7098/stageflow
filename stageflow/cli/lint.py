@@ -292,9 +292,7 @@ def lint_pipeline_file(file_path: str | Path) -> DependencyLintResult:
             pipelines_found.append((name, obj))
 
         # Check if it's a function that returns a Pipeline
-        elif callable(obj) and (
-            name.startswith("create_") or name.endswith("_pipeline")
-        ):
+        elif callable(obj) and (name.startswith("create_") or name.endswith("_pipeline")):
             try:
                 result = obj()
                 if isinstance(result, Pipeline):
@@ -363,15 +361,16 @@ class DependencyAccessVisitor(ast.NodeVisitor):
         self.accessed_stages: list[tuple[str, int]] = []  # (stage_name, line_number)
 
     def visit_Call(self, node: ast.Call) -> None:
-        # Check for method calls on 'inputs' or pattern like ctx.inputs
         if isinstance(node.func, ast.Attribute):
             method_name = node.func.attr
-            if method_name in ("get_from", "require_from", "get_output", "has_output"):
-                # Try to extract the stage name from first argument
-                if node.args and isinstance(node.args[0], ast.Constant):
-                    stage_name = node.args[0].value
-                    if isinstance(stage_name, str):
-                        self.accessed_stages.append((stage_name, node.lineno))
+            if (
+                method_name in ("get_from", "require_from", "get_output", "has_output")
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+            ):
+                stage_name = node.args[0].value
+                if isinstance(stage_name, str):
+                    self.accessed_stages.append((stage_name, node.lineno))
         self.generic_visit(node)
 
 
@@ -412,7 +411,8 @@ Examples:
         help="Python file containing pipeline definition(s)",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Show detailed output including info-level issues",
     )
@@ -476,9 +476,7 @@ Examples:
     else:
         # Filter info issues unless verbose
         if not args.verbose:
-            filtered_issues = [
-                i for i in result.issues if i.severity != IssueSeverity.INFO
-            ]
+            filtered_issues = [i for i in result.issues if i.severity != IssueSeverity.INFO]
             result = DependencyLintResult(
                 valid=result.valid,
                 issues=filtered_issues,

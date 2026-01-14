@@ -52,11 +52,13 @@ class MockCompletion:
     role: str = "assistant"
     model: str = "mock-model"
     finish_reason: str = "stop"
-    usage: dict[str, int] = field(default_factory=lambda: {
-        "prompt_tokens": 10,
-        "completion_tokens": 20,
-        "total_tokens": 30,
-    })
+    usage: dict[str, int] = field(
+        default_factory=lambda: {
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "total_tokens": 30,
+        }
+    )
     tool_calls: list[dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -66,15 +68,17 @@ class MockCompletion:
             "object": "chat.completion",
             "created": int(datetime.now(UTC).timestamp()),
             "model": self.model,
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": self.role,
-                    "content": self.content,
-                    "tool_calls": self.tool_calls,
-                },
-                "finish_reason": self.finish_reason,
-            }],
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": self.role,
+                        "content": self.content,
+                        "tool_calls": self.tool_calls,
+                    },
+                    "finish_reason": self.finish_reason,
+                }
+            ],
             "usage": self.usage,
         }
 
@@ -174,7 +178,7 @@ class MockLLMProvider:
         *,
         messages: list[MockMessage] | None = None,
         model: str = "mock-model",
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> MockCompletion:
         """Generate a completion.
 
@@ -191,11 +195,13 @@ class MockLLMProvider:
             Exception: If simulated failure occurs.
         """
         self._call_count += 1
-        self._call_history.append({
-            "prompt": prompt,
-            "messages": messages,
-            "timestamp": datetime.now(UTC).isoformat(),
-        })
+        self._call_history.append(
+            {
+                "prompt": prompt,
+                "messages": messages,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         await self._simulate_latency()
 
@@ -222,7 +228,7 @@ class MockLLMProvider:
         prompt: str,
         *,
         chunk_size: int = 5,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> AsyncIterator[str]:
         """Stream a completion in chunks.
 
@@ -243,7 +249,7 @@ class MockLLMProvider:
 
         # Yield in chunks
         for i in range(0, len(content), chunk_size):
-            chunk = content[i:i + chunk_size]
+            chunk = content[i : i + chunk_size]
             yield chunk
             await asyncio.sleep(0.01)  # Small delay between chunks
 
@@ -344,7 +350,7 @@ class MockSTTProvider:
         audio: bytes,
         *,
         language: str = "en",
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> MockTranscription:
         """Transcribe audio to text.
 
@@ -460,15 +466,15 @@ class MockTTSProvider:
         self,
         text: str,
         *,
-        voice: str = "default",
-        **kwargs: Any,
+        _voice: str = "default",
+        **_kwargs: Any,
     ) -> bytes:
         """Synthesize text to audio.
 
         Args:
             text: Text to synthesize.
             voice: Voice name (ignored).
-            **kwargs: Additional args.
+            **_kwargs: Additional args.
 
         Returns:
             Audio bytes.
@@ -486,7 +492,7 @@ class MockTTSProvider:
         text: str,
         *,
         chunk_duration_ms: int = 100,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> AsyncIterator[MockAudioChunk]:
         """Stream synthesized audio in chunks.
 
@@ -511,7 +517,7 @@ class MockTTSProvider:
 
         # Yield chunks
         for i in range(0, len(full_audio), chunk_bytes):
-            chunk_data = full_audio[i:i + chunk_bytes]
+            chunk_data = full_audio[i : i + chunk_bytes]
             yield MockAudioChunk(
                 data=chunk_data,
                 sample_rate=self._sample_rate,
@@ -596,7 +602,7 @@ class MockAuthProvider:
         self,
         token: str,
         *,
-        audience: str | None = None,
+        _audience: str | None = None,
     ) -> MockJWTClaims:
         """Validate a token and return claims.
 
@@ -611,10 +617,12 @@ class MockAuthProvider:
             ValueError: If token is invalid.
         """
         self._validation_count += 1
-        self._validation_history.append({
-            "token": token[:20] + "..." if len(token) > 20 else token,
-            "timestamp": datetime.now(UTC).isoformat(),
-        })
+        self._validation_history.append(
+            {
+                "token": token[:20] + "..." if len(token) > 20 else token,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         if random.random() < self._fail_rate:
             raise ValueError("Mock auth failure")
@@ -750,11 +758,13 @@ class MockToolExecutor:
         """
         start = datetime.now(UTC)
         self._execution_count += 1
-        self._execution_history.append({
-            "tool": tool_name,
-            "arguments": arguments,
-            "timestamp": start.isoformat(),
-        })
+        self._execution_history.append(
+            {
+                "tool": tool_name,
+                "arguments": arguments,
+                "timestamp": start.isoformat(),
+            }
+        )
 
         # Simulate latency
         if self._latency_ms > 0:

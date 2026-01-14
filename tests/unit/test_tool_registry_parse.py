@@ -34,7 +34,7 @@ class MockTool(BaseTool):
     def action_type(self) -> str:
         return self._action_type
 
-    async def execute(self, input: ToolInput, ctx: dict[str, Any]) -> ToolOutput:
+    async def execute(self, input: ToolInput, ctx: dict[str, Any]) -> ToolOutput:  # noqa: ARG002
         return ToolOutput(success=True, data={"executed": True})
 
 
@@ -91,9 +91,7 @@ class TestParseAndResolve:
             {"id": "1", "name": "calculator", "arguments": {"x": 1}},
         ]
 
-        resolved, unresolved = registry.parse_and_resolve(
-            tool_calls, function_wrapper=None
-        )
+        resolved, unresolved = registry.parse_and_resolve(tool_calls, function_wrapper=None)
 
         assert len(resolved) == 1
         assert resolved[0].name == "calculator"

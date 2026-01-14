@@ -297,7 +297,8 @@ class TestChunkQueueTelemetry:
     @pytest.mark.asyncio
     async def test_emitter_errors_dont_affect_queue(self):
         """Should continue working even if emitter raises."""
-        def bad_emitter(event_type: str, data: dict[str, Any]) -> None:
+
+        def bad_emitter(_event_type: str, _data: dict[str, Any]) -> None:
             raise RuntimeError("Emitter failed!")
 
         queue: ChunkQueue[int] = ChunkQueue(
@@ -498,7 +499,8 @@ class TestStreamingBufferTelemetry:
 
     def test_emitter_errors_dont_affect_buffer(self):
         """Should continue working even if emitter raises."""
-        def bad_emitter(event_type: str, data: dict[str, Any]) -> None:
+
+        def bad_emitter(_event_type: str, _data: dict[str, Any]) -> None:
             raise RuntimeError("Emitter failed!")
 
         buffer = StreamingBuffer(

@@ -42,10 +42,12 @@ class TestMockLLMProvider:
     @pytest.mark.asyncio
     async def test_pattern_matching(self):
         """Should match patterns to responses."""
-        llm = MockLLMProvider(patterns={
-            r"weather": "It's sunny!",
-            r"time": "It's noon.",
-        })
+        llm = MockLLMProvider(
+            patterns={
+                r"weather": "It's sunny!",
+                r"time": "It's noon.",
+            }
+        )
 
         assert (await llm.complete("What's the weather?")).content == "It's sunny!"
         assert (await llm.complete("What time is it?")).content == "It's noon."
@@ -280,9 +282,11 @@ class TestMockToolExecutor:
     @pytest.mark.asyncio
     async def test_executes_registered_tools(self):
         """Should execute registered tools."""
-        executor = MockToolExecutor(tools={
-            "add": lambda args: {"result": args["a"] + args["b"]},
-        })
+        executor = MockToolExecutor(
+            tools={
+                "add": lambda args: {"result": args["a"] + args["b"]},
+            }
+        )
 
         result = await executor.execute("add", {"a": 2, "b": 3})
 
@@ -302,7 +306,8 @@ class TestMockToolExecutor:
     @pytest.mark.asyncio
     async def test_handles_tool_errors(self):
         """Should handle tool execution errors."""
-        def failing_tool(args):
+
+        def failing_tool(_args):
             raise ValueError("Tool failed!")
 
         executor = MockToolExecutor(tools={"failing": failing_tool})
@@ -315,10 +320,12 @@ class TestMockToolExecutor:
     @pytest.mark.asyncio
     async def test_tracks_execution_history(self):
         """Should track execution history."""
-        executor = MockToolExecutor(tools={
-            "tool1": lambda args: {"ok": True},
-            "tool2": lambda args: {"ok": True},
-        })
+        executor = MockToolExecutor(
+            tools={
+                "tool1": lambda _args: {"ok": True},
+                "tool2": lambda _args: {"ok": True},
+            }
+        )
 
         await executor.execute("tool1", {"x": 1})
         await executor.execute("tool2", {"y": 2})
@@ -332,7 +339,7 @@ class TestMockToolExecutor:
         """Should allow registering tools after creation."""
         executor = MockToolExecutor()
 
-        executor.register_tool("dynamic", lambda args: {"dynamic": True})
+        executor.register_tool("dynamic", lambda _args: {"dynamic": True})
 
         result = await executor.execute("dynamic", {})
 
@@ -343,7 +350,7 @@ class TestMockToolExecutor:
     async def test_measures_duration(self):
         """Should measure execution duration."""
         executor = MockToolExecutor(
-            tools={"slow": lambda args: "done"},
+            tools={"slow": lambda _args: "done"},
             latency_ms=50,
         )
 

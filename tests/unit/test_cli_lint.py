@@ -18,7 +18,7 @@ class MockStage:
     name = "mock"
     kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, _ctx: StageContext) -> StageOutput:
         return StageOutput.ok()
 
 
@@ -43,10 +43,7 @@ class TestLintPipeline:
 
     def test_detects_self_dependency(self):
         """Should detect stage depending on itself."""
-        pipeline = (
-            Pipeline()
-            .with_stage("a", MockStage, StageKind.TRANSFORM, dependencies=("a",))
-        )
+        pipeline = Pipeline().with_stage("a", MockStage, StageKind.TRANSFORM, dependencies=("a",))
 
         result = lint_pipeline(pipeline)
 
@@ -57,9 +54,8 @@ class TestLintPipeline:
 
     def test_detects_nonexistent_dependency(self):
         """Should detect dependency on non-existent stage."""
-        pipeline = (
-            Pipeline()
-            .with_stage("a", MockStage, StageKind.TRANSFORM, dependencies=("nonexistent",))
+        pipeline = Pipeline().with_stage(
+            "a", MockStage, StageKind.TRANSFORM, dependencies=("nonexistent",)
         )
 
         result = lint_pipeline(pipeline)
@@ -196,11 +192,11 @@ class TestAnalyzeStageSource:
 
     def test_detects_get_from_calls(self):
         """Should detect inputs.get_from() calls."""
-        source = '''
+        source = """
 async def execute(self, ctx):
     value = ctx.inputs.get_from("upstream", "key")
     return value
-'''
+"""
 
         accessed = analyze_stage_source(source)
 
@@ -209,11 +205,11 @@ async def execute(self, ctx):
 
     def test_detects_require_from_calls(self):
         """Should detect inputs.require_from() calls."""
-        source = '''
+        source = """
 async def execute(self, ctx):
     value = ctx.inputs.require_from("required_stage", "data")
     return value
-'''
+"""
 
         accessed = analyze_stage_source(source)
 
@@ -222,13 +218,13 @@ async def execute(self, ctx):
 
     def test_detects_multiple_accesses(self):
         """Should detect multiple dependency accesses."""
-        source = '''
+        source = """
 async def execute(self, ctx):
     a = ctx.inputs.get_from("stage_a", "value")
     b = ctx.inputs.get_from("stage_b", "value")
     c = ctx.inputs.require_from("stage_c", "value")
     return a + b + c
-'''
+"""
 
         accessed = analyze_stage_source(source)
 
