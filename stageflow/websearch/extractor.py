@@ -31,7 +31,7 @@ class ExtractionConfig:
         preserve_headings: Keep heading structure (h1-h6 -> #-######)
         preserve_lists: Keep list structure (ul/ol -> -/1.)
         preserve_links: Keep links as [text](url)
-        preserve_emphasis: Keep bold/italic as **/_ 
+        preserve_emphasis: Keep bold/italic as **/_
         preserve_code: Keep code blocks and inline code
         preserve_blockquotes: Keep blockquotes as >
         preserve_tables: Convert tables to markdown
@@ -248,7 +248,7 @@ class DefaultContentExtractor(ContentExtractor):
 
     def _process_node(
         self,
-        node: "Node",
+        node: Node,
         markdown_parts: list[str],
         plain_parts: list[str],
         heading_outline: list[tuple[int, str]],
@@ -384,14 +384,14 @@ class DefaultContentExtractor(ContentExtractor):
 
         return list_index
 
-    def _process_inline_content(self, node: "Node", base_url: str | None) -> str:
+    def _process_inline_content(self, node: Node, base_url: str | None) -> str:
         """Process inline content with formatting preserved."""
         parts: list[str] = []
         self._process_inline_recursive(node, parts, base_url)
         return " ".join(parts).strip()
 
     def _process_inline_recursive(
-        self, node: "Node", parts: list[str], base_url: str | None
+        self, node: Node, parts: list[str], base_url: str | None
     ) -> None:
         """Recursively process inline nodes using child/next traversal."""
         if node is None:
@@ -458,7 +458,7 @@ class DefaultContentExtractor(ContentExtractor):
             self._process_inline_recursive(child, parts, base_url)
             child = child.next
 
-    def _process_table(self, node: "Node") -> str:
+    def _process_table(self, node: Node) -> str:
         """Convert HTML table to markdown."""
         rows: list[list[str]] = []
         for tr in node.css("tr"):
@@ -486,7 +486,7 @@ class DefaultContentExtractor(ContentExtractor):
 
         return "\n".join(lines)
 
-    def _get_text_content(self, node: "Node") -> str:
+    def _get_text_content(self, node: Node) -> str:
         """Get all text content from a node."""
         if node is None:
             return ""
@@ -514,7 +514,7 @@ class DefaultContentExtractor(ContentExtractor):
         text = unescape(text)
         return text.strip()
 
-    def _extract_metadata_from_tree(self, tree: "HTMLParser") -> PageMetadata:
+    def _extract_metadata_from_tree(self, tree: HTMLParser) -> PageMetadata:
         """Extract metadata from parsed HTML tree."""
         title = None
         title_node = tree.css_first("title")
@@ -563,7 +563,7 @@ class DefaultContentExtractor(ContentExtractor):
             content_type=content_type,
         )
 
-    def _get_meta_content(self, tree: "HTMLParser", name: str) -> str | None:
+    def _get_meta_content(self, tree: HTMLParser, name: str) -> str | None:
         """Get meta tag content by name or property."""
         node = tree.css_first(f'meta[name="{name}"]')
         if node:
@@ -574,7 +574,7 @@ class DefaultContentExtractor(ContentExtractor):
         return None
 
     def _extract_links_from_node(
-        self, node: "Node", base_url: str | None
+        self, node: Node, base_url: str | None
     ) -> list[ExtractedLink]:
         """Extract all links from a node."""
         links: list[ExtractedLink] = []
@@ -642,6 +642,7 @@ class FallbackContentExtractor(ContentExtractor):
         selector: str | None = None,
     ) -> ExtractionResult:
         """Extract content using regex patterns."""
+        del selector  # Selector not supported in fallback mode
         html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.I)
         html = re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.DOTALL | re.I)
         html = re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
@@ -733,6 +734,7 @@ class FallbackContentExtractor(ContentExtractor):
         selector: str | None = None,
     ) -> list[ExtractedLink]:
         """Extract links using regex."""
+        del selector  # Selector not supported in fallback mode
         return self._extract_links_regex(html, base_url)
 
 

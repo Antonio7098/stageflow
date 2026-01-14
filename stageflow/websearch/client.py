@@ -8,24 +8,25 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from stageflow.websearch.extractor import (
+    SELECTOLAX_AVAILABLE,
     ContentExtractor,
     DefaultContentExtractor,
     ExtractionConfig,
     FallbackContentExtractor,
-    SELECTOLAX_AVAILABLE,
 )
 from stageflow.websearch.fetcher import (
+    HTTPX_AVAILABLE,
     FetchConfig,
-    FetchResult,
     Fetcher,
     HttpFetcher,
-    HTTPX_AVAILABLE,
     MockFetcher,
 )
 from stageflow.websearch.models import (
@@ -148,7 +149,7 @@ class WebSearchClient:
         else:
             self._navigator = FallbackNavigator(self.config.navigation)
 
-    async def __aenter__(self) -> "WebSearchClient":
+    async def __aenter__(self) -> WebSearchClient:
         """Async context manager entry."""
         if hasattr(self._fetcher, "__aenter__"):
             await self._fetcher.__aenter__()
@@ -209,7 +210,7 @@ class WebSearchClient:
                 markdown=fetch_result.text[:10000],
                 plain_text=fetch_result.text[:10000],
                 fetch_duration_ms=fetch_result.duration_ms,
-                fetched_at=datetime.now(timezone.utc).isoformat(),
+                fetched_at=datetime.now(UTC).isoformat(),
                 word_count=len(fetch_result.text.split()),
             )
 
@@ -247,7 +248,7 @@ class WebSearchClient:
         extract_duration_ms = (time.perf_counter() - extract_start) * 1000
 
         if self._on_extract_complete:
-            try:
+            with suppress(Exception):
                 self._on_extract_complete(
                     url,
                     request_id,
@@ -255,8 +256,6 @@ class WebSearchClient:
                     len(markdown),
                     len(links),
                 )
-            except Exception:
-                pass
 
         return WebPage(
             url=url,
@@ -270,7 +269,7 @@ class WebSearchClient:
             pagination=pagination,
             fetch_duration_ms=fetch_result.duration_ms,
             extract_duration_ms=extract_duration_ms,
-            fetched_at=datetime.now(timezone.utc).isoformat(),
+            fetched_at=datetime.now(UTC).isoformat(),
             word_count=word_count,
         )
 
@@ -474,7 +473,7 @@ class WebSearchClient:
             navigation_actions=nav_result.actions,
             pagination=nav_result.pagination,
             extract_duration_ms=extract_duration_ms,
-            fetched_at=datetime.now(timezone.utc).isoformat(),
+            fetched_at=datetime.now(UTC).isoformat(),
             word_count=extraction.word_count,
         )
 

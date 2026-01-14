@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 try:
     from selectolax.parser import HTMLParser, Node
@@ -129,11 +129,11 @@ class NavigationResult:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
-            "actions": [a.to_dict() for a in self.actions],
+            "actions": [action.to_dict() for action in self.actions],
             "pagination": self.pagination.to_dict() if self.pagination else None,
             "main_content_selector": self.main_content_selector,
-            "nav_links": [l.to_dict() for l in self.nav_links],
-            "breadcrumbs": [l.to_dict() for l in self.breadcrumbs],
+            "nav_links": [link.to_dict() for link in self.nav_links],
+            "breadcrumbs": [crumb.to_dict() for crumb in self.breadcrumbs],
         }
 
 
@@ -270,7 +270,7 @@ class PageNavigator(Navigator):
         )
 
     def _find_pagination(
-        self, tree: "HTMLParser", base_url: str | None
+        self, tree: HTMLParser, base_url: str | None
     ) -> PaginationInfo | None:
         """Find pagination controls in page."""
         for selector in self.config.pagination_selectors:
@@ -283,7 +283,6 @@ class PageNavigator(Navigator):
 
         for a in all_links:
             href = a.attributes.get("href", "")
-            text = a.text(strip=True) if hasattr(a, "text") else ""
 
             for pattern in self.config.pagination_link_patterns:
                 if re.search(pattern, href, re.I):
@@ -304,7 +303,7 @@ class PageNavigator(Navigator):
         return None
 
     def _parse_pagination_node(
-        self, node: "Node", base_url: str | None
+        self, node: Node, base_url: str | None
     ) -> PaginationInfo | None:
         """Parse pagination from a pagination container node."""
         links = node.css("a[href]")
@@ -363,7 +362,7 @@ class PageNavigator(Navigator):
                     pass
         return None
 
-    def _detect_main_content(self, tree: "HTMLParser") -> str | None:
+    def _detect_main_content(self, tree: HTMLParser) -> str | None:
         """Detect the main content area selector."""
         for selector in self.config.content_selectors:
             node = tree.css_first(selector)
@@ -395,7 +394,7 @@ class PageNavigator(Navigator):
         return None
 
     def _extract_nav_links(
-        self, tree: "HTMLParser", base_url: str | None
+        self, tree: HTMLParser, base_url: str | None
     ) -> list[ExtractedLink]:
         """Extract navigation menu links."""
         links: list[ExtractedLink] = []
@@ -417,7 +416,7 @@ class PageNavigator(Navigator):
         return links
 
     def _extract_breadcrumbs(
-        self, tree: "HTMLParser", base_url: str | None
+        self, tree: HTMLParser, base_url: str | None
     ) -> list[ExtractedLink]:
         """Extract breadcrumb navigation."""
         breadcrumb_selectors = [
@@ -446,7 +445,7 @@ class PageNavigator(Navigator):
 
     def _extract_content_links(
         self,
-        tree: "HTMLParser",
+        tree: HTMLParser,
         base_url: str | None,
         main_selector: str | None,
     ) -> list[ExtractedLink]:

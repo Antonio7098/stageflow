@@ -43,8 +43,8 @@ from stageflow.websearch.extractor import (
 )
 from stageflow.websearch.fetcher import (
     FetchConfig,
-    FetchResult,
     Fetcher,
+    FetchResult,
     HttpFetcher,
 )
 from stageflow.websearch.models import (

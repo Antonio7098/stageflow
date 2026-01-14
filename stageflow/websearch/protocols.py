@@ -6,7 +6,7 @@ a minimal, focused interface that implementations must satisfy.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from stageflow.websearch.models import (
@@ -37,7 +37,7 @@ class FetcherProtocol(Protocol):
         timeout: float | None = None,
         headers: dict[str, str] | None = None,
         follow_redirects: bool = True,
-    ) -> "FetchResult":
+    ) -> FetchResult:
         """Fetch a URL and return raw response data.
 
         Args:
@@ -57,7 +57,7 @@ class FetcherProtocol(Protocol):
         *,
         concurrency: int = 5,
         timeout: float | None = None,
-    ) -> list["FetchResult"]:
+    ) -> list[FetchResult]:
         """Fetch multiple URLs concurrently.
 
         Args:
@@ -86,7 +86,7 @@ class ContentExtractorProtocol(Protocol):
         *,
         base_url: str | None = None,
         selector: str | None = None,
-    ) -> "ExtractionResult":
+    ) -> ExtractionResult:
         """Extract structured content from HTML.
 
         Args:
@@ -99,7 +99,7 @@ class ContentExtractorProtocol(Protocol):
         """
         ...
 
-    def extract_metadata(self, html: str) -> "PageMetadata":
+    def extract_metadata(self, html: str) -> PageMetadata:
         """Extract page metadata (title, description, etc.).
 
         Args:
@@ -116,7 +116,7 @@ class ContentExtractorProtocol(Protocol):
         *,
         base_url: str | None = None,
         selector: str | None = None,
-    ) -> list["ExtractedLink"]:
+    ) -> list[ExtractedLink]:
         """Extract links from HTML.
 
         Args:
@@ -143,7 +143,7 @@ class NavigatorProtocol(Protocol):
         html: str,
         *,
         base_url: str | None = None,
-    ) -> list["NavigationAction"]:
+    ) -> list[NavigationAction]:
         """Get available navigation actions from a page.
 
         Args:
@@ -160,7 +160,7 @@ class NavigatorProtocol(Protocol):
         html: str,
         *,
         base_url: str | None = None,
-    ) -> "PaginationInfo | None":
+    ) -> PaginationInfo | None:
         """Find pagination controls on a page.
 
         Args:
@@ -255,8 +255,8 @@ class ExtractionResult:
 
     markdown: str
     plain_text: str
-    metadata: "PageMetadata"
-    links: list["ExtractedLink"]
+    metadata: PageMetadata
+    links: list[ExtractedLink]
     word_count: int
 
 

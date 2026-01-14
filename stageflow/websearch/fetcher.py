@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 from uuid import uuid4
 
 try:
@@ -156,10 +157,8 @@ class Fetcher:
     def _emit_start(self, url: str, request_id: str) -> None:
         """Emit fetch start event."""
         if self._on_fetch_start:
-            try:
+            with suppress(Exception):
                 self._on_fetch_start(url, request_id)
-            except Exception:
-                pass
 
     def _emit_complete(
         self,
@@ -172,12 +171,10 @@ class Fetcher:
     ) -> None:
         """Emit fetch complete event."""
         if self._on_fetch_complete:
-            try:
+            with suppress(Exception):
                 self._on_fetch_complete(
                     url, request_id, status, duration_ms, size, from_cache
                 )
-            except Exception:
-                pass
 
     def _emit_error(
         self,
@@ -189,10 +186,8 @@ class Fetcher:
     ) -> None:
         """Emit fetch error event."""
         if self._on_fetch_error:
-            try:
+            with suppress(Exception):
                 self._on_fetch_error(url, request_id, error, duration_ms, retryable)
-            except Exception:
-                pass
 
     async def _do_fetch(
         self,
@@ -387,7 +382,7 @@ class HttpFetcher(Fetcher):
         self._client = client
         self._owns_client = client is None
 
-    async def _get_client(self) -> "httpx.AsyncClient":
+    async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
         if self._client is None:
             self._client = httpx.AsyncClient(
@@ -404,7 +399,7 @@ class HttpFetcher(Fetcher):
             await self._client.aclose()
             self._client = None
 
-    async def __aenter__(self) -> "HttpFetcher":
+    async def __aenter__(self) -> HttpFetcher:
         """Async context manager entry."""
         await self._get_client()
         return self
@@ -498,6 +493,7 @@ class MockFetcher(Fetcher):
         follow_redirects: bool,
     ) -> FetchResult:
         """Return mock response."""
+        del timeout, headers, follow_redirects
         self.fetch_history.append(url)
 
         status, content, resp_headers = self.responses.get(url, self.default_response)

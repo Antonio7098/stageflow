@@ -8,7 +8,7 @@ and integration with Enrichments.web_results.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -342,6 +342,8 @@ class WebPage:
         Returns:
             Filtered list of ExtractedLink objects
         """
+        del selector  # For API compatibility; selection handled upstream
+
         links = self.links
 
         if internal_only:
@@ -380,7 +382,7 @@ class WebPage:
     def from_dict(cls, data: dict[str, Any]) -> WebPage:
         """Create from dictionary."""
         metadata = PageMetadata.from_dict(data.get("metadata", {}))
-        links = [ExtractedLink.from_dict(l) for l in data.get("links", [])]
+        links = [ExtractedLink.from_dict(link_data) for link_data in data.get("links", [])]
         navigation_actions = [
             NavigationAction.from_dict(na)
             for na in data.get("navigation_actions", [])
@@ -423,7 +425,7 @@ class WebPage:
             status_code=0,
             error=error,
             fetch_duration_ms=duration_ms,
-            fetched_at=datetime.now(timezone.utc).isoformat(),
+            fetched_at=datetime.now(UTC).isoformat(),
         )
 
     def truncate(self, max_chars: int = 10000) -> WebPage:
