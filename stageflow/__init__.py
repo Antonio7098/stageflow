@@ -74,6 +74,32 @@ from stageflow.extensions import (
     TypedExtension,
 )
 
+# CLI and linting
+from stageflow.cli.lint import (
+    DependencyIssue,
+    DependencyLintResult,
+    IssueSeverity,
+    lint_pipeline,
+    lint_pipeline_file,
+)
+
+# Projector
+from stageflow.projector.service import (
+    WSMessageProjector,
+    WSMessageProjector as ProjectorService,  # Backward compatibility
+    WSMetadata,
+    WSOutboundMessage,
+    WSStatusUpdatePayload,
+    _coerce_uuid_str,
+)
+
+# Testing utilities
+from stageflow.testing import (
+    create_test_snapshot,
+    create_test_context,
+    create_test_pipeline_context,
+)
+
 # Observability protocols
 from stageflow.observability import (
     CircuitBreaker,
@@ -238,4 +264,25 @@ __all__ = [
     "MaxDepthExceededError",
     "get_child_tracker",
     "get_subpipeline_spawner",
+    # CLI and linting
+    "DependencyIssue",
+    "DependencyLintResult",
+    "IssueSeverity",
+    "lint_pipeline",
+    "lint_pipeline_file",
+    # Projector
+    "WSMessageProjector",
+    "ProjectorService",
+    "WSMetadata",
+    "WSOutboundMessage",
+    "WSStatusUpdatePayload",
+    "_coerce_uuid_str",
+    # Testing utilities
+    "create_test_snapshot",
+    "create_test_context",
+    "create_test_pipeline_context",
+    # Wide events
+    "WideEventEmitter",
+    "emit_stage_wide_event",
+    "emit_pipeline_wide_event",
 ]

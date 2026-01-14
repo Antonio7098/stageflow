@@ -39,9 +39,30 @@ AuthContext(
 
 Check if user has a specific role.
 
+**Parameters:**
+- `role`: Role name to check
+
+**Returns:** `True` if user has the role
+
+**Example:**
+```python
+auth = AuthContext(user_id=uuid4(), session_id=uuid4(), roles=("admin", "editor"))
+if auth.has_role("admin"):
+    print("User is admin")
+```
+
 #### `is_admin() -> bool`
 
 Check if user has 'admin' or 'org_admin' role.
+
+**Returns:** `True` if user has admin privileges
+
+**Example:**
+```python
+if auth.is_admin():
+    # Grant admin access
+    pass
+```
 
 ### Properties
 
@@ -49,11 +70,11 @@ Check if user has 'admin' or 'org_admin' role.
 
 Always returns `True` for valid AuthContext.
 
-### Best Practices
-
-#### `is_authenticated -> bool`
-
-Always returns `True` for valid AuthContext.
+**Example:**
+```python
+if auth.is_authenticated:
+    print("User is authenticated")
+```
 
 ---
 
@@ -91,11 +112,30 @@ OrgContext(
 
 Check if feature is enabled.
 
+**Parameters:**
+- `feature`: Feature name to check
+
+**Returns:** `True` if feature is enabled
+
+**Example:**
+```python
+org = OrgContext(
+    org_id=uuid4(),
+    plan_tier="pro",
+    features=("advanced_analytics", "custom_models")
+)
+
+if org.has_feature("advanced_analytics"):
+    print("Analytics available")
+```
+
 ### PlanTier
 
 ```python
 PlanTier = Literal["starter", "pro", "enterprise"]
 ```
+
+Supported subscription tiers.
 
 ---
 
@@ -109,18 +149,49 @@ from stageflow.auth import AuthInterceptor
 
 Validates JWT tokens and creates AuthContext.
 
-**Priority:** 1
+**Priority:** 1 (runs first)
 
+**Attributes:**
+- `name`: `"auth"`
+- `priority`: `1`
+
+#### Constructor
+
+```python
+AuthInterceptor(jwt_validator: JwtValidator | None = None)
+```
+
+**Parameters:**
+- `jwt_validator`: JWT validation implementation (defaults to MockJwtValidator)
+
+#### Behavior
+
+- Extracts token from `ctx.data["_auth_token"]` or `ctx.data.get("auth_token")`
+- Validates token using JwtValidator
+- Stores AuthContext in `ctx.data["_auth_context"]`
+- Sets `ctx.data["_user_id"]` and `ctx.data["_org_id"]`
+- Emits `auth.login` event on success
+- Emits `auth.failure` event on failure
+
+**Example:**
 ```python
 from stageflow.auth import AuthInterceptor, JwtValidator
 
 class MyValidator:
-    async def validate(self, token: str) -> AuthContext:
-        # Validate and return AuthContext
-        ...
+    async def validate(self, token: str) -> dict[str, Any]:
+        # Validate JWT and return claims
+        return {
+            "user_id": "550e8400-e29b-41d4-a716-446655440000",
+            "session_id": "550e8400-e29b-41d4-a716-446655440001",
+            "email": "user@example.com",
+            "org_id": "550e8400-e29b-41d4-a716-446655440002",
+            "roles": ["user"]
+        }
 
 auth = AuthInterceptor(validator=MyValidator())
 ```
+
+---
 
 ### OrgEnforcementInterceptor
 
@@ -130,32 +201,98 @@ from stageflow.auth import OrgEnforcementInterceptor
 
 Ensures tenant isolation by verifying org_id matches.
 
-**Priority:** 2
+**Priority:** 2 (runs after auth)
 
-### JwtValidator Protocol
+**Attributes:**
+- `name`: `"org_enforcement"`
+- `priority`: `2`
+
+#### Behavior
+
+- Requires AuthContext to be present (AuthInterceptor must run first)
+- Checks `ctx.data["_resource_org_id"]` against authenticated user's org_id
+- Blocks cross-tenant access attempts
+- Emits `tenant.access_denied` event on violations
+
+**Example:**
+```python
+# Set resource org_id in context
+ctx.data["_resource_org_id"] = resource.organization_id
+
+# OrgEnforcementInterceptor will verify access
+org_interceptor = OrgEnforcementInterceptor()
+```
+
+---
+
+## JwtValidator Protocol
 
 ```python
 from stageflow.auth import JwtValidator
-
-class JwtValidator(Protocol):
-    async def validate(self, token: str) -> AuthContext:
-        """Validate JWT and return AuthContext."""
-        ...
 ```
 
-### MockJwtValidator
+Protocol for JWT validation implementations.
+
+**Methods:**
+
+#### `async validate(token: str) -> dict[str, Any]`
+
+Validate a JWT token and return claims.
+
+**Parameters:**
+- `token`: The JWT token string
+
+**Returns:** Dictionary of validated claims
+
+**Raises:**
+- `TokenExpiredError` - If token has expired
+- `InvalidTokenError` - If token is malformed or signature invalid
+- `MissingClaimsError` - If required claims are missing
+
+**Example Implementation:**
+```python
+class CustomJwtValidator:
+    async def validate(self, token: str) -> dict[str, Any]:
+        # Validate with your JWT library
+        payload = decode_jwt(token)
+        
+        # Extract required claims
+        if not payload.get("user_id"):
+            raise MissingClaimsError("Missing user_id claim", ["user_id"])
+            
+        return payload
+```
+
+---
+
+## MockJwtValidator
 
 ```python
 from stageflow.auth import MockJwtValidator
-
-validator = MockJwtValidator(
-    user_id=uuid4(),
-    org_id=uuid4(),
-    roles=("user",),
-)
 ```
 
-Mock validator for testing.
+Mock JWT validator for testing and development.
+
+**Token Format:** `"valid_<user_id>_<org_id>_<roles>"`
+
+**Rejected Formats:**
+- `"expired_*"` - Raises TokenExpiredError
+- `"invalid_*"` - Raises InvalidTokenError
+- `"missing_*"` - Raises MissingClaimsError
+
+**Example:**
+```python
+validator = MockJwtValidator()
+
+# Valid token
+claims = await validator.validate("valid_550e8400-e29b-41d4-a716-446655440000_550e8400-e29b-41d4-a716-446655440001_admin,user")
+
+# Expired token
+try:
+    await validator.validate("expired_token")
+except TokenExpiredError:
+    print("Token expired")
+```
 
 ---
 
@@ -167,23 +304,48 @@ from stageflow.auth import (
     InvalidTokenError,
     TokenExpiredError,
     MissingClaimsError,
-    CrossTenantAccessError,
 )
 ```
 
-| Error | Description |
-|-------|-------------|
-| `AuthenticationError` | Base authentication error |
-| `InvalidTokenError` | Token is invalid |
-| `TokenExpiredError` | Token has expired |
-| `MissingClaimsError` | Required claims missing |
-| `CrossTenantAccessError` | Cross-tenant access attempt |
+### AuthenticationError
+
+Base authentication error.
+
+### InvalidTokenError
+
+Token is malformed or signature invalid.
+
+**Attributes:**
+- `message`: Error description
+
+### TokenExpiredError
+
+Token has expired.
+
+**Attributes:**
+- `message`: Error description
+
+### MissingClaimsError
+
+Required claims are missing from token.
+
+**Attributes:**
+- `message`: Error description
+- `missing_claims`: List of missing claim names
+
+**Example:**
+```python
+try:
+    claims = await validator.validate(token)
+except MissingClaimsError as e:
+    print(f"Missing claims: {e.missing_claims}")
+```
 
 ---
 
 ## Auth Events
 
-The auth system emits events for auditing:
+The auth system emits events for auditing and monitoring.
 
 ```python
 from stageflow.auth import (
@@ -193,46 +355,43 @@ from stageflow.auth import (
 )
 ```
 
-| Event | Description |
-|-------|-------------|
-| `AuthLoginEvent` | Successful authentication |
-| `AuthFailureEvent` | Failed authentication |
-| `TenantAccessDeniedEvent` | Cross-tenant access blocked |
+### AuthLoginEvent
+
+Emitted on successful authentication.
+
+**Attributes:**
+- `user_id`: User identifier
+- `session_id`: Session identifier
+- `org_id`: Organization identifier (optional)
+- `request_id`: Request identifier
+- `pipeline_run_id`: Pipeline run identifier
+
+### AuthFailureEvent
+
+Emitted on authentication failure.
+
+**Attributes:**
+- `reason`: Failure reason (e.g., "missing_token", "invalid_token")
+- `request_id`: Request identifier
+- `ip_address`: Client IP address (optional)
+- `user_agent`: User agent string (optional)
+
+### TenantAccessDeniedEvent
+
+Emitted when cross-tenant access is blocked.
+
+**Attributes:**
+- `user_org_id`: User's organization ID
+- `resource_org_id`: Resource's organization ID
+- `user_id`: User identifier
+- `request_id`: Request identifier
+- `pipeline_run_id`: Pipeline run identifier
 
 ---
 
-## Telemetry & Streaming Hooks
+## Usage Examples
 
-Authentication stages often run before any LLM/tool work but still benefit from the standard telemetry primitives:
-
-- Wire streaming helpers (for voice/STT logins) through the execution context so auth failures can be correlated with audio queue health.
-- Emit analytics overflow warnings whenever audit exporters fall behind.
-
-```python
-from stageflow.helpers import ChunkQueue, StreamingBuffer, BufferedExporter
-
-def build_auth_telemetry(ctx):
-    queue = ChunkQueue(event_emitter=ctx.try_emit_event)
-    buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
-
-    exporter = BufferedExporter(
-        sink=auth_audit_sink,
-        on_overflow=lambda dropped, size: ctx.try_emit_event(
-            "auth.analytics.overflow",
-            {"dropped": dropped, "buffer_size": size},
-        ),
-        high_water_mark=0.7,
-    )
-    return queue, buffer, exporter
-```
-
-Emitted events follow the same `stream.*` schema described in the observability guide (`stream.chunk_dropped`, `stream.producer_blocked`, `stream.throttle_started`, `stream.buffer_overflow`, `stream.buffer_underrun`, etc.).
-
----
-
-## Multi-Tenant Patterns
-
-## Usage Example
+### Complete Auth Setup
 
 ```python
 from uuid import uuid4
@@ -242,12 +401,30 @@ from stageflow.auth import (
     AuthInterceptor,
     OrgEnforcementInterceptor,
     MockJwtValidator,
-    CrossTenantAccessError,
 )
-from stageflow import get_default_interceptors
+from stageflow import Pipeline, StageKind
 
-# Create auth context
-auth_context = getattr(ctx.inputs.ports, "auth", None) if ctx.inputs.ports else None
+# Create auth components
+validator = MockJwtValidator()
+auth_interceptor = AuthInterceptor(validator)
+org_interceptor = OrgEnforcementInterceptor()
+
+# Build pipeline with auth interceptors
+pipeline = (
+    Pipeline()
+    .with_stage("protected_stage", MyStage(), StageKind.TRANSFORM)
+)
+
+# Run with interceptors
+interceptors = [auth_interceptor, org_interceptor]
+graph = pipeline.build()
+results = await graph.run(ctx, interceptors=interceptors)
+```
+
+### Manual Auth Context Creation
+
+```python
+# Create auth context manually (for testing or service accounts)
 auth = AuthContext(
     user_id=uuid4(),
     session_id=uuid4(),
@@ -258,7 +435,7 @@ auth = AuthContext(
 
 # Check permissions
 if auth.has_role("admin"):
-    print("Admin access")
+    print("Admin access granted")
 if auth.is_admin():
     print("Has admin privileges")
 
@@ -270,20 +447,71 @@ org = OrgContext(
 )
 
 if org.has_feature("advanced_analytics"):
-    print("Analytics enabled")
-
-# Use auth interceptors
-interceptors = get_default_interceptors(include_auth=True)
-
-# Or manually configure
-validator = MockJwtValidator(user_id=uuid4(), org_id=uuid4())
-auth_interceptor = AuthInterceptor(validator=validator)
-org_interceptor = OrgEnforcementInterceptor()
-
-# Handle auth errors
-try:
-    # ... pipeline execution
-    pass
-except CrossTenantAccessError as e:
-    print(f"Access denied: {e}")
+    print("Analytics feature available")
 ```
+
+### Custom JWT Validator
+
+```python
+import jwt
+from stageflow.auth import JwtValidator, TokenExpiredError, InvalidTokenError
+
+class MyJwtValidator(JwtValidator):
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+    
+    async def validate(self, token: str) -> dict[str, Any]:
+        try:
+            # Decode and validate JWT
+            payload = jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=["HS256"],
+                options={"require": ["exp", "user_id", "session_id"]}
+            )
+            
+            # Check expiration
+            if payload["exp"] < datetime.now().timestamp():
+                raise TokenExpiredError("Token has expired")
+            
+            return payload
+            
+        except jwt.ExpiredSignatureError:
+            raise TokenExpiredError("Token has expired")
+        except jwt.InvalidTokenError:
+            raise InvalidTokenError("Invalid token")
+        except KeyError as e:
+            raise MissingClaimsError(f"Missing claim: {e}", [str(e)])
+
+# Use custom validator
+auth_interceptor = AuthInterceptor(MyJwtValidator("your-secret-key"))
+```
+
+### Resource Access Control
+
+```python
+# In a stage that accesses resources
+async def execute(self, ctx: StageContext) -> StageOutput:
+    # Get resource from database
+    resource = await get_resource(resource_id)
+    
+    # Set resource org_id for enforcement
+    ctx.data["_resource_org_id"] = resource.organization_id
+    
+    # OrgEnforcementInterceptor will verify access
+    # before this stage executes
+    
+    return StageOutput.ok(resource=resource)
+```
+
+---
+
+## Best Practices
+
+1. **Always use AuthInterceptor first** - Set priority=1 to ensure auth runs before other logic
+2. **Implement proper JWT validation** - Use production-ready JWT libraries
+3. **Use org enforcement for multi-tenant apps** - Prevent cross-tenant data access
+4. **Log auth events** - Monitor for suspicious activity patterns
+5. **Validate token format** - Ensure UUIDs are properly formatted
+6. **Handle auth errors gracefully** - Provide clear error messages to users
+7. **Use mock validator for testing** - Simplify unit test setup

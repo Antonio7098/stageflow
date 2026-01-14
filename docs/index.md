@@ -85,12 +85,18 @@ The docs are organized into the following sections:
 - [**Core Types**](api/core.md) — Stage, StageOutput, StageContext, StageKind
 - [**Pipeline**](api/pipeline.md) — Pipeline builder and StageGraph
 - [**Context**](api/context.md) — ContextSnapshot, ContextBag, StageInputs, StagePorts
+- [**Context Sub-modules**](api/context-submodules.md) — ContextBag, Conversation, Enrichments, Extensions
 - [**Interceptors**](api/interceptors.md) — BaseInterceptor and built-in interceptors
 - [**Tools**](api/tools.md) — Tool definitions, registry, and executor
 - [**Events**](api/events.md) — EventSink and event types
 - [**Protocols**](api/protocols.md) — ExecutionContext, RunStore, ConfigProvider, CorrelationIds
 - [**Observability**](api/observability.md) — Logging protocols and utilities
+- [**Wide Events**](api/wide-events.md) — Pipeline-level and stage-level event emission
 - [**Auth**](api/auth.md) — AuthContext, OrgContext, and auth interceptors
+- [**Helper Modules**](api/helpers.md) — Memory, Guardrails, Streaming, Analytics, Mocks
+- [**CLI**](api/cli.md) — Dependency linting and pipeline validation tools
+- [**Projector**](api/projector.md) — WebSocket projection services
+- [**Testing**](api/testing.md) — Testing utilities and helpers
 
 ### Advanced Topics
 - [**Pipeline Composition**](advanced/composition.md) — Merging and extending pipelines
