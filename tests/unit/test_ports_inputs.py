@@ -345,6 +345,50 @@ class TestStageInputs:
         assert inputs.get_output("stage_a") is output
         assert inputs.get_output("missing") is None
 
+    def test_get_with_invalid_key_types(self):
+        """StageInputs.get rejects None or non-string keys."""
+        snapshot = _make_snapshot()
+        inputs = StageInputs(snapshot=snapshot)
+
+        with pytest.raises(TypeError):
+            inputs.get(None)  # type: ignore[arg-type]
+
+        with pytest.raises(TypeError):
+            inputs.get(123)  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError):
+            inputs.get("")
+
+    def test_get_from_with_invalid_key(self):
+        """StageInputs.get_from enforces string keys."""
+        snapshot = _make_snapshot()
+        prior_outputs = {"stage": StageOutput.ok(data={"value": 1})}
+        inputs = StageInputs(snapshot=snapshot, prior_outputs=prior_outputs)
+
+        with pytest.raises(TypeError):
+            inputs.get_from("stage", None)  # type: ignore[arg-type]
+
+        with pytest.raises(TypeError):
+            inputs.get_from("stage", 3.14)  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError):
+            inputs.get_from("stage", "")
+
+    def test_require_from_with_invalid_key(self):
+        """StageInputs.require_from enforces string keys before validation."""
+        snapshot = _make_snapshot()
+        prior_outputs = {"stage": StageOutput.ok(data={"value": 1})}
+        inputs = StageInputs(snapshot=snapshot, prior_outputs=prior_outputs)
+
+        with pytest.raises(TypeError):
+            inputs.require_from("stage", None)  # type: ignore[arg-type]
+
+        with pytest.raises(TypeError):
+            inputs.require_from("stage", ["list"])  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError):
+            inputs.require_from("stage", "")
+
 
 # === Test StageInputs Factory ===
 

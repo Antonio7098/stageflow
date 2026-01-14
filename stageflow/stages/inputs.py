@@ -127,6 +127,17 @@ class StageInputs:
                 accessing_stage=self.stage_name,
             )
 
+    @staticmethod
+    def _ensure_valid_key(key: str | None) -> str:
+        """Validate key arguments provided to StageInputs helpers."""
+        if key is None:
+            raise TypeError("StageInputs key must be provided")
+        if not isinstance(key, str):
+            raise TypeError("StageInputs key must be a string")
+        if key == "":
+            raise ValueError("StageInputs key cannot be empty")
+        return key
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get a value from any prior stage's output data.
 
@@ -145,6 +156,8 @@ class StageInputs:
             The value from the first prior output containing the key,
             or default if not found.
         """
+        key = self._ensure_valid_key(key)
+
         for output in self.prior_outputs.values():
             if key in output.data:
                 return output.data[key]
@@ -169,6 +182,8 @@ class StageInputs:
             UndeclaredDependencyError: If strict=True and stage is not
                 in declared_deps.
         """
+        key = self._ensure_valid_key(key)
+
         self._validate_dependency(stage_name)
 
         if stage_name not in self.prior_outputs:
@@ -224,6 +239,8 @@ class StageInputs:
             UndeclaredDependencyError: If strict=True and stage is not declared.
             KeyError: If stage has no output or key is not in output.data.
         """
+        key = self._ensure_valid_key(key)
+
         self._validate_dependency(stage_name)
 
         if stage_name not in self.prior_outputs:

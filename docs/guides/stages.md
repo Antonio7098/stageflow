@@ -258,6 +258,28 @@ async def execute(self, ctx: StageContext) -> StageOutput:
         return StageOutput.ok(message=llm.content, llm=llm.to_dict())
 ```
 
+#### Key Validation and Error Handling
+
+`StageInputs` methods validate that keys are provided and are non-empty strings. This prevents silent data-loss bugs from accidental `None` or incorrect key usage.
+
+```python
+# These will raise TypeError/ValueError with clear messages:
+ctx.inputs.get(None)                    # TypeError: StageInputs key must be provided
+ctx.inputs.get_from("stage", None)       # TypeError: StageInputs key must be a string  
+ctx.inputs.require_from("stage", "")     # ValueError: StageInputs key cannot be empty
+
+# Correct usage:
+text = ctx.inputs.get("text")           # Returns None if not found
+route = ctx.inputs.get_from("router", "route", default="general")
+required = ctx.inputs.require_from("auth", "token")  # Raises KeyError if missing
+```
+
+**Error Types:**
+- `TypeError` - Key is `None` or not a string
+- `ValueError` - Key is an empty string
+- `KeyError` - Required key is missing (from `require_from`)
+- `UndeclaredDependencyError` - Stage not in declared dependencies (when strict=True)
+
 ### Injected Services (Modular Ports)
 
 Stages can access injected services through modular ports:

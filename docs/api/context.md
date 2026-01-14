@@ -1,6 +1,11 @@
 # Context API Reference
 
-This document provides the API reference for Stageflow’s context system, updated for the RunIdentity/ContextSnapshot/StageContext migration.
+This document provides the API reference for Stageflow's context system, updated for the RunIdentity/ContextSnapshot/StageContext migration.
+
+## Related Modules
+
+- [StageInputs API](inputs.md) - Immutable access to prior stage outputs with validation
+- [Context Sub-modules](context-submodules.md) - Detailed reference for context components
 
 ## RunIdentity
 

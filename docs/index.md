@@ -91,6 +91,7 @@ The docs are organized into the following sections:
 - [**Core Types**](api/core.md) — Stage, StageOutput, StageContext, StageKind
 - [**Pipeline**](api/pipeline.md) — Pipeline builder and StageGraph
 - [**Context**](api/context.md) — ContextSnapshot, ContextBag, StageInputs, StagePorts
+- [**StageInputs**](api/inputs.md) — Immutable access to prior stage outputs with validation
 - [**Context Sub-modules**](api/context-submodules.md) — ContextBag, Conversation, Enrichments, Extensions
 - [**Interceptors**](api/interceptors.md) — BaseInterceptor and built-in interceptors
 - [**Tools**](api/tools.md) — Tool definitions, registry, and executor
