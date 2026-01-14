@@ -8,6 +8,9 @@
         "area": "subsystem or feature name",
         "description": "Concise summary of the change",
         "commit": "git hash or link",
+        "files_affected": [
+          "List of key files or directories impacted"
+        ],
         "issues": [
           "Optional list of bug IDs or tickets"
         ]
@@ -16,7 +19,7 @@
   },
   "entries": [
     {
-      "version": "v0.2.0",
+      "version": "v0.3.0",
       "date": "2026-01-14",
       "changes": [
         {
@@ -40,6 +43,20 @@
           "area": "ci",
           "description": "Introduced GitHub Actions workflow to run pytest across unit, integration, property, execution, framework, contract, configuration, and utils suites.",
           "commit": "pending",
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "websearch",
+          "description": "Added web search module with async HTTP fetching, HTML-to-markdown extraction preserving structure, and page navigation capabilities.",
+          "commit": "ace7cb0",
+          "files_affected": [
+            "stageflow/websearch/*",
+            "docs/guides/websearch.md",
+            "tests/websearch/*",
+            "pyproject.toml",
+            "changelog.json"
+          ],
           "issues": []
         }
       ]
