@@ -6,9 +6,9 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 CHECK_SCRIPT = REPO_ROOT / "scripts" / "check_version_sync.py"
