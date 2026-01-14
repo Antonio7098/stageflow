@@ -47,3 +47,5 @@ Thumbs.db
 test_app/.env
 
 notes.txt
+
+.env
