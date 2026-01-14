@@ -10,7 +10,7 @@ Production pipelines need:
 - **Guardrails**: Content filtering and policy enforcement
 - **Audit logging**: Recording actions for compliance
 
-Stageflow provides built-in support and helper utilities for all of these.
+Stageflow provides built-in support and helper utilities for all of these, plus observability hooks (provider responses, streaming telemetry, analytics overflow callbacks) so policy violations can be audited in real time.
 
 ## Authentication
 
@@ -188,6 +188,12 @@ pipeline = (
     .with_stage("guard_input", guardrail, StageKind.GUARD)
     .with_stage("llm", LLMStage, StageKind.TRANSFORM,
                 dependencies=("guard_input",))
+    .with_stage(
+        "tool_policy",
+        ToolPolicyStage(registry=tool_registry),
+        StageKind.GUARD,
+        dependencies=("llm",),
+    )
 )
 ```
 
@@ -283,10 +289,16 @@ guardrail = GuardrailStage(checks=[
 Use event sinks to capture audit events:
 
 ```python
-from stageflow.helpers import AnalyticsSink, JSONFileExporter
+from stageflow.helpers import AnalyticsSink, JSONFileExporter, BufferedExporter
 
-# Create audit exporter
-exporter = JSONFileExporter("audit_log.jsonl")
+# Create audit exporter with overflow callback
+exporter = BufferedExporter(
+    JSONFileExporter("audit_log.jsonl"),
+    on_overflow=lambda dropped, size: logger.warning(
+        "Audit buffer pressure", extra={"dropped": dropped, "buffer": size}
+    ),
+    high_water_mark=0.8,
+)
 
 # Create sink that captures relevant events
 audit_sink = AnalyticsSink(
@@ -374,7 +386,7 @@ from stageflow.auth import AuthInterceptor, OrgEnforcementInterceptor
 from stageflow.helpers import (
     GuardrailStage, PIIDetector, ContentFilter, InjectionDetector,
     MemoryFetchStage, MemoryWriteStage, InMemoryStore,
-    AnalyticsSink, JSONFileExporter,
+    AnalyticsSink, JSONFileExporter, BufferedExporter, ChunkQueue, StreamingBuffer,
 )
 
 # Create stores
@@ -403,6 +415,8 @@ pipeline = (
                 dependencies=("llm",))
     .with_stage("write_memory", MemoryWriteStage(memory_store), StageKind.WORK,
                 dependencies=("llm",))
+    .with_stage("tool_policy", ToolPolicyStage(tool_registry), StageKind.GUARD,
+                dependencies=("llm",))
 )
 
 # Build with auth interceptors
@@ -419,6 +433,10 @@ snapshot = ContextSnapshot(
         "org": {"org_id": "org-456", "environment": "production"},
     },
 )
+
+# Attach streaming telemetry hooks for auditability
+queue = ChunkQueue(event_emitter=audit_sink.emit)
+buffer = StreamingBuffer(event_emitter=audit_sink.emit)
 ```
 
 ## Best Practices

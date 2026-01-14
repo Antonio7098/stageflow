@@ -53,6 +53,11 @@ from stageflow.helpers.run_utils import (
     RunResult,
     setup_logging,
 )
+from stageflow.helpers.providers import (
+    LLMResponse,
+    STTResponse,
+    TTSResponse,
+)
 
 __all__ = [
     # Memory
@@ -92,4 +97,8 @@ __all__ = [
     "PipelineRunner",
     "RunResult",
     "setup_logging",
+    # Providers
+    "LLMResponse",
+    "STTResponse",
+    "TTSResponse",
 ]

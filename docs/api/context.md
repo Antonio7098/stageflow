@@ -356,3 +356,46 @@ stage_ctx = pipeline_ctx.derive_for_stage(
 result = await some_stage.execute(stage_ctx)
 await output_bag.write("exclaim", result)
 ```
+
+---
+
+## Provider Response Conventions
+
+Stages that call AI providers should attach standardized response payloads to `StageOutput.data` using frozen dataclasses from `stageflow.helpers`:
+
+- `LLMResponse` — chat/completions fields like `content`, `model`, `provider`, `input_tokens`, `output_tokens`
+- `STTResponse` — speech-to-text fields like `text`, `confidence`, `duration_ms`, `language`, `words`, `is_final`
+- `TTSResponse` — text-to-speech metadata like `duration_ms`, `sample_rate`, `format`, `characters_processed`
+
+Attach via `to_dict()` for downstream consumption and analytics:
+
+```python
+from stageflow.helpers import LLMResponse
+
+llm = LLMResponse(
+    content=response_text,
+    model="gpt-4o-mini",
+    provider="openai",
+    input_tokens=prompt_tokens,
+    output_tokens=completion_tokens,
+)
+return StageOutput.ok(message=llm.content, llm=llm.to_dict())
+```
+
+---
+
+## Streaming Telemetry Emitters
+
+When using streaming primitives in stages, wire telemetry event emitters so events carry correlation IDs from `StageContext` through the configured sinks.
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer
+
+queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+```
+
+Emits events including:
+- `stream.chunk_dropped`, `stream.producer_blocked`, `stream.throttle_started`, `stream.throttle_ended`, `stream.queue_closed`
+- `stream.buffer_overflow`, `stream.buffer_underrun`, `stream.buffer_recovered`
+

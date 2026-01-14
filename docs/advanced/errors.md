@@ -134,6 +134,28 @@ return StageOutput.ok(
 )
 ```
 
+### Provider Metadata
+
+Always attach standardized provider response payloads so downstream analytics can categorize failures:
+
+```python
+from stageflow.helpers import LLMResponse
+
+try:
+    response = await self.llm_client.chat(messages)
+except TimeoutError:
+    return StageOutput.retry(error="LLM timeout", data={"component": "llm"})
+
+llm = LLMResponse(
+    content=response,
+    model="gpt-4",
+    provider="openai",
+    input_tokens=prompt_tokens,
+    output_tokens=completion_tokens,
+)
+return StageOutput.ok(response=llm.content, llm=llm.to_dict())
+```
+
 ### Skip (Not an Error)
 
 ```python

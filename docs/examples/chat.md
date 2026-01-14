@@ -88,11 +88,22 @@ class LLMStage:
                 temperature=0.7,
                 max_tokens=1024,
             )
+
+            from stageflow.helpers import LLMResponse
+
+            llm = LLMResponse(
+                content=response,
+                provider="mock" if isinstance(self.llm_client, MockLLMClient) else "groq",
+                model="llama-3.1-8b-instant",
+                input_tokens=sum(len(m["content"]) for m in llm_messages),
+                output_tokens=len(response),
+            )
             
             return StageOutput.ok(
-                response=response,
+                response=llm.content,
                 route=route,
-                model="llama-3.1-8b-instant",
+                model="llm-content",
+                llm=llm.to_dict(),
             )
         except Exception as e:
             return StageOutput.fail(
@@ -212,8 +223,18 @@ class LLMStage:
             temperature=0.7,
             max_tokens=1024,
         )
+
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=response,
+            provider="mock",
+            model="mock-model",
+            input_tokens=sum(len(m["content"]) for m in messages),
+            output_tokens=len(response),
+        )
         
-        return StageOutput.ok(response=response, route=route)
+        return StageOutput.ok(response=llm.content, route=route, llm=llm.to_dict())
 
 
 async def main():

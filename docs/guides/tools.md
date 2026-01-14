@@ -125,6 +125,25 @@ if registry.has("calculator"):
     ...
 ```
 
+### Parsing LLM Tool Calls
+
+Connect LLM provider outputs to Stageflow tools without manual JSON parsing:
+
+```python
+tool_calls = llm_response.tool_calls  # e.g., OpenAI function calls
+
+resolved, unresolved = registry.parse_and_resolve(tool_calls)
+
+for call in unresolved:
+    ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+
+for call in resolved:
+    tool_input = ToolInput(action=call.arguments)
+    result = await call.tool.execute(tool_input, ctx={"call_id": call.call_id})
+```
+
+The helper understands OpenAI/Anthropic formats (and custom field names) and returns `ResolvedToolCall` / `UnresolvedToolCall` dataclasses for observability.
+
 ## Executing Tools
 
 ### Direct Execution

@@ -30,10 +30,22 @@ class EchoStage:
         # Get input from context
         input_text = ctx.snapshot.input_text or ""
 
+        # Wrap echoed text with standardized LLM metadata for observability
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=input_text,
+            model="echo-simulator",
+            provider="demo",
+            input_tokens=len(input_text),
+            output_tokens=len(input_text),
+        )
+
         # Return the echoed text
         return StageOutput.ok(
-            echo=input_text,
-            message=f"Echoed: {input_text}",
+            echo=llm.content,
+            message=f"Echoed: {llm.content}",
+            llm=llm.to_dict(),
         )
 ```
 
@@ -165,16 +177,22 @@ ctx = StageContext(
 )
 ```
 
-### With Event Sink
+### With Event Sink & Streaming Telemetry
 
 ```python
 from stageflow import set_event_sink, LoggingEventSink
+from stageflow.helpers import ChunkQueue
 
 # Enable event logging
 set_event_sink(LoggingEventSink())
 
 # Now all stage events will be logged
 results = await graph.run(ctx)
+
+# Emit queue telemetry even in simple pipelines (tracks drops/throttle)
+queue = ChunkQueue(event_emitter=lambda event, attrs: print(event, attrs))
+await queue.put("warmup")
+await queue.close()
 ```
 
 ### Error Handling

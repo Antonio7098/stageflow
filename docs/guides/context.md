@@ -9,7 +9,7 @@ Stageflow uses a layered context system:
 1. **PipelineContext** — Execution context for a pipeline run, shared across stages and used by the engine and interceptors
 2. **ContextSnapshot** — Immutable input data derived from RunIdentity + bundles (conversation, enrichments)
 3. **StageContext** — Per-stage execution wrapper with immutable snapshot and typed `StageInputs`
-4. **StageInputs** — Filtered view of upstream stage outputs + injected ports
+4. **StageInputs** — Filtered view of upstream stage outputs + injected ports plus tooling helpers
 5. **OutputBag** — Thread-safe, append-only output storage with attempt tracking
 
 ```
@@ -20,8 +20,8 @@ Stageflow uses a layered context system:
                             │ derive_for_stage()
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    ContextSnapshot (immutable)               │
-│  run_id · conversation · enrichments · extensions            │
+│                    ContextSnapshot (immutable)              │
+│  run_id · conversation · enrichments · extensions           │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -56,7 +56,7 @@ It is:
   - topology and execution_mode
   - shared `data` dict
   - artifacts and observability metadata
-  - event sink
+  - event sink and streaming telemetry emitters
   - subpipeline correlation (parent_run_id, parent_stage_id, correlation_id)
   
   live for the lifetime of the run.
@@ -79,6 +79,11 @@ ctx = PipelineContext(
     service="pipeline",
     data={},               # shared mutable data across stages
     artifacts=[],          # produced StageArtifact objects
+    event_sink=logging_sink,
+    streaming_emitters={
+        "chunk_queue": lambda event, attrs: event_sink.try_emit(type=event, data=attrs),
+        "buffer": lambda event, attrs: event_sink.try_emit(type=event, data=attrs),
+    },
 )
 ```
 
@@ -231,6 +236,20 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     # Access injected services through ports
     if inputs.ports and inputs.ports.db:
         await inputs.ports.db.save(...)
+
+    # Wrap provider payloads for downstream telemetry
+    if inputs.ports and getattr(inputs.ports, "llm_provider", None):
+        raw = await inputs.ports.llm_provider.chat(messages)
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=raw.content,
+            provider=raw.provider,
+            model=raw.model,
+            input_tokens=raw.usage.prompt_tokens,
+            output_tokens=raw.usage.completion_tokens,
+        )
+        return StageOutput.ok(message=llm.content, llm=llm.to_dict())
 ```
 
 **Key `StageInputs` methods:**
@@ -278,9 +297,13 @@ async def execute(self, ctx: StageContext) -> StageOutput:
 # Stage A
 class StageA:
     async def execute(self, ctx: StageContext) -> StageOutput:
+        from stageflow.helpers import STTResponse
+
+        stt = STTResponse(text="hello world", confidence=0.98, duration_ms=1500)
         return StageOutput.ok(
             computed_value=42,
             metadata={"source": "stage_a"},
+            stt=stt.to_dict(),
         )
 
 # Stage B (depends on A)
@@ -396,7 +419,18 @@ document = DocumentEnrichment(
     ],
     metadata={"version": 3, "last_edited": "2024-01-15"},
 )
+
+## Tool Registry Helper Access
+
+Stages that parse LLM tool calls can keep the context flow clean by resolving calls before mutating outputs:
+
+```python
+resolved, unresolved = ctx.inputs.tool_registry.parse_and_resolve(tool_calls)
+for call in unresolved:
+    ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
 ```
+
+This keeps telemetry, context propagation, and tool execution metadata co-located with the stage data flow.
 
 ## Extensions
 

@@ -20,7 +20,7 @@ Two ENRICH stages run in parallel, then a TRANSFORM stage aggregates their outpu
 from stageflow import StageContext, StageKind, StageOutput
 
 
-class ProfileEnrichStage:
+class ProfileEnrichmentStage:
     """Enrich context with user profile information."""
 
     name = "profile_enrich"
@@ -43,7 +43,8 @@ class ProfileEnrichStage:
                 "display_name": profile.display_name,
                 "preferences": profile.preferences,
                 "goals": profile.goals,
-            }
+            },
+            enriched=True,
         )
 ```
 
@@ -71,8 +72,9 @@ class MemoryEnrichStage:
             memory={
                 "recent_topics": memory.recent_topics,
                 "key_facts": memory.key_facts,
-                "interaction_count": memory.interaction_count,
-            }
+                "long_term_goals": memory.long_term_goals,
+            },
+            enriched=True,
         )
 ```
 
@@ -80,7 +82,8 @@ class MemoryEnrichStage:
 
 ```python
 class SummarizeStage:
-    """Aggregate enrichment outputs into a summary."""
+    """Summarize combined profile + memory data."""
+    """Summarize combined profile + memory data."""
 
     name = "summarize"
     kind = StageKind.TRANSFORM
@@ -105,12 +108,23 @@ class SummarizeStage:
         if memory.get("key_facts"):
             summary_parts.append(f"Key facts: {', '.join(memory['key_facts'][:2])}")
 
-        summary = " | ".join(summary_parts) if summary_parts else "No context available"
+        combined = f"User {profile['display_name']} talked about {', '.join(memory['recent_topics'])}"
+
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=combined,
+            provider="demo",
+            model="summary-sim",
+            input_tokens=len(profile["display_name"]) + len(memory["recent_topics"]) * 5,
+            output_tokens=len(combined),
+        )
 
         return StageOutput.ok(
-            summary=summary,
+            summary=combined,
             profile=profile,
             memory=memory,
+            llm=llm.to_dict(),
         )
 ```
 
@@ -134,7 +148,7 @@ def create_parallel_pipeline() -> Pipeline:
         # They will run in parallel
         .with_stage(
             name="profile_enrich",
-            runner=ProfileEnrichStage(),
+            runner=ProfileEnrichmentStage(),
             kind=StageKind.ENRICH,
         )
         .with_stage(

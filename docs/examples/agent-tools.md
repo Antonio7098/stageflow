@@ -519,15 +519,17 @@ class LLMAgentStage:
             tools=tools,
         )
         
-        # Execute tool calls from LLM
+        # Execute tool calls parsed via registry helper
         results = []
-        for tool_call in response.tool_calls or []:
-            action = Action(
-                id=uuid4(),
-                type=tool_call.function.name.upper(),
-                payload=tool_call.function.arguments,
-            )
-            result = await self.registry.execute(action, ctx.to_dict())
+        tool_calls = getattr(response, "tool_calls", []) or []
+        resolved, unresolved = self.registry.parse_and_resolve(tool_calls)
+
+        for call in unresolved:
+            ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+
+        for call in resolved:
+            tool_input = ToolInput(action=call.arguments)
+            result = await call.tool.execute(tool_input, ctx.to_dict())
             results.append(result)
         
         return StageOutput.ok(

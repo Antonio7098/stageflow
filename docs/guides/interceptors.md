@@ -61,6 +61,14 @@ tracing = TracingInterceptor()
 # Adds span context to ctx.data for downstream tracing
 ```
 
+Add provider metadata as span attributes by using the standardized helpers:
+
+```python
+from stageflow.helpers import LLMResponse
+
+span.set_attributes(LLMResponse(...).to_otel_attributes())
+```
+
 ### ChildTrackerMetricsInterceptor
 
 Logs `ChildRunTracker` metrics for subpipeline orchestration:
@@ -82,6 +90,8 @@ from stageflow import MetricsInterceptor
 metrics = MetricsInterceptor()
 # Logs duration, status, and pipeline_run_id
 ```
+
+Pair with queue/buffer telemetry emitters so metrics can correlate high latency with backpressure events.
 
 ### LoggingInterceptor
 
@@ -107,8 +117,18 @@ interceptors = get_default_interceptors()
 
 # Include auth interceptors
 interceptors = get_default_interceptors(include_auth=True)
-# Adds: [AuthInterceptor, OrgEnforcementInterceptor] at the front
+# Adds: [OrganizationInterceptor, RegionInterceptor, RateLimitInterceptor, PolicyGatewayInterceptor]
 ```
+
+### Ordering Guarantees (Verified)
+
+Interceptors are sorted by `priority` every time `run_with_interceptors()` executes a stage, so lower values always wrap higher ones regardless of construction order. When auth interceptors are enabled, the stack is:
+
+- `AuthInterceptor` (priority `1`) when explicitly supplied
+- `OrganizationInterceptor` (`30`), `RegionInterceptor` (`35`), `RateLimitInterceptor` (`37`), `PolicyGatewayInterceptor` (`39`)
+- Reliability/observability defaults (`Timeout` `5`, `CircuitBreaker` `10`, `Tracing` `20`, `Metrics` `40`, `ChildTrackerMetrics` `45`, `Logging` `50`)
+
+This matches the runtime behavior enforced in `run_with_interceptors()` and the unit tests that assert sorting semantics, so authentication always runs before timeouts or circuit breakers even if the input list is shuffled.@stageflow/pipeline/interceptors.py#356-538 @tests/framework/test_interceptors.py#567-604
 
 ## Interceptor Priority
 
@@ -294,12 +314,21 @@ import hashlib
 import json
 from stageflow import BaseInterceptor, InterceptorResult
 from stageflow.stages.result import StageResult
+from dataclasses import dataclass
 
+@dataclass
 class CachingInterceptor(BaseInterceptor):
     """Cache stage results based on input."""
     
     name = "caching"
     priority = 25  # After tracing
+    cache_stages: set[str] | None = None
+    _cache: dict[str, StageResult] = None
+
+    def __post_init__(self):
+        self.cache_stages = self.cache_stages or set()
+        self._cache = {}
+
     
     def __init__(self, cache_stages: set[str] | None = None):
         self.cache_stages = cache_stages or set()
@@ -335,6 +364,58 @@ class CachingInterceptor(BaseInterceptor):
         if cache_key and result.status == "completed":
             self._cache[cache_key] = result
 ```
+
+## Analytics Overflow Interceptor Pattern
+
+Intercept analytics buffers to trigger overflow callbacks centrally:
+
+```python
+from stageflow.helpers import BufferedExporter
+
+class AnalyticsInterceptor(BaseInterceptor):
+    name = "analytics_overflow"
+    priority = 60
+
+    def __init__(self):
+        self._exporter = BufferedExporter(
+            ConsoleExporter(),
+            on_overflow=self._handle_overflow,
+            high_water_mark=0.75,
+        )
+
+    def _handle_overflow(self, dropped_count: int, buffer_size: int) -> None:
+        logging.warning(
+            "Analytics buffer pressure",
+            extra={"dropped": dropped_count, "size": buffer_size},
+        )
+```
+
+Attach this interceptor after `MetricsInterceptor` so telemetry flows in order.
+
+## Tool Registry Parsing from Interceptors
+
+Interceptors can parse tool calls before stages to enforce policies:
+
+```python
+class ToolPolicyInterceptor(BaseInterceptor):
+    name = "tool_policy"
+    priority = 18  # Before tracing
+
+    async def before(self, stage_name: str, ctx: PipelineContext):
+        tool_calls = ctx.data.get("pending_tool_calls", [])
+        registry = ctx.data.get("tool_registry")
+        if not tool_calls or not registry:
+            return None
+
+        resolved, unresolved = registry.parse_and_resolve(tool_calls)
+        for call in unresolved:
+            ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+            raise PermissionError("Unregistered tool requested")
+
+        ctx.data["resolved_tool_calls"] = resolved
+```
+
+This keeps tool parsing centralized and auditable.
 
 ## Using Custom Interceptors
 

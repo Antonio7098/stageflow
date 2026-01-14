@@ -207,6 +207,31 @@ Provides structured JSON logging.
 
 ---
 
+## Telemetry & Provider Metadata
+
+Interceptors often bridge observability gaps across all stages. Recommended patterns:
+
+- Emit streaming telemetry events from shared helpers by wiring `ChunkQueue` / `StreamingBuffer` emitters to `ctx.try_emit_event` inside interceptors that manage audio chunks or realtime data.
+- Ensure downstream analytics see standardized provider payloads (`LLMResponse`, `STTResponse`, `TTSResponse`) by validating that stage outputs include `llm`/`stt`/`tts` dictionaries (and enriching them if needed).
+- For analytics exporters, configure `BufferedExporter` with an `on_overflow` callback to log or throttle when gauges exceed the high-water mark.
+
+```python
+from stageflow.helpers import ChunkQueue, BufferedExporter
+
+queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+
+exporter = BufferedExporter(
+    sink=my_sink,
+    on_overflow=lambda dropped, size: ctx.try_emit_event(
+        "analytics.overflow",
+        {"dropped": dropped, "buffer_size": size},
+    ),
+    high_water_mark=0.75,
+)
+```
+
+---
+
 ## Functions
 
 ### get_default_interceptors

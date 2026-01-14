@@ -131,6 +131,7 @@ from uuid import uuid4
 
 from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
 from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.helpers import LLMResponse
 from stageflow.stages import StageInputs
 
 
@@ -149,7 +150,21 @@ class AddExclamationStage:
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         text = ctx.inputs.get_from("uppercase", "text", default="")
-        return StageOutput.ok(text=f"{text}!!!", excited=True)
+
+        # Example: capture LLM metadata even if you are mocking it
+        mock_llm = LLMResponse(
+            content=f"{text}!!!",
+            model="demo-mini",
+            provider="mock",
+            input_tokens=len(text),
+            output_tokens=len(text) + 3,
+        )
+
+        return StageOutput.ok(
+            text=mock_llm.content,
+            excited=True,
+            llm=mock_llm.to_dict(),
+        )
 
 
 async def main():
@@ -195,6 +210,13 @@ async def main():
     print(f"After uppercase: {results['uppercase'].data['text']}")
     print(f"After exclaim: {results['exclaim'].data['text']}")
 
+    # Drop-in telemetry: listen to streaming helpers
+    from stageflow.helpers import ChunkQueue
+
+    queue = ChunkQueue(event_emitter=lambda event, data: print(f"{event}: {data}"))
+    await queue.put("demo")
+    await queue.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -215,3 +237,5 @@ Now that you've built your first pipeline, explore:
 - [Building Stages](../guides/stages.md) — Learn all the stage types and patterns
 - [Parallel Execution](../examples/parallel.md) — Run stages concurrently
 - [Adding Interceptors](../guides/interceptors.md) — Add logging, metrics, and timeouts
+- [Observability](../guides/observability.md) — Wire streaming telemetry events and analytics exporters
+- [Tools Guide](../guides/tools.md) — Parse LLM tool calls with `ToolRegistry.parse_and_resolve`

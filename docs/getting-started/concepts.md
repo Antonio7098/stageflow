@@ -10,18 +10,18 @@ Stageflow is a **DAG-based execution framework**. You define stages (nodes) and 
 - Parallelizing independent stages
 - Passing data between stages
 - Handling errors and cancellation
-- Providing observability (logging, metrics, tracing)
+- Providing observability (logging, streaming telemetry, metrics, tracing)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Pipeline                              │
-│                                                              │
+│                        Pipeline                             │
+│                                                             │
 │   [input_guard] ──┐                                         │
 │                   │                                         │
-│   [profile] ──────┼──> [llm] ──> [output_guard]            │
+│   [profile] ──────┼──> [llm] ──> [output_guard]             │
 │                   │                                         │
 │   [memory] ───────┘                                         │
-│                                                              │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -75,6 +75,30 @@ return StageOutput.cancel(reason="user requested stop")
 # Failure
 return StageOutput.fail(error="Something went wrong")
 ```
+
+### Provider Responses
+
+Stageflow standardizes provider metadata via frozen dataclasses located in `stageflow.helpers`:
+
+```python
+from stageflow.helpers import LLMResponse, STTResponse, TTSResponse
+
+llm = LLMResponse(
+    content="Hello!",
+    model="gpt-4",
+    provider="openai",
+    input_tokens=123,
+    output_tokens=456,
+)
+
+return StageOutput.ok(
+    message=llm.content,
+    llm=llm.to_dict(),          # friendly for downstream stages
+    llm_attrs=llm.to_otel_attributes(),  # telemetry-ready
+)
+```
+
+Use `STTResponse` and `TTSResponse` to capture speech metadata (confidence, duration, sample rate, byte count, etc.) so downstream stages can reason about latency, accuracy, and audio quality without parsing unstructured payloads.
 
 ## Pipelines
 
@@ -190,6 +214,7 @@ class StageB:
 **Interceptors** are middleware that wrap stage execution. They handle cross-cutting concerns:
 
 - **Logging** — Structured logging of stage events
+- **Streaming Telemetry** — Emit queue/backpressure events from `ChunkQueue` or `StreamingBuffer`
 - **Metrics** — Duration, success/failure tracking
 - **Tracing** — OpenTelemetry span creation
 - **Timeouts** — Per-stage execution limits
@@ -212,6 +237,7 @@ Stageflow emits structured events for observability:
 - `stage.{name}.started` — Stage began execution
 - `stage.{name}.completed` — Stage finished successfully
 - `stage.{name}.failed` — Stage failed with error
+- `stream.*` — Streaming helpers emit telemetry (chunk drops, throttle start/end, buffer underruns)
 
 Events flow through an `EventSink`:
 
@@ -246,7 +272,12 @@ Independent stages run concurrently. You don't need to manage threads or async c
 
 ### 4. Observability First
 
-Every stage execution is logged, timed, and traceable. Events are emitted for monitoring and debugging.
+Every stage execution is logged, timed, and traceable. Events are emitted for monitoring and debugging, and helpers provide ready-to-use telemetry:
+
+- `ChunkQueue(event_emitter=...)` triggers streaming events for drops/throttling.
+- `StreamingBuffer(event_emitter=...)` notifies underruns and overflows.
+- `BufferedExporter(on_overflow=...)` alerts when analytics buffers near capacity.
+- `ToolRegistry.parse_and_resolve()` standardizes LLM tool-call observability.
 
 ### 5. Fail Fast, Recover Gracefully
 
@@ -257,3 +288,4 @@ Errors are caught, logged, and can trigger retries or fallbacks via interceptors
 - [Building Stages](../guides/stages.md) — Deep dive into stage implementation
 - [Composing Pipelines](../guides/pipelines.md) — Advanced pipeline patterns
 - [Context & Data Flow](../guides/context.md) — Detailed context usage
+- [Observability](../guides/observability.md) — Streaming telemetry, analytics exporters, and overflow callbacks

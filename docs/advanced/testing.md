@@ -759,6 +759,109 @@ def fresh_registry():
 registry = get_tool_registry()  # Global state
 ```
 
+### 6. Test Streaming Telemetry
+
+Validate that `ChunkQueue` and `StreamingBuffer` emit events under backpressure and underrun conditions.
+
+```python
+import asyncio
+import pytest
+from stageflow.helpers import ChunkQueue, StreamingBuffer
+
+
+@pytest.mark.asyncio
+async def test_chunk_queue_emits_drop_and_throttle_events():
+    events = []
+
+    def emitter(event_type: str, attrs: dict | None = None):
+        events.append((event_type, attrs or {}))
+
+    queue = ChunkQueue(maxsize=1, event_emitter=emitter)
+    await queue.put("a")
+    # This put causes backpressure or drop
+    await queue.put("b", block=False) if hasattr(queue, "put") else None
+    await queue.close()
+
+    assert any(e[0] == "stream.chunk_dropped" for e in events) or any(e[0] == "stream.producer_blocked" for e in events)
+    assert any(e[0] == "stream.queue_closed" for e in events)
+
+
+@pytest.mark.asyncio
+async def test_streaming_buffer_overflow_and_recovery_events():
+    events = []
+
+    def emitter(event_type: str, attrs: dict | None = None):
+        events.append((event_type, attrs or {}))
+
+    buf = StreamingBuffer(capacity_ms=50, event_emitter=emitter)
+    # Simulate overflow/underrun by alternating writes and reads
+    buf.write(b"x" * 4096, duration_ms=100)  # overflow likely
+    chunk = buf.read(duration_ms=100)        # underrun or recovery
+
+    assert any(e[0] in {"stream.buffer_overflow", "stream.buffer_underrun", "stream.buffer_recovered"} for e in events)
+```
+
+### 7. Test Analytics Overflow Callbacks
+
+Ensure `BufferedExporter` invokes the overflow callback on pressure and drops.
+
+```python
+from stageflow.helpers import BufferedExporter, AnalyticsEvent
+
+
+def test_buffered_exporter_overflow_callback(monkeypatch):
+    calls: list[tuple[int, int]] = []
+
+    def on_overflow(dropped: int, size: int) -> None:
+        calls.append((dropped, size))
+
+    exporter = BufferedExporter(
+        sink=None,  # use no-op/monkeypatched sink
+        on_overflow=on_overflow,
+        high_water_mark=0.01,
+    )
+
+    # Flood the buffer
+    for i in range(1000):
+        exporter.submit(AnalyticsEvent(type="t", data={"i": i}))
+
+    # Either high-water warnings (-1) or real drops (>0) should be observed
+    assert any(dropped == -1 or dropped > 0 for dropped, _ in calls)
+```
+
+### 8. Test Tool Parsing Helper
+
+`ToolRegistry.parse_and_resolve` should parse OpenAI/Anthropic tool call shapes and resolve to registered tools.
+
+```python
+import pytest
+from stageflow.tools import ToolRegistry, BaseTool, ToolInput, ToolOutput
+
+
+class EchoTool(BaseTool):
+    name = "echo"
+    description = "Echo args"
+    action_type = "ECHO"
+
+    async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
+        return ToolOutput(success=True, data=input.action.payload)
+
+
+def test_parse_and_resolve_openai():
+    reg = ToolRegistry()
+    reg.register(EchoTool())
+
+    tool_calls = [{
+        "id": "call_1",
+        "function": {"name": "echo", "arguments": "{\"msg\": \"hi\"}"},
+    }]
+
+    resolved, unresolved = reg.parse_and_resolve(tool_calls)
+    assert len(resolved) == 1 and len(unresolved) == 0
+    assert resolved[0].name == "echo"
+    assert resolved[0].arguments["msg"] == "hi"
+```
+
 ## Next Steps
 
 - [Extensions](extensions.md) — Add custom context data

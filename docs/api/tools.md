@@ -219,6 +219,55 @@ Execute a tool for an action.
 result = await registry.execute(action, ctx)
 ```
 
+#### `parse_and_resolve(tool_calls: list[dict], *, id_field="id", name_field="name", arguments_field="arguments", function_wrapper="function") -> tuple[list[ResolvedToolCall], list[UnresolvedToolCall]]`
+
+Parse provider-native tool call objects (e.g., OpenAI/Anthropic) and resolve them against registered tools.
+
+```python
+# Example: OpenAI-style tool calls
+tool_calls = [
+    {
+        "id": "call_123",
+        "function": {
+            "name": "store_memory",
+            "arguments": '{"content": "hello"}'
+        }
+    }
+]
+
+resolved, unresolved = registry.parse_and_resolve(tool_calls)
+
+for call in unresolved:
+    # Emit observability event for triage
+    ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+
+for call in resolved:
+    tool_input = ToolInput(action=call.arguments)
+    result = await call.tool.execute(tool_input, ctx={"call_id": call.call_id})
+```
+
+Supports alternate field names and disabling the `function` wrapper via `function_wrapper=None`.
+
+### Dataclasses
+
+```python
+@dataclass(frozen=True, slots=True)
+class ResolvedToolCall:
+    tool: Tool
+    call_id: str
+    name: str
+    arguments: dict[str, Any]
+    raw: Any | None = None
+
+@dataclass(frozen=True, slots=True)
+class UnresolvedToolCall:
+    call_id: str
+    name: str
+    arguments: dict[str, Any]
+    error: str
+    raw: Any | None = None
+```
+
 ### Decorator
 
 ```python

@@ -108,6 +108,30 @@ fast_llm = create_llm_component(model="gpt-3.5-turbo", dependencies=("router",))
 accurate_llm = create_llm_component(model="gpt-4", dependencies=("router", "enrich"))
 ```
 
+### Instrumentation Hooks in Components
+
+When building reusable components, expose observability hooks so callers can route telemetry consistently across composed pipelines:
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer, BufferedExporter
+
+def create_streaming_component(event_emitter):
+    queue = ChunkQueue(event_emitter=event_emitter)
+    buffer = StreamingBuffer(event_emitter=event_emitter)
+
+    exporter = BufferedExporter(
+        sink=my_sink,
+        on_overflow=lambda dropped, size: event_emitter(
+            "analytics.overflow",
+            {"dropped": dropped, "buffer_size": size},
+        ),
+        high_water_mark=0.85,
+    )
+    return queue, buffer, exporter
+```
+
+You can pass `ctx.try_emit_event` from any stage to wire telemetry for every subcomponent regardless of where it executes in the composed pipeline.
+
 ## Pipeline Variants
 
 ### Feature Flags
@@ -218,6 +242,12 @@ class PipelineBuilder:
                 StageKind.TRANSFORM,
                 dependencies=("guard", "profile", "memory"),
             )
+            .with_stage(
+                "tool_exec",
+                ToolExecutorStage(self.registry),
+                StageKind.WORK,
+                dependencies=("llm",),
+            )
         )
 
 # Production
@@ -237,6 +267,34 @@ test_builder = PipelineBuilder(
     guard_service=MockGuardService(),
 )
 test_pipeline = test_builder.build_chat_pipeline()
+```
+
+### Tool Call Resolution in Components
+
+If a composed pipeline includes an agent/tool stage, expose the `ToolRegistry.parse_and_resolve` helper so parent pipelines can emit observability signals consistently:
+
+```python
+class ToolExecutorStage:
+    name = "tool_exec"
+    kind = StageKind.WORK
+
+    def __init__(self, registry):
+        self.registry = registry
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        tool_calls = ctx.inputs.get("llm_tool_calls", [])
+        resolved, unresolved = self.registry.parse_and_resolve(tool_calls)
+
+        for call in unresolved:
+            ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+
+        results = []
+        for call in resolved:
+            tool_input = ToolInput(action=call.arguments)
+            result = await call.tool.execute(tool_input, ctx={"call_id": call.call_id})
+            results.append(result)
+
+        return StageOutput.ok(tool_results=[r.to_dict() for r in results])
 ```
 
 ## Dynamic Pipelines
@@ -340,6 +398,27 @@ def test_enrichment_component():
     # Verify stages
     assert "profile" in [s.name for s in graph.stage_specs]
     assert "memory" in [s.name for s in graph.stage_specs]
+```
+
+### 5. Verify Telemetry Contracts
+
+When composing pipelines, add tests that ensure telemetry emitters and analytics exporters remain wired end-to-end:
+
+```python
+def test_streaming_component_wires_events():
+    events = []
+
+    def emitter(event_type, payload=None):
+        events.append(event_type)
+
+    queue, buffer, exporter = create_streaming_component(emitter)
+    queue.maxsize = 1
+    queue.put_nowait("chunk-a")
+    # This dropped chunk should emit telemetry
+    queue.put_nowait("chunk-b")
+    queue.close()
+
+    assert "stream.chunk_dropped" in events or "stream.producer_blocked" in events
 ```
 
 ## Next Steps

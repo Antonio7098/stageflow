@@ -107,6 +107,27 @@ Unified return type for all stage executions.
 | `events` | `list[StageEvent]` | Emitted events |
 | `error` | `str \| None` | Error message if failed |
 
+### Provider Response Conventions
+
+Stages calling AI providers should attach standardized payloads to `data` for downstream analytics and UI layers:
+
+- `LLMResponse` for chat/completions (fields: `content`, `model`, `provider`, `input_tokens`, `output_tokens`, `latency_ms`)
+- `STTResponse` for speech-to-text (fields: `text`, `confidence`, `duration_ms`, `language`, `words`, `is_final`)
+- `TTSResponse` for text-to-speech (fields: `duration_ms`, `sample_rate`, `format`, `characters_processed`)
+
+```python
+from stageflow.helpers import LLMResponse
+
+llm = LLMResponse(
+    content=response_text,
+    model="gpt-4o-mini",
+    provider="openai",
+    input_tokens=prompt_tokens,
+    output_tokens=completion_tokens,
+)
+return StageOutput.ok(message=llm.content, llm=llm.to_dict())
+```
+
 ### Class Methods
 
 #### `ok(data=None, **kwargs) -> StageOutput`

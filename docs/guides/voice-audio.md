@@ -88,7 +88,8 @@ async def audio_consumer():
     async for chunk in queue:
         await process_chunk(chunk)
 
-# Monitor backpressure
+# Monitor backpressure and emit telemetry
+queue = ChunkQueue(event_emitter=lambda event, attrs: ctx.emit_event(event, attrs))
 if queue.monitor.should_throttle():
     await asyncio.sleep(0.01)  # Slow down producer
 
@@ -107,6 +108,7 @@ buffer = StreamingBuffer(
     target_duration_ms=200,  # Buffer 200ms before starting playback
     max_duration_ms=2000,    # Maximum buffer size
     sample_rate=16000,
+    event_emitter=lambda event, attrs: ctx.emit_event(event, attrs),
 )
 
 # Add incoming chunks
@@ -210,10 +212,19 @@ class STTStage:
                 language=ctx.snapshot.extensions.get("language", "en"),
             )
 
-            return StageOutput.ok(
-                transcript=result.text,
+            from stageflow.helpers import STTResponse
+
+            stt = STTResponse(
+                text=result.text,
                 confidence=result.confidence,
                 duration_ms=result.duration_ms,
+                provider=getattr(result, "provider", "unknown"),
+                model=getattr(result, "model", "unknown"),
+            )
+
+            return StageOutput.ok(
+                transcript=stt.text,
+                stt=stt.to_dict(),
             )
         except Exception as e:
             return StageOutput.fail(error=f"STT failed: {e}")
@@ -247,10 +258,20 @@ class TTSStage:
             import base64
             audio_b64 = base64.b64encode(audio_data).decode("ascii")
 
+            from stageflow.helpers import TTSResponse
+
+            tts = TTSResponse(
+                audio=audio_data,
+                duration_ms=len(audio_data) / (16000 * 2) * 1000,
+                provider=getattr(self._tts, "provider_name", "custom"),
+                model=getattr(self._tts, "voice", "default"),
+            )
+
             return StageOutput.ok(
                 audio=audio_b64,
-                duration_ms=len(audio_data) / (16000 * 2) * 1000,  # PCM16
+                duration_ms=tts.duration_ms,
                 text=response_text,
+                tts=tts.to_dict(),
             )
         except Exception as e:
             return StageOutput.fail(error=f"TTS failed: {e}")
@@ -294,6 +315,12 @@ class StreamingTTSStage:
         except Exception as e:
             return StageOutput.fail(error=f"Streaming TTS failed: {e}")
 ```
+
+## Observability Hooks
+
+- Wire `ChunkQueue` and `StreamingBuffer` telemetry emitters to your pipeline event sink to track drops, throttle windows, and underruns.
+- Use `BufferedExporter(on_overflow=...)` on any analytics pipeline that batches streaming metrics (e.g., voice quality scores).
+- Attach `ToolRegistry.parse_and_resolve()` to voice agents so tool requests from speech can be validated before execution.
 
 ## Binary-Safe Logging
 
@@ -415,12 +442,14 @@ pipeline = (
 buffer = StreamingBuffer(
     target_duration_ms=100,  # Start playback after 100ms
     max_duration_ms=500,     # Drop old audio if too far behind
+    event_emitter=lambda event, attrs: ctx.emit_event(event, attrs),
 )
 
 # For audio recording (quality priority)
 buffer = StreamingBuffer(
     target_duration_ms=500,   # More buffering OK
     max_duration_ms=5000,     # Keep more history
+    event_emitter=lambda event, attrs: ctx.emit_event(event, attrs),
 )
 ```
 

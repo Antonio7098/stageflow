@@ -2,10 +2,50 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .base import Tool, ToolInput, ToolOutput
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedToolCall:
+    """A parsed tool call resolved to its registered tool.
+
+    Attributes:
+        tool: The resolved Tool instance.
+        call_id: Original tool call ID from the provider.
+        name: Tool name as specified in the call.
+        arguments: Parsed arguments dictionary.
+        raw: Original tool call data for debugging.
+    """
+
+    tool: Tool
+    call_id: str
+    name: str
+    arguments: dict[str, Any]
+    raw: Any = None
+
+
+@dataclass(frozen=True, slots=True)
+class UnresolvedToolCall:
+    """A tool call that could not be resolved to a registered tool.
+
+    Attributes:
+        call_id: Original tool call ID from the provider.
+        name: Tool name that was not found.
+        arguments: Parsed arguments dictionary.
+        error: Description of why resolution failed.
+        raw: Original tool call data for debugging.
+    """
+
+    call_id: str
+    name: str
+    arguments: dict[str, Any]
+    error: str
+    raw: Any = None
 
 
 class ActionProtocol(Protocol):
@@ -76,6 +116,116 @@ class ToolRegistry:
     def __contains__(self, action_type: str) -> bool:
         return self.can_execute(action_type)
 
+    def parse_and_resolve(
+        self,
+        tool_calls: list[dict[str, Any]],
+        *,
+        id_field: str = "id",
+        name_field: str = "name",
+        arguments_field: str = "arguments",
+        function_wrapper: str | None = "function",
+    ) -> tuple[list[ResolvedToolCall], list[UnresolvedToolCall]]:
+        """Parse tool calls and resolve them to registered tools.
+
+        Handles common tool call formats from LLM providers (OpenAI, Anthropic, etc.)
+        and resolves tool names to registered tools in the registry.
+
+        Args:
+            tool_calls: List of tool call dictionaries from provider response.
+            id_field: Field name for tool call ID.
+            name_field: Field name for tool name.
+            arguments_field: Field name for arguments (string or dict).
+            function_wrapper: If set, tool name/args are nested under this key
+                (e.g., OpenAI uses "function" wrapper).
+
+        Returns:
+            Tuple of (resolved_calls, unresolved_calls).
+
+        Example:
+            # OpenAI format
+            tool_calls = [
+                {
+                    "id": "call_123",
+                    "function": {
+                        "name": "store_memory",
+                        "arguments": '{"content": "hello"}'
+                    }
+                }
+            ]
+            resolved, unresolved = registry.parse_and_resolve(tool_calls)
+
+            # Direct format (no function wrapper)
+            tool_calls = [
+                {"id": "1", "name": "calculator", "arguments": {"x": 1}}
+            ]
+            resolved, unresolved = registry.parse_and_resolve(
+                tool_calls, function_wrapper=None
+            )
+        """
+        resolved: list[ResolvedToolCall] = []
+        unresolved: list[UnresolvedToolCall] = []
+
+        for call in tool_calls:
+            try:
+                # Extract call ID
+                call_id = str(call.get(id_field, ""))
+
+                # Handle function wrapper (OpenAI style)
+                if function_wrapper and function_wrapper in call:
+                    inner = call[function_wrapper]
+                    name = inner.get(name_field, "")
+                    raw_args = inner.get(arguments_field, {})
+                else:
+                    name = call.get(name_field, "")
+                    raw_args = call.get(arguments_field, {})
+
+                # Parse arguments if string (JSON)
+                if isinstance(raw_args, str):
+                    try:
+                        arguments = json.loads(raw_args) if raw_args else {}
+                    except json.JSONDecodeError as e:
+                        unresolved.append(UnresolvedToolCall(
+                            call_id=call_id,
+                            name=name,
+                            arguments={},
+                            error=f"Invalid JSON arguments: {e}",
+                            raw=call,
+                        ))
+                        continue
+                else:
+                    arguments = raw_args if isinstance(raw_args, dict) else {}
+
+                # Resolve tool by name (action_type)
+                tool = self.get_tool(name)
+                if tool is None:
+                    unresolved.append(UnresolvedToolCall(
+                        call_id=call_id,
+                        name=name,
+                        arguments=arguments,
+                        error=f"No tool registered for action type: {name}",
+                        raw=call,
+                    ))
+                else:
+                    resolved.append(ResolvedToolCall(
+                        tool=tool,
+                        call_id=call_id,
+                        name=name,
+                        arguments=arguments,
+                        raw=call,
+                    ))
+
+            except Exception as e:
+                # Catch-all for malformed tool calls
+                unresolved.append(UnresolvedToolCall(
+                    call_id=str(call.get(id_field, "unknown")),
+                    name=str(call.get(name_field, "unknown")),
+                    arguments={},
+                    error=f"Failed to parse tool call: {e}",
+                    raw=call,
+                ))
+
+        return resolved, unresolved
+
 
 # Global registry instance
 _registry: ToolRegistry | None = None
@@ -141,4 +291,12 @@ def clear_tool_registry() -> None:
     _registry = None
 
 
-__all__ = ["ToolRegistry", "get_tool_registry", "tool", "register_tool", "clear_tool_registry"]
+__all__ = [
+    "ResolvedToolCall",
+    "ToolRegistry",
+    "UnresolvedToolCall",
+    "clear_tool_registry",
+    "get_tool_registry",
+    "register_tool",
+    "tool",
+]

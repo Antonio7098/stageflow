@@ -243,6 +243,44 @@ async def execute(self, ctx: StageContext) -> StageOutput:
         return await self._old_algorithm(ctx)
 ```
 
+### Telemetry & Streaming Configuration
+
+Extensions can store per-tenant telemetry preferences that stages and interceptors consume:
+
+```python
+@dataclass
+class TelemetryExtension:
+    enable_streaming_events: bool = True
+    buffered_exporter_threshold: float = 0.8
+    allowed_stream_events: set[str] = field(default_factory=lambda: {"stream.chunk_dropped", "stream.buffer_overflow"})
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TelemetryExtension":
+        return cls(
+            enable_streaming_events=data.get("enable_streaming_events", True),
+            buffered_exporter_threshold=data.get("buffered_exporter_threshold", 0.8),
+            allowed_stream_events=set(data.get("allowed_stream_events", [])) or {"stream.chunk_dropped", "stream.buffer_overflow"},
+        )
+```
+
+```python
+async def execute(self, ctx: StageContext) -> StageOutput:
+    telemetry = ExtensionHelper.get(ctx.snapshot.extensions, "telemetry", TelemetryExtension)
+
+    if telemetry and telemetry.enable_streaming_events:
+        queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+        buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+        exporter = BufferedExporter(
+            sink=my_sink,
+            on_overflow=lambda dropped, size: ctx.try_emit_event(
+                "analytics.overflow",
+                {"dropped": dropped, "buffer_size": size},
+            ),
+            high_water_mark=telemetry.buffered_exporter_threshold,
+        )
+```
+
+
 ### Application Config
 
 ```python

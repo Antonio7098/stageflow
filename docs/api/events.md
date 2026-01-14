@@ -258,3 +258,40 @@ set_event_sink(FilteredEventSink(include_types={"stage.", "tool."}))
 # Reset to default
 clear_event_sink()
 ```
+
+---
+
+## Streaming Telemetry Events
+
+When using streaming helpers with an `event_emitter`, events are emitted with correlation IDs:
+
+- `stream.chunk_dropped` — Queue dropped a chunk due to overflow/full conditions
+- `stream.producer_blocked` — Producer blocked waiting for queue capacity
+- `stream.throttle_started`, `stream.throttle_ended` — Backpressure signaling
+- `stream.queue_closed` — Queue closed with final stats
+- `stream.buffer_overflow`, `stream.buffer_underrun`, `stream.buffer_recovered` — Buffer anomalies
+
+Example wiring from stages:
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer
+
+queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+```
+
+---
+
+## Tool Parsing and Resolution Events
+
+If LLM responses include tool calls, prefer resolving them via `ToolRegistry.parse_and_resolve`. Emit an event for unresolved calls:
+
+```python
+resolved, unresolved = registry.parse_and_resolve(tool_calls)
+for call in unresolved:
+    ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+```
+
+Execution events (examples):
+- `tool.invoked`, `tool.started`, `tool.completed`, `tool.failed`
+- `tool.denied` (behavior gating), `tool.undone`, `tool.undo_failed`

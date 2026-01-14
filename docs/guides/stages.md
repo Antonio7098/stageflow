@@ -27,13 +27,22 @@ Choose the appropriate kind based on what your stage does:
 Stages that change data form or generate new data.
 
 ```python
+from stageflow.helpers import LLMResponse
+
 class TextToUpperStage:
     name = "text_to_upper"
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         text = ctx.snapshot.input_text or ""
-        return StageOutput.ok(text=text.upper())
+        llm = LLMResponse(
+            content=text.upper(),
+            model="demo-mini",
+            provider="mock",
+            input_tokens=len(text),
+            output_tokens=len(text),
+        )
+        return StageOutput.ok(text=llm.content, llm=llm.to_dict())
 ```
 
 **Use for**: STT, TTS, LLM calls, text processing, data transformation.
@@ -151,6 +160,9 @@ class PersistStage:
 Stages that implement interactive agent logic, often with tool execution.
 
 ```python
+from stageflow.tools import ToolInput
+
+
 class ChatAgentStage:
     name = "chat_agent"
     kind = StageKind.AGENT
@@ -167,10 +179,13 @@ class ChatAgentStage:
         # Call LLM
         response = await self.llm_client.chat(messages)
         
-        # Execute any tool calls
+        # Parse + resolve tool calls (LLM-native format)
+        resolved, unresolved = self.tool_registry.parse_and_resolve(response.tool_calls)
+
         tool_results = []
-        for tool_call in response.tool_calls:
-            result = await self.tool_registry.execute(tool_call)
+        for call in resolved:
+            tool_input = ToolInput(action=call.arguments)
+            result = await call.tool.execute(tool_input, ctx={"call_id": call.call_id})
             tool_results.append(result)
         
         return StageOutput.ok(
@@ -231,6 +246,16 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     # Access injected services through ports
     if ctx.inputs.ports and ctx.inputs.ports.llm_provider:
         response = await ctx.inputs.ports.llm_provider.chat(...)
+        # Wrap raw provider payloads with standardized responses
+        from stageflow.helpers import LLMResponse
+        llm = LLMResponse(
+            content=response.content,
+            model=response.model,
+            provider=response.provider,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
+        return StageOutput.ok(message=llm.content, llm=llm.to_dict())
 ```
 
 ### Injected Services (Modular Ports)
@@ -333,9 +358,21 @@ class SummarizeStage:
 Return data that downstream stages can consume:
 
 ```python
+from stageflow.helpers import TTSResponse
+
+audio = await synthesize_audio(...)
+tts = TTSResponse(
+    audio=audio,
+    duration_ms=1250,
+    sample_rate=24000,
+    provider="mock_tts",
+    model="demo-voice",
+)
+
 return StageOutput.ok(
     text="processed result",
     metadata={"source": "transform"},
+    tts=tts.to_dict(),
     count=42,
 )
 ```
@@ -436,6 +473,12 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     # Do work...
     
     ctx.emit_event("custom.processing_completed", {"step": 1, "duration_ms": 100})
+
+    # Emit streaming telemetry by wiring ChunkQueue/StreamingBuffer emitters
+    from stageflow.helpers import ChunkQueue
+    queue = ChunkQueue(event_emitter=ctx.emit_event)
+    await queue.put("sample")
+    await queue.close()
     
     return StageOutput.ok(...)
 ```
@@ -514,6 +557,7 @@ async def execute(self, ctx: StageContext) -> StageOutput:
         extra={
             "user_id": str(ctx.snapshot.user_id),
             "input_length": len(ctx.snapshot.input_text or ""),
+            "telemetry": ctx.inputs.get("llm", {}).get("latency_ms"),
         },
     )
 ```
@@ -540,3 +584,4 @@ def test_my_stage():
 - [Composing Pipelines](pipelines.md) — Combine stages into complex workflows
 - [Context & Data Flow](context.md) — Deep dive into data passing
 - [Examples](../examples/simple.md) — See complete working examples
+- [Observability](observability.md) — Capture streaming telemetry and analytics overflow callbacks

@@ -147,6 +147,34 @@ results = await graph.run(ctx)
 print(results["my_stage"].data)
 ```
 
+### Provider Response & Telemetry Propagation
+
+Encourage stages within the pipeline to emit standardized provider metadata and streaming telemetry so downstream consumers can rely on consistent fields.
+
+- Wrap LLM/STT/TTS outputs with `LLMResponse` / `STTResponse` / `TTSResponse` and include the serialized dict in each stage's `StageOutput`.
+- Wire `ChunkQueue` / `StreamingBuffer` event emitters to `ctx.try_emit_event` so pipeline-level WideEventEmitter streams capture `stream.*` events alongside `stage.wide`.
+
+```python
+queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+```
+
+### Tool Call Resolution Pattern
+
+When tool-executing stages are part of the graph, resolve LLM-provided tool calls before execution:
+
+```python
+tool_calls = llm_response.tool_calls or []
+resolved, unresolved = registry.parse_and_resolve(tool_calls)
+
+for call in unresolved:
+    ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+
+for call in resolved:
+    tool_input = ToolInput(action=call.arguments)
+    await call.tool.execute(tool_input, ctx={"call_id": call.call_id})
+```
+
 #### Wide events
 
 If you construct `StageGraph` manually, you can opt into wide events:

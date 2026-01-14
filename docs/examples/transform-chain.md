@@ -32,7 +32,17 @@ class UppercaseStage:
         text = ctx.snapshot.input_text or ""
 
         result = text.upper()
-        return StageOutput.ok(text=result, transformed=True)
+
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=result,
+            provider="demo",
+            model="uppercase-sim",
+            input_tokens=len(text),
+            output_tokens=len(result),
+        )
+        return StageOutput.ok(text=result, transformed=True, llm=llm.to_dict())
 ```
 
 ### ReverseStage
@@ -50,7 +60,17 @@ class ReverseStage:
         text = ctx.inputs.get("text") or ctx.snapshot.input_text or ""
 
         result = text[::-1]
-        return StageOutput.ok(text=result, reversed=True)
+
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=result,
+            provider="demo",
+            model="reverse-sim",
+            input_tokens=len(text),
+            output_tokens=len(result),
+        )
+        return StageOutput.ok(text=result, reversed=True, llm=llm.to_dict())
 ```
 
 ### SummarizeStage
@@ -73,11 +93,22 @@ class SummarizeStage:
         else:
             summary = text
 
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=summary,
+            provider="demo",
+            model="summarize-sim",
+            input_tokens=len(text),
+            output_tokens=len(summary),
+        )
+
         return StageOutput.ok(
             text=summary,
             summary=summary,
             original_length=len(text),
             summarized=True,
+            llm=llm.to_dict(),
         )
 ```
 
@@ -137,8 +168,18 @@ class UppercaseStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
+        from stageflow.helpers import LLMResponse
+
         text = ctx.snapshot.input_text or ""
-        return StageOutput.ok(text=text.upper())
+        upper = text.upper()
+        llm = LLMResponse(
+            content=upper,
+            provider="demo",
+            model="uppercase-sim",
+            input_tokens=len(text),
+            output_tokens=len(upper),
+        )
+        return StageOutput.ok(text=upper, llm=llm.to_dict())
 
 
 class ReverseStage:
@@ -146,8 +187,18 @@ class ReverseStage:
     kind = StageKind.TRANSFORM
 
     async def execute(self, ctx: StageContext) -> StageOutput:
+        from stageflow.helpers import LLMResponse
+
         text = ctx.inputs.get("text", "")
-        return StageOutput.ok(text=text[::-1])
+        reversed_text = text[::-1]
+        llm = LLMResponse(
+            content=reversed_text,
+            provider="demo",
+            model="reverse-sim",
+            input_tokens=len(text),
+            output_tokens=len(reversed_text),
+        )
+        return StageOutput.ok(text=reversed_text, llm=llm.to_dict())
 
 
 class SummarizeStage:
@@ -156,8 +207,17 @@ class SummarizeStage:
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         text = ctx.inputs.get("text", "")
+        from stageflow.helpers import LLMResponse
+
         summary = text[:50] + "..." if len(text) > 50 else text
-        return StageOutput.ok(text=summary, original_length=len(text))
+        llm = LLMResponse(
+            content=summary,
+            provider="demo",
+            model="summarize-sim",
+            input_tokens=len(text),
+            output_tokens=len(summary),
+        )
+        return StageOutput.ok(text=summary, original_length=len(text), llm=llm.to_dict())
 
 
 async def main():
@@ -274,6 +334,9 @@ pipeline = (
     )
     .with_stage("summarize", SummarizeStage, StageKind.TRANSFORM, dependencies=("reverse",))
 )
+
+# Add streaming telemetry emitters if this pipeline processes audio/text concurrently
+queue = ChunkQueue(event_emitter=lambda event, attrs: logger.info("telemetry", extra=attrs))
 ```
 
 A conditional stage can return `StageOutput.skip()` to be skipped:

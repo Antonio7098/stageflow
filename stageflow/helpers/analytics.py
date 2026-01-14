@@ -29,11 +29,15 @@ from __future__ import annotations
 import asyncio
 import json
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID
+
+# Type alias for overflow callback
+OverflowCallback = Callable[[int, int], None]  # (dropped_count, buffer_size) -> None
 
 
 @dataclass
@@ -274,6 +278,7 @@ class BufferedExporter:
 
     Accumulates events and writes them in batches for better performance.
     Supports time-based flushing for low-volume scenarios.
+    Supports optional overflow callback for alerting on buffer pressure.
 
     Example:
         base = JSONFileExporter("events.jsonl")
@@ -281,6 +286,12 @@ class BufferedExporter:
 
         await buffered.export(event)  # Buffered
         await buffered.flush()  # Force write
+
+        # With overflow callback
+        def on_overflow(dropped, buffer_size):
+            print(f"Warning: dropped {dropped} events, buffer at {buffer_size}")
+
+        buffered = BufferedExporter(base, on_overflow=on_overflow)
     """
 
     def __init__(
@@ -290,6 +301,8 @@ class BufferedExporter:
         batch_size: int = 100,
         flush_interval_seconds: float = 10.0,
         max_buffer_size: int = 10000,
+        on_overflow: OverflowCallback | None = None,
+        high_water_mark: float = 0.8,
     ) -> None:
         """Initialize buffered exporter.
 
@@ -298,6 +311,8 @@ class BufferedExporter:
             batch_size: Number of events to batch before writing.
             flush_interval_seconds: Maximum time before flush.
             max_buffer_size: Maximum events to buffer (drops oldest if exceeded).
+            on_overflow: Optional callback when events are dropped due to overflow.
+            high_water_mark: Buffer fill ratio (0-1) to trigger high water warning.
         """
         self._exporter = exporter
         self._batch_size = batch_size
@@ -309,6 +324,9 @@ class BufferedExporter:
         self._flush_task: asyncio.Task[None] | None = None
         self._closed = False
         self._dropped_count = 0
+        self._on_overflow = on_overflow
+        self._high_water_mark = high_water_mark
+        self._high_water_warned = False
 
     async def _start_flush_timer(self) -> None:
         """Start background flush timer."""
@@ -332,8 +350,28 @@ class BufferedExporter:
             if len(self._buffer) >= self._max_buffer:
                 self._buffer.pop(0)
                 self._dropped_count += 1
+                # Notify via callback
+                if self._on_overflow is not None:
+                    try:
+                        self._on_overflow(self._dropped_count, len(self._buffer))
+                    except Exception:
+                        pass  # Don't let callback errors affect export
 
             self._buffer.append(event)
+
+            # Check high water mark
+            fill_ratio = len(self._buffer) / self._max_buffer
+            if fill_ratio >= self._high_water_mark and not self._high_water_warned:
+                self._high_water_warned = True
+                if self._on_overflow is not None:
+                    try:
+                        # Signal high water with negative dropped_count as convention
+                        self._on_overflow(-1, len(self._buffer))
+                    except Exception:
+                        pass
+            elif fill_ratio < self._high_water_mark * 0.5:
+                # Reset warning when buffer drains significantly
+                self._high_water_warned = False
 
             # Flush if batch size reached
             if len(self._buffer) >= self._batch_size:
@@ -384,6 +422,17 @@ class BufferedExporter:
     def dropped_count(self) -> int:
         """Number of events dropped due to buffer overflow."""
         return self._dropped_count
+
+    @property
+    def stats(self) -> dict[str, Any]:
+        """Get exporter statistics."""
+        return {
+            "buffer_size": len(self._buffer),
+            "max_buffer_size": self._max_buffer,
+            "dropped_count": self._dropped_count,
+            "fill_ratio": len(self._buffer) / self._max_buffer if self._max_buffer > 0 else 0,
+            "high_water_warned": self._high_water_warned,
+        }
 
 
 class CompositeExporter:

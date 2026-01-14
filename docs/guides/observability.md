@@ -46,6 +46,10 @@ set_event_sink(LoggingEventSink())
 
 # Get current sink
 sink = get_event_sink()
+
+### 4. Monitor Event Sinks
+
+Use production-grade sinks (Kafka, Pub/Sub, OTLP) for critical telemetry. Default sinks (`NoOpEventSink`, `LoggingEventSink`) are fire-and-forget; combine them with streaming telemetry events and buffered exporters to avoid silent drops.
 ```
 
 ### Custom Event Sink
@@ -112,7 +116,27 @@ Example event data:
 | `tool.undone` | Tool action was undone |
 | `tool.undo_failed` | Undo operation failed |
 
-### Pipeline Events
+### Streaming Events
+
+Streaming helpers emit their own telemetry via `ChunkQueue` and `StreamingBuffer`:
+
+| Event | Description |
+|-------|-------------|
+| `stream.chunk_dropped` | Queue dropped a chunk (overflow, full queue) |
+| `stream.producer_blocked` | Producer blocked waiting for capacity |
+| `stream.throttle_started` / `stream.throttle_ended` | Backpressure window |
+| `stream.buffer_overflow` | Buffer dropped audio during overflow |
+| `stream.buffer_underrun` / `stream.buffer_recovered` | Underrun + recovery |
+| `stream.queue_closed` | Queue closed with final stats |
+
+Attach emitters when creating queues/buffers:
+
+```python
+queue = ChunkQueue(event_emitter=ctx.emit_event)
+buffer = StreamingBuffer(event_emitter=ctx.emit_event)
+```
+
+#### Pipeline Events
 
 | Event | Description |
 |-------|-------------|

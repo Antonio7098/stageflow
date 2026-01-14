@@ -46,7 +46,21 @@ class TransformStage:
         # Require a value (raises KeyError if missing)
         required_data = ctx.inputs.require_from("fetch_data", "records")
 
-        return StageOutput.ok(transformed=process(data))
+        # Downstream stages expect standardized provider metadata
+        from stageflow.helpers import LLMResponse
+
+        llm = LLMResponse(
+            content=process(data),
+            model="demo-mini",
+            provider="mock",
+            input_tokens=len(str(data)),
+            output_tokens=42,
+        )
+
+        return StageOutput.ok(
+            transformed=llm.content,
+            llm=llm.to_dict(),
+        )
 ```
 
 ### Input Methods
@@ -236,6 +250,23 @@ pipeline = (
   run: python -m stageflow.cli lint pipelines/ --strict --json > lint-results.json
 ```
 
+### 5. Keep Telemetry Observable
+
+When stages depend on streaming helpers or analytics exporters, wire telemetry emitters in the same dependency chain so backpressure events have a clear owner:
+
+```python
+from stageflow.helpers import ChunkQueue
+
+class StreamingStage:
+    dependencies = ("ingest_audio",)
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        queue = ChunkQueue(event_emitter=ctx.emit_event)
+        ...
+```
+
+This ensures dependency ordering matches telemetry ownership (e.g., `ingest_audio` must run before any queue events fire).
+
 ## Troubleshooting
 
 ### "Why is my stage running before its dependency?"
@@ -262,6 +293,14 @@ You can't - by design. If stage B needs data from stage A, declare the dependenc
 # This works
 .with_stage("a", StageA, StageKind.TRANSFORM)
 .with_stage("b", StageB, StageKind.TRANSFORM, dependencies=("a",))
+
+# Make tool-call parsing explicit too
+.with_stage(
+    "agent",
+    AgentStage,
+    StageKind.AGENT,
+    dependencies=("b",),
+)
 ```
 
 ## Next Steps

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
+
 import pytest
 
 from stageflow.helpers.streaming import (
@@ -12,6 +14,7 @@ from stageflow.helpers.streaming import (
     ChunkQueue,
     StreamingBuffer,
     BackpressureMonitor,
+    EventEmitter,
     encode_audio_for_logging,
     calculate_audio_duration_ms,
 )
@@ -200,6 +203,122 @@ class TestChunkQueue:
         assert queue.monitor.fill_percentage == 70.0
 
 
+class TestChunkQueueTelemetry:
+    """Tests for ChunkQueue telemetry event emission."""
+
+    @pytest.mark.asyncio
+    async def test_emits_drop_event_on_overflow(self):
+        """Should emit event when items are dropped."""
+        events: list[tuple[str, dict[str, Any]]] = []
+
+        def capture_event(event_type: str, data: dict[str, Any]) -> None:
+            events.append((event_type, data))
+
+        queue: ChunkQueue[int] = ChunkQueue(
+            max_size=3,
+            drop_on_overflow=True,
+            event_emitter=capture_event,
+        )
+
+        # Fill queue and trigger overflow
+        await queue.put(1)
+        await queue.put(2)
+        await queue.put(3)
+        await queue.put(4)  # Should drop 1
+
+        drop_events = [e for e in events if e[0] == "stream.chunk_dropped"]
+        assert len(drop_events) == 1
+        assert drop_events[0][1]["reason"] == "overflow"
+
+    @pytest.mark.asyncio
+    async def test_emits_throttle_events(self):
+        """Should emit throttle start/end events."""
+        events: list[tuple[str, dict[str, Any]]] = []
+
+        def capture_event(event_type: str, data: dict[str, Any]) -> None:
+            events.append((event_type, data))
+
+        # Use small queue to easily trigger throttling
+        queue: ChunkQueue[int] = ChunkQueue(
+            max_size=10,
+            event_emitter=capture_event,
+        )
+
+        # Fill to trigger high water mark (80%)
+        for i in range(9):
+            await queue.put(i)
+
+        throttle_started = [e for e in events if e[0] == "stream.throttle_started"]
+        assert len(throttle_started) >= 1
+
+        # Drain to trigger low water mark
+        for _ in range(8):
+            await queue.get()
+
+        # Add one more to trigger check
+        await queue.put(100)
+
+        throttle_ended = [e for e in events if e[0] == "stream.throttle_ended"]
+        assert len(throttle_ended) >= 1
+
+    @pytest.mark.asyncio
+    async def test_emits_close_event_with_stats(self):
+        """Should emit close event with final statistics."""
+        events: list[tuple[str, dict[str, Any]]] = []
+
+        def capture_event(event_type: str, data: dict[str, Any]) -> None:
+            events.append((event_type, data))
+
+        queue: ChunkQueue[int] = ChunkQueue(
+            max_size=10,
+            event_emitter=capture_event,
+        )
+
+        await queue.put(1)
+        await queue.put(2)
+        await queue.put(3)
+        await queue.close()
+
+        close_events = [e for e in events if e[0] == "stream.queue_closed"]
+        assert len(close_events) == 1
+        assert close_events[0][1]["total_items"] == 3
+
+    @pytest.mark.asyncio
+    async def test_no_events_without_emitter(self):
+        """Should work normally without event emitter."""
+        queue: ChunkQueue[int] = ChunkQueue(max_size=3, drop_on_overflow=True)
+
+        # Should not raise even with overflow
+        await queue.put(1)
+        await queue.put(2)
+        await queue.put(3)
+        await queue.put(4)
+        await queue.close()
+
+        assert queue.monitor.stats.dropped_items == 1
+
+    @pytest.mark.asyncio
+    async def test_emitter_errors_dont_affect_queue(self):
+        """Should continue working even if emitter raises."""
+        def bad_emitter(event_type: str, data: dict[str, Any]) -> None:
+            raise RuntimeError("Emitter failed!")
+
+        queue: ChunkQueue[int] = ChunkQueue(
+            max_size=3,
+            drop_on_overflow=True,
+            event_emitter=bad_emitter,
+        )
+
+        # Should not raise
+        await queue.put(1)
+        await queue.put(2)
+        await queue.put(3)
+        await queue.put(4)  # Triggers drop event
+        await queue.close()
+
+        assert queue.monitor.stats.dropped_items == 1
+
+
 class TestStreamingBuffer:
     """Tests for StreamingBuffer."""
 
@@ -268,6 +387,136 @@ class TestStreamingBuffer:
         buffer.clear()
 
         assert buffer.duration_ms == 0
+
+
+class TestStreamingBufferTelemetry:
+    """Tests for StreamingBuffer telemetry event emission."""
+
+    def test_emits_overflow_event(self):
+        """Should emit event when buffer overflows and drops data."""
+        events: list[tuple[str, dict[str, Any]]] = []
+
+        def capture_event(event_type: str, data: dict[str, Any]) -> None:
+            events.append((event_type, data))
+
+        buffer = StreamingBuffer(
+            target_duration_ms=100,
+            max_duration_ms=200,
+            event_emitter=capture_event,
+        )
+
+        # Add more than max duration (3 x 100ms = 300ms > 200ms max)
+        for _ in range(3):
+            buffer.add_chunk(AudioChunk(data=b"\x00" * 3200))  # 100ms each
+
+        overflow_events = [e for e in events if e[0] == "stream.buffer_overflow"]
+        assert len(overflow_events) >= 1
+        assert "bytes_dropped" in overflow_events[0][1]
+
+    def test_emits_underrun_event(self):
+        """Should emit event when buffer underruns."""
+        events: list[tuple[str, dict[str, Any]]] = []
+
+        def capture_event(event_type: str, data: dict[str, Any]) -> None:
+            events.append((event_type, data))
+
+        buffer = StreamingBuffer(
+            target_duration_ms=100,
+            event_emitter=capture_event,
+        )
+
+        # Add small amount of data
+        buffer.add_chunk(AudioChunk(data=b"\x00" * 320))  # 10ms
+
+        # Try to read more than available
+        buffer.read(duration_ms=50)  # Request 50ms but only 10ms available
+
+        underrun_events = [e for e in events if e[0] == "stream.buffer_underrun"]
+        assert len(underrun_events) == 1
+        assert underrun_events[0][1]["bytes_requested"] > underrun_events[0][1]["bytes_available"]
+
+    def test_emits_recovery_event(self):
+        """Should emit event when buffer recovers from underrun."""
+        events: list[tuple[str, dict[str, Any]]] = []
+
+        def capture_event(event_type: str, data: dict[str, Any]) -> None:
+            events.append((event_type, data))
+
+        buffer = StreamingBuffer(
+            target_duration_ms=100,
+            event_emitter=capture_event,
+        )
+
+        # Trigger underrun
+        buffer.add_chunk(AudioChunk(data=b"\x00" * 320))  # 10ms
+        buffer.read(duration_ms=50)  # Underrun
+
+        # Add more data and read successfully
+        buffer.add_chunk(AudioChunk(data=b"\x00" * 3200))  # 100ms
+        buffer.read(duration_ms=20)  # Should recover
+
+        recovery_events = [e for e in events if e[0] == "stream.buffer_recovered"]
+        assert len(recovery_events) == 1
+
+    def test_stats_include_dropped(self):
+        """Should include total_dropped in stats."""
+        buffer = StreamingBuffer(
+            target_duration_ms=100,
+            max_duration_ms=200,
+        )
+
+        # Trigger overflow
+        for _ in range(4):
+            buffer.add_chunk(AudioChunk(data=b"\x00" * 3200))
+
+        stats = buffer.stats
+        assert "total_dropped" in stats
+        assert stats["total_dropped"] > 0
+
+    def test_stats_include_underrun_state(self):
+        """Should include underrun_active in stats."""
+        buffer = StreamingBuffer(target_duration_ms=100)
+
+        buffer.add_chunk(AudioChunk(data=b"\x00" * 320))  # 10ms
+        buffer.read(duration_ms=50)  # Underrun
+
+        stats = buffer.stats
+        assert "underrun_active" in stats
+        assert stats["underrun_active"] is True
+
+    def test_no_events_without_emitter(self):
+        """Should work normally without event emitter."""
+        buffer = StreamingBuffer(
+            target_duration_ms=100,
+            max_duration_ms=200,
+        )
+
+        # Should not raise even with overflow
+        for _ in range(4):
+            buffer.add_chunk(AudioChunk(data=b"\x00" * 3200))
+
+        buffer.read(duration_ms=500)  # Underrun
+
+        assert buffer.stats["total_dropped"] > 0
+
+    def test_emitter_errors_dont_affect_buffer(self):
+        """Should continue working even if emitter raises."""
+        def bad_emitter(event_type: str, data: dict[str, Any]) -> None:
+            raise RuntimeError("Emitter failed!")
+
+        buffer = StreamingBuffer(
+            target_duration_ms=100,
+            max_duration_ms=200,
+            event_emitter=bad_emitter,
+        )
+
+        # Should not raise
+        for _ in range(4):
+            buffer.add_chunk(AudioChunk(data=b"\x00" * 3200))
+
+        buffer.read(duration_ms=500)
+
+        assert buffer.stats["total_dropped"] > 0
 
 
 class TestUtilityFunctions:

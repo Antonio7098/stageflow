@@ -165,6 +165,13 @@ pipeline = (
     )
     # Output validation
     .with_stage("output_guard", OutputGuardStage, StageKind.GUARD, dependencies=("llm",))
+    # Streaming telemetry stage (optional)
+    .with_stage(
+        "stream_monitor",
+        StreamingTelemetryStage,
+        StageKind.WORK,
+        dependencies=("llm",),
+    )
 )
 ```
 
@@ -238,6 +245,12 @@ def create_chat_pipeline() -> Pipeline:
             StageKind.TRANSFORM,
             dependencies=("input_guard", "profile", "memory"),
         )
+        .with_stage(
+            "analytics_exporter",
+            AnalyticsStage(on_overflow_alert=my_alert_fn),
+            StageKind.WORK,
+            dependencies=("llm",),
+        )
     )
 ```
 
@@ -263,11 +276,17 @@ Execute with a `StageContext`:
 ```python
 from stageflow import StageContext
 from stageflow.context import ContextSnapshot
+from stageflow.helpers import ChunkQueue
 
 snapshot = ContextSnapshot(...)
 ctx = StageContext(snapshot=snapshot)
 
 results = await graph.run(ctx)
+
+# Emit basic streaming telemetry while running
+queue = ChunkQueue(event_emitter=ctx.emit_event)
+await queue.put("warmup")
+await queue.close()
 ```
 
 ### Access Results

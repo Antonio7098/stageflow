@@ -266,3 +266,55 @@ except Exception as e:
     if summary['retryable']:
         print("This error is retryable")
 ```
+
+---
+
+## Analytics Exporters
+
+### BufferedExporter
+
+Batch analytics events and provide backpressure/overflow signaling.
+
+```python
+from stageflow.helpers import BufferedExporter, ConsoleExporter
+
+def on_overflow(dropped_count: int, buffer_size: int) -> None:
+    # dropped_count == -1 indicates a high-water warning
+    logger.warning("analytics_overflow", extra={"dropped": dropped_count, "buffer": buffer_size})
+
+exporter = BufferedExporter(
+    ConsoleExporter(),
+    on_overflow=on_overflow,
+    high_water_mark=0.8,
+)
+
+# Optional runtime stats
+stats = exporter.stats  # {"queued": int, "dropped": int, "flushes": int, ...}
+```
+
+Parameters:
+- `on_overflow`: `(int dropped_count, int buffer_size) -> None` callback invoked on drop or high-water warning
+- `high_water_mark`: `float` between 0 and 1 indicating warning threshold
+
+---
+
+## Streaming Telemetry Events
+
+Streaming primitives emit events to your configured sink when provided an `event_emitter`.
+
+Emitted event types include:
+- `stream.chunk_dropped` — Queue dropped a chunk (overflow/full)
+- `stream.producer_blocked` — Producer blocked waiting for capacity
+- `stream.throttle_started`, `stream.throttle_ended` — Backpressure window
+- `stream.queue_closed` — Queue closed with final stats
+- `stream.buffer_overflow` — Buffer dropped audio/data during overflow
+- `stream.buffer_underrun`, `stream.buffer_recovered` — Underrun and subsequent recovery
+
+Usage:
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer
+
+queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+```

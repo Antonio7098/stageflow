@@ -149,6 +149,32 @@ class ToolDispatcher(Stage):
             return {"success": False, "error": str(e)}
 ```
 
+### Telemetry & Tool Resolution in Subpipelines
+
+Subpipeline stages often orchestrate multiple tools. Standardize telemetry by resolving LLM-provided tool calls before spawning a child run and wiring streaming emitters through the child context:
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer
+
+resolved, unresolved = self.registry.parse_and_resolve(tool_calls)
+for call in unresolved:
+    ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+
+for call in resolved:
+    child_ctx = ctx.pipeline_ctx.fork_child(
+        child_run_id=uuid4(),
+        correlation_id=call.call_id,
+        topology=f"tool_{call.name}",
+        execution_mode="tool_execution",
+    )
+
+    queue = ChunkQueue(event_emitter=child_ctx.try_emit_event)
+    buffer = StreamingBuffer(event_emitter=child_ctx.try_emit_event)
+    # Queue/buffer now emit `stream.*` events scoped to the child pipeline
+```
+
+Child pipelines should also propagate `LLMResponse` / `STTResponse` / `TTSResponse` payloads back to the parent via `StageOutput` so the parent can aggregate provider metrics.
+
 ## Correlation and Tracing
 
 ### Correlation IDs
@@ -220,6 +246,19 @@ interceptors = get_default_interceptors()
 - Maximum concurrent children
 - Maximum nesting depth
 - Active relationships
+
+### Streaming Telemetry Propagation
+
+When a child pipeline processes audio or streaming chunks, pass the parent's event sink into the child so all `stream.*` events stay correlated:
+
+```python
+def _build_child_streaming_helpers(child_ctx):
+    queue = ChunkQueue(event_emitter=child_ctx.try_emit_event)
+    buffer = StreamingBuffer(event_emitter=child_ctx.try_emit_event)
+    return queue, buffer
+```
+
+Combined with `BufferedExporter` (configured with `on_overflow`), this allows you to detect when subpipeline analytics fall behind and emit events such as `stream.chunk_dropped`, `stream.buffer_overflow`, and `analytics.overflow`.
 
 ### Performance Monitoring
 

@@ -44,6 +44,30 @@ def process(ctx: ExecutionContext) -> None:
     ctx.try_emit_event("custom.event", {"key": "value"})
 ```
 
+### Streaming Telemetry Helpers
+
+Because both `PipelineContext` and `StageContext` implement `ExecutionContext`, you can wire streaming helpers and analytics exporters the same way regardless of where you are in the pipeline:
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer, BufferedExporter
+
+def build_streaming_helpers(ctx: ExecutionContext):
+    queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+    buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+
+    exporter = BufferedExporter(
+        sink=my_sink,
+        on_overflow=lambda dropped, size: ctx.try_emit_event(
+            "analytics.overflow",
+            {"dropped": dropped, "buffer_size": size},
+        ),
+        high_water_mark=0.8,
+    )
+    return queue, buffer, exporter
+```
+
+Emitted telemetry events include `stream.chunk_dropped`, `stream.producer_blocked`, `stream.throttle_started`, `stream.throttle_ended`, `stream.queue_closed`, `stream.buffer_overflow`, `stream.buffer_underrun`, and `stream.buffer_recovered`.
+
 ---
 
 ## EventSink

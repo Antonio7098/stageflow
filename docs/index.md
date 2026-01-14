@@ -28,14 +28,38 @@ results = await graph.run(ctx)
 - **DAG-Based Execution** — Stages run as soon as their dependencies resolve, enabling maximum parallelism
 - **Type-Safe Pipelines** — Define pipelines in Python code with full IDE support and compile-time safety
 - **Composable Architecture** — Combine pipelines, share stages, and build complex workflows from simple parts
-- **Built-in Observability** — Structured logging, metrics, tracing, and event emission out of the box
+- **Built-in Observability** — Structured logging, streaming telemetry events, analytics buffering with overflow callbacks, and tracing out of the box
 - **Interceptor Middleware** — Add cross-cutting concerns (auth, timeouts, circuit breakers) without modifying stages
 - **Cancellation Support** — Graceful pipeline cancellation with proper cleanup
 - **Tool Execution System** — First-class support for agent tools with undo, approval, and behavior gating
 
 ## Documentation Structure
 
-### Getting Started
+The docs are organized into the following sections:
+
+- [Getting Started](getting-started/) - installation, quickstart, concepts
+- [Guides](guides/) - stages, pipelines, governance, observability, tools
+- [Examples](examples/) - runnable pipeline examples
+- [API Reference](api/) - detailed API documentation
+- [Advanced Topics](advanced/) - composition, subpipelines, custom interceptors, testing
+
+> **New in Stageflow 1.5**
+> - Standardized `LLMResponse`, `STTResponse`, and `TTSResponse` dataclasses for provider telemetry
+> - Streaming telemetry helpers (`ChunkQueue`, `StreamingBuffer`) with `stream.*` events
+> - Analytics `BufferedExporter` overflow callbacks for backpressure-aware exporters
+> - Tool parsing helper (`ToolRegistry.parse_and_resolve`) with observability for unresolved tool calls
+
+## Links
+
+- [GitHub Repository](https://github.com/yourorg/stageflow)
+- [Issue Tracker](https://github.com/yourorg/stageflow/issues)
+- [**Composing Pipelines**](guides/pipelines.md) — Build complex DAGs from simple stages
+- [**Context & Data Flow**](guides/context.md) — Pass data between stages
+- [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
+- [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
+- [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
+
+## Getting Started
 - [**Installation**](getting-started/installation.md) — Install stageflow and set up your environment
 - [**Quick Start**](getting-started/quickstart.md) — Build your first pipeline in 5 minutes
 - [**Core Concepts**](getting-started/concepts.md) — Understand the fundamental ideas
@@ -45,8 +69,8 @@ results = await graph.run(ctx)
 - [**Composing Pipelines**](guides/pipelines.md) — Build complex DAGs from simple stages
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
-- [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools
-- [**Observability**](guides/observability.md) — Monitor and debug your pipelines
+- [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
+- [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
 - [**Authentication**](guides/authentication.md) — Secure your pipelines with auth interceptors
 
 ### Examples

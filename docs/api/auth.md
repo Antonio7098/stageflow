@@ -6,6 +6,7 @@ This document provides the API reference for authentication and authorization ty
 
 ```python
 from stageflow.auth import AuthContext
+from uuid import uuid4
 ```
 
 Authenticated user context from JWT validation.
@@ -43,6 +44,12 @@ Check if user has a specific role.
 Check if user has 'admin' or 'org_admin' role.
 
 ### Properties
+
+#### `is_authenticated -> bool`
+
+Always returns `True` for valid AuthContext.
+
+### Best Practices
 
 #### `is_authenticated -> bool`
 
@@ -176,6 +183,8 @@ from stageflow.auth import (
 
 ## Auth Events
 
+The auth system emits events for auditing:
+
 ```python
 from stageflow.auth import (
     AuthLoginEvent,
@@ -192,6 +201,37 @@ from stageflow.auth import (
 
 ---
 
+## Telemetry & Streaming Hooks
+
+Authentication stages often run before any LLM/tool work but still benefit from the standard telemetry primitives:
+
+- Wire streaming helpers (for voice/STT logins) through the execution context so auth failures can be correlated with audio queue health.
+- Emit analytics overflow warnings whenever audit exporters fall behind.
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer, BufferedExporter
+
+def build_auth_telemetry(ctx):
+    queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+    buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+
+    exporter = BufferedExporter(
+        sink=auth_audit_sink,
+        on_overflow=lambda dropped, size: ctx.try_emit_event(
+            "auth.analytics.overflow",
+            {"dropped": dropped, "buffer_size": size},
+        ),
+        high_water_mark=0.7,
+    )
+    return queue, buffer, exporter
+```
+
+Emitted events follow the same `stream.*` schema described in the observability guide (`stream.chunk_dropped`, `stream.producer_blocked`, `stream.throttle_started`, `stream.buffer_overflow`, `stream.buffer_underrun`, etc.).
+
+---
+
+## Multi-Tenant Patterns
+
 ## Usage Example
 
 ```python
@@ -207,6 +247,7 @@ from stageflow.auth import (
 from stageflow import get_default_interceptors
 
 # Create auth context
+auth_context = getattr(ctx.inputs.ports, "auth", None) if ctx.inputs.ports else None
 auth = AuthContext(
     user_id=uuid4(),
     session_id=uuid4(),

@@ -45,6 +45,16 @@ print(stageflow.__all__)
 
 You should see a list of exported types including `Pipeline`, `Stage`, `StageOutput`, etc.
 
+Stageflow also exports helper modules—confirm the new provider response dataclasses are available:
+
+```python
+from stageflow.helpers import LLMResponse, STTResponse, TTSResponse
+
+print(LLMResponse(model="mock", provider="demo", content="hi"))
+```
+
+If this import works, your environment is ready for deterministic provider metadata handling in later guides.
+
 ## Quick Verification
 
 Run this minimal example to verify everything works:
@@ -84,6 +94,13 @@ async def main():
     
     print(results["hello"].data)  # {'message': 'Hello, Stageflow!'}
 
+    # Optional: emit quick telemetry from the queue helpers
+    from stageflow.helpers import ChunkQueue
+
+    q = ChunkQueue(event_emitter=lambda event, data: print(event, data))
+    await q.put("warmup")
+    await q.close()
+
 asyncio.run(main())
 ```
 
@@ -91,3 +108,4 @@ asyncio.run(main())
 
 - Continue to the [Quick Start](quickstart.md) guide to build your first real pipeline
 - Read about [Core Concepts](concepts.md) to understand the framework architecture
+- Jump to [Observability](../guides/observability.md) once you're ready to wire telemetry, streaming events, and analytics exporters

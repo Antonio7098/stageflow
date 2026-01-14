@@ -117,8 +117,14 @@ class ToolExecutionStage:
         self._executor = executor
 
     async def execute(self, ctx: StageContext) -> StageOutput:
-        # Get tool calls from LLM stage
+        # Get tool calls from LLM stage and resolve via registry helper
         tool_calls = ctx.inputs.get_from("llm", "tool_calls", [])
+        resolved, unresolved = self._executor.registry.parse_and_resolve(tool_calls)
+
+        for call in unresolved:
+            ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+
+        tool_calls = resolved
 
         if not tool_calls:
             return StageOutput.skip(reason="No tool calls")
@@ -126,11 +132,11 @@ class ToolExecutionStage:
         results = []
         for call in tool_calls:
             result = await self._executor.execute(
-                tool_name=call["name"],
-                arguments=call["arguments"],
+                tool_name=call.name,
+                arguments=call.arguments,
             )
             results.append({
-                "tool": call["name"],
+                "tool": call.name,
                 "success": result.success,
                 "output": result.output,
                 "error": result.error,

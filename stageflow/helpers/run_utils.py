@@ -37,7 +37,7 @@ from uuid import UUID, uuid4
 
 from stageflow.context import ContextSnapshot
 from stageflow.context.identity import RunIdentity
-from stageflow.core import StageContext, StageOutput
+from stageflow.core import PipelineTimer, StageContext, StageOutput
 from stageflow.events import set_event_sink
 from stageflow.pipeline.dag import UnifiedPipelineCancelled, UnifiedStageGraph
 
@@ -457,13 +457,31 @@ class PipelineRunner:
             )
 
         # Build graph if needed
+        # Build graph if needed
         if hasattr(pipeline, "build"):
             graph = pipeline.build()
         elif isinstance(pipeline, UnifiedStageGraph):
             graph = pipeline
         else:
-            # Assume it's already specs
             graph = UnifiedStageGraph(specs=pipeline)
+
+        from stageflow.stages.inputs import create_stage_inputs
+
+        root_inputs = create_stage_inputs(
+            snapshot=snapshot,
+            prior_outputs={},
+            ports=None,
+            declared_deps=(),
+            stage_name="__pipeline_root__",
+        )
+
+        stage_ctx = StageContext(
+            snapshot=snapshot,
+            inputs=root_inputs,
+            stage_name="__pipeline_root__",
+            timer=PipelineTimer(),
+            event_sink=event_sink,
+        )
 
         # Print header
         if self._verbose:
@@ -478,7 +496,7 @@ class PipelineRunner:
 
         # Run pipeline - graph.run() takes snapshot and event_sink
         try:
-            results = await graph.run(snapshot, event_sink=event_sink)
+            results = await graph.run(stage_ctx)
             duration_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
 
             return RunResult(

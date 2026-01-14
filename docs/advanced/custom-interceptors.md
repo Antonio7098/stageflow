@@ -223,6 +223,37 @@ class RequestLoggingInterceptor(BaseInterceptor):
         )
 ```
 
+### Streaming Telemetry & Analytics Hooks
+
+Interceptors are a great place to wire telemetry emitters and analytics exporters so every stage shares the same observable pipeline:
+
+```python
+from stageflow.helpers import ChunkQueue, StreamingBuffer, BufferedExporter
+
+class StreamingTelemetryInterceptor(BaseInterceptor):
+    name = "streaming_telemetry"
+    priority = 35
+
+    async def before(self, stage_name: str, ctx: PipelineContext) -> None:
+        queue = ChunkQueue(event_emitter=ctx.try_emit_event)
+        buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
+
+        exporter = BufferedExporter(
+            sink=self._sink,
+            on_overflow=lambda dropped, size: ctx.try_emit_event(
+                "analytics.overflow",
+                {"stage": stage_name, "dropped": dropped, "buffer_size": size},
+            ),
+            high_water_mark=0.8,
+        )
+
+        ctx.data["_stream_queue"] = queue
+        ctx.data["_stream_buffer"] = buffer
+        ctx.data["_analytics_exporter"] = exporter
+```
+
+This ensures stages emit standardized `stream.*` events (`stream.chunk_dropped`, `stream.producer_blocked`, `stream.buffer_overflow`, etc.) even if the stage itself is unaware of the helper classes.
+
 ### Feature Flags
 
 ```python
