@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+git add pyproject.toml && GIT_EDITOR=true git rebase --continue#!/usr/bin/env python3
 """Orchestrate a Stageflow release ensuring versions, tags, and docs stay in sync."""
 
 from __future__ import annotations

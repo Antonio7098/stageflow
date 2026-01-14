@@ -26,6 +26,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Verify version alignment
+        if: github.event_name == 'pull_request'
+        run: python scripts/check_version_sync.py --quiet
+
       - name: Run lint
         run: |
           ruff check .

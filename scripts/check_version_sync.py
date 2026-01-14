@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -70,6 +71,28 @@ def check_changelog(version: str) -> Iterable[str]:
     return []
 
 
+def check_git_tag(version: str) -> Iterable[str]:
+    expected_tag = f"v{version}"
+    try:
+        tag = (
+            subprocess.run(
+                ["git", "describe", "--tags", "--exact-match", "HEAD"],
+                cwd=REPO_ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            .stdout.strip()
+        )
+    except subprocess.CalledProcessError:
+        return [
+            "HEAD is not tagged. Create the release tag first or omit --require-tag."
+        ]
+    if tag != expected_tag:
+        return [f"HEAD tag is {tag}, expected {expected_tag}."]
+    return []
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Validate that pyproject, docs, and changelog reference the same version."
@@ -79,12 +102,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Suppress success output (errors will still be printed).",
     )
+    parser.add_argument(
+        "--require-tag",
+        action="store_true",
+        help="Also ensure that HEAD is tagged as v<version>. Useful in tag-triggered workflows.",
+    )
     args = parser.parse_args(argv)
 
     version = load_project_version()
     errors = [
         *check_version_references(version),
         *check_changelog(version),
+        *(
+            check_git_tag(version)
+            if args.require_tag
+            else []
+        ),
     ]
 
     if errors:

@@ -27,8 +27,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
 
-      - name: Verify version alignment
-        run: python scripts/check_version_sync.py --quiet
+      - name: Verify version alignment (including tag)
+        run: python scripts/check_version_sync.py --quiet --require-tag
 
       - name: Build distributions
         run: python -m build
