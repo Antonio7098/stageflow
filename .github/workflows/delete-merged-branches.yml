@@ -1,0 +1,28 @@
+name: Delete merged branches
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  delete-merged:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Delete merged branches
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Get all branches merged to main (excluding main and protected branches)
+          for branch in $(git branch -r --merged origin/main | grep -v -e 'origin/main' -e 'origin/HEAD' | sed 's/origin\///'); do
+            if [ "$branch" != "main" ]; then
+              echo "Deleting merged branch: $branch"
+              git push origin --delete "$branch" || true
+            fi
+          done
