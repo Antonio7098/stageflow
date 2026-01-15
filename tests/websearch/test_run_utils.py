@@ -1,8 +1,10 @@
 """Tests for websearch run utilities."""
 
+from collections.abc import Callable
+
 import pytest
 
-from stageflow.websearch.client import create_mock_client
+from stageflow.websearch.client import WebSearchClient
 from stageflow.websearch.fetcher import MockFetcher
 from stageflow.websearch.run_utils import (
     FetchProgress,
@@ -11,11 +13,19 @@ from stageflow.websearch.run_utils import (
     extract_all_links,
     fetch_page,
     fetch_pages,
-    fetch_with_retry,
     map_site,
     search_and_extract,
     shutdown_extraction_pool,
 )
+
+
+def make_client_factory(responses: dict[str, tuple[int, str, dict[str, str]]]) -> Callable[[], WebSearchClient]:
+    """Create a factory that returns WebSearchClient instances backed by MockFetcher."""
+
+    def _factory() -> WebSearchClient:
+        return WebSearchClient(fetcher=MockFetcher(responses))
+
+    return _factory
 
 
 class TestFetchProgress:
@@ -91,9 +101,6 @@ class TestFetchPage:
     async def test_fetch_page_basic(self) -> None:
         """Test basic page fetch."""
         # Use the module-level function with mock
-        from stageflow.websearch import WebSearchClient
-        from stageflow.websearch.fetcher import MockFetcher
-
         responses = {
             "https://example.com": (
                 200,
@@ -102,10 +109,10 @@ class TestFetchPage:
             ),
         }
 
-        # Create a mock client and test fetch directly
-        mock_fetcher = MockFetcher(responses)
-        async with WebSearchClient(fetcher=mock_fetcher) as client:
-            page = await client.fetch("https://example.com")
+        page = await fetch_page(
+            "https://example.com",
+            client_factory=make_client_factory(responses),
+        )
 
         assert page.success
         assert page.title == "Test"
@@ -118,9 +125,6 @@ class TestFetchPages:
     @pytest.mark.asyncio
     async def test_fetch_pages_with_progress(self) -> None:
         """Test batch fetch with progress tracking."""
-        from stageflow.websearch import WebSearchClient
-        from stageflow.websearch.fetcher import MockFetcher
-
         responses = {
             f"https://example.com/{i}": (
                 200,
@@ -142,10 +146,13 @@ class TestFetchPages:
                 )
             )
 
-        mock_fetcher = MockFetcher(responses)
-        async with WebSearchClient(fetcher=mock_fetcher) as client:
-            urls = [f"https://example.com/{i}" for i in range(3)]
-            pages = await client.fetch_many(urls)
+        urls = [f"https://example.com/{i}" for i in range(3)]
+        pages = await fetch_pages(
+            urls,
+            concurrency=2,
+            client_factory=make_client_factory(responses),
+            on_progress=on_progress,
+        )
 
         assert len(pages) == 3
         assert all(p.success for p in pages)
@@ -153,12 +160,11 @@ class TestFetchPages:
     @pytest.mark.asyncio
     async def test_fetch_pages_empty_list(self) -> None:
         """Test batch fetch with empty URL list."""
-        from stageflow.websearch import WebSearchClient
-        from stageflow.websearch.fetcher import MockFetcher
 
-        mock_fetcher = MockFetcher({})
-        async with WebSearchClient(fetcher=mock_fetcher) as client:
-            pages = await client.fetch_many([])
+        pages = await fetch_pages(
+            [],
+            client_factory=make_client_factory({}),
+        )
 
         assert pages == []
 
@@ -169,9 +175,6 @@ class TestFetchWithRetry:
     @pytest.mark.asyncio
     async def test_retry_on_success(self) -> None:
         """Test that successful fetch doesn't retry."""
-        from stageflow.websearch import WebSearchClient
-        from stageflow.websearch.fetcher import MockFetcher
-
         responses = {
             "https://example.com": (
                 200,
@@ -193,9 +196,6 @@ class TestSearchAndExtract:
     @pytest.mark.asyncio
     async def test_search_filters_relevant_pages(self) -> None:
         """Test that search filters pages by query relevance."""
-        from stageflow.websearch import WebSearchClient
-        from stageflow.websearch.fetcher import MockFetcher
-
         responses = {
             "https://example.com": (
                 200,
@@ -237,30 +237,16 @@ class TestSearchAndExtract:
             ),
         }
 
-        mock_fetcher = MockFetcher(responses)
-        async with WebSearchClient(fetcher=mock_fetcher) as client:
-            pages = await client.crawl(
-                "https://example.com",
-                max_pages=10,
-                max_depth=1,
-            )
+        result = await search_and_extract(
+            start_url="https://example.com",
+            query="asyncio tutorial",
+            max_pages=10,
+            max_depth=1,
+            client_factory=make_client_factory(responses),
+        )
 
-        # Manually filter for relevance as search_and_extract does
-        query = "asyncio tutorial"
-        query_terms = set(query.lower().split())
-        relevant = []
-
-        for page in pages:
-            if not page.success:
-                continue
-            content = f"{page.title or ''} {page.plain_text}".lower()
-            matches = sum(1 for term in query_terms if term in content)
-            score = matches / len(query_terms) if query_terms else 0
-            if score >= 0.1:
-                relevant.append(page)
-
-        # Should find pages with "asyncio" and/or "tutorial"
-        assert len(relevant) >= 1
+        assert len(result.pages) >= 1
+        assert len(result.relevant_pages) >= 1
 
 
 class TestMapSite:
@@ -269,8 +255,6 @@ class TestMapSite:
     @pytest.mark.asyncio
     async def test_map_site_collects_links(self) -> None:
         """Test that map_site collects internal and external links."""
-        from stageflow.websearch import WebSearchClient
-        from stageflow.websearch.fetcher import MockFetcher
 
         responses = {
             "https://example.com": (
@@ -293,24 +277,15 @@ class TestMapSite:
             ),
         }
 
-        mock_fetcher = MockFetcher(responses)
-        async with WebSearchClient(fetcher=mock_fetcher) as client:
-            pages = await client.crawl(
-                "https://example.com",
-                max_pages=10,
-                max_depth=1,
-            )
+        sitemap = await map_site(
+            "https://example.com",
+            max_pages=10,
+            max_depth=1,
+            client_factory=make_client_factory(responses),
+        )
 
-        # Check pages were crawled
-        assert len(pages) >= 1
-
-        # Check links were extracted
-        all_links = []
-        for page in pages:
-            all_links.extend(page.links)
-
-        internal_links = [l for l in all_links if l.is_internal]
-        external_links = [l for l in all_links if not l.is_internal]
+        internal_links = sitemap.internal_links
+        external_links = sitemap.external_links
 
         assert len(internal_links) >= 1
         assert len(external_links) >= 1
@@ -322,8 +297,6 @@ class TestExtractAllLinks:
     @pytest.mark.asyncio
     async def test_extract_all_links_deduplicates(self) -> None:
         """Test that extract_all_links deduplicates URLs."""
-        from stageflow.websearch import WebSearchClient
-        from stageflow.websearch.fetcher import MockFetcher
 
         responses = {
             "https://example.com/page1": (
@@ -352,24 +325,12 @@ class TestExtractAllLinks:
             ),
         }
 
-        mock_fetcher = MockFetcher(responses)
-        async with WebSearchClient(fetcher=mock_fetcher) as client:
-            pages = await client.fetch_many([
-                "https://example.com/page1",
-                "https://example.com/page2",
-            ])
+        links = await extract_all_links(
+            ["https://example.com/page1", "https://example.com/page2"],
+            client_factory=make_client_factory(responses),
+        )
 
-        # Manually deduplicate as extract_all_links does
-        all_links = []
-        seen = set()
-        for page in pages:
-            for link in page.links:
-                if link.url not in seen:
-                    seen.add(link.url)
-                    all_links.append(link)
-
-        # Should have 3 unique links, not 4
-        assert len(all_links) == 3
+        assert len(links) == 3
 
 
 class TestShutdownExtractionPool:
@@ -390,29 +351,23 @@ class TestRunUtilsExports:
 
     def test_exports_from_websearch(self) -> None:
         """Test that run utilities are exported from stageflow.websearch."""
-        from stageflow.websearch import (
-            FetchProgress,
-            SearchResult,
-            SiteMap,
-            extract_all_links,
-            fetch_page,
-            fetch_pages,
-            fetch_with_retry,
-            map_site,
-            search_and_extract,
-            shutdown_extraction_pool,
-        )
+        import stageflow.websearch as websearch
 
-        assert FetchProgress is not None
-        assert SearchResult is not None
-        assert SiteMap is not None
-        assert callable(fetch_page)
-        assert callable(fetch_pages)
-        assert callable(fetch_with_retry)
-        assert callable(search_and_extract)
-        assert callable(map_site)
-        assert callable(extract_all_links)
-        assert callable(shutdown_extraction_pool)
+        expected_callables = [
+            "fetch_page",
+            "fetch_pages",
+            "fetch_with_retry",
+            "search_and_extract",
+            "map_site",
+            "extract_all_links",
+            "shutdown_extraction_pool",
+        ]
+
+        for name in ["FetchProgress", "SearchResult", "SiteMap"]:
+            assert hasattr(websearch, name)
+
+        for name in expected_callables:
+            assert callable(getattr(websearch, name))
 
     def test_all_in_module_all(self) -> None:
         """Test that all utilities are in __all__."""

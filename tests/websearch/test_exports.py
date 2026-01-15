@@ -4,8 +4,6 @@ Verifies that all config classes and other symbols are properly exported
 from the main stageflow.websearch module.
 """
 
-import pytest
-
 
 class TestWebsearchExports:
     """Tests for websearch module exports."""
@@ -129,7 +127,7 @@ class TestNavigationActionTypes:
         from stageflow.websearch import NavigationAction
 
         docstring = NavigationAction.__doc__ or ""
-        
+
         # Verify all action types are documented
         assert "pagination" in docstring
         assert "nav_link" in docstring

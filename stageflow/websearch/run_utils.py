@@ -39,15 +39,14 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import partial
 from typing import Any
-from uuid import uuid4
 
 from stageflow.websearch.client import WebSearchClient, WebSearchConfig
-from stageflow.websearch.extractor import ExtractionResult
-from stageflow.websearch.fetcher import FetchConfig, FetchResult
+from stageflow.websearch.fetcher import FetchResult
 from stageflow.websearch.models import ExtractedLink, WebPage
 
 
@@ -157,6 +156,16 @@ async def _run_in_thread(func: Callable[..., Any], *args: Any, **kwargs: Any) ->
     return await loop.run_in_executor(executor, partial(func, *args, **kwargs))
 
 
+@asynccontextmanager
+async def _client_context(
+    config: WebSearchConfig | None,
+    client_factory: Callable[[], WebSearchClient] | None,
+):
+    client = client_factory() if client_factory else WebSearchClient(config)
+    async with client:
+        yield client
+
+
 async def fetch_page(
     url: str,
     *,
@@ -164,6 +173,7 @@ async def fetch_page(
     headers: dict[str, str] | None = None,
     selector: str | None = None,
     config: WebSearchConfig | None = None,
+    client_factory: Callable[[], WebSearchClient] | None = None,
 ) -> WebPage:
     """Fetch and extract a single page with minimal boilerplate.
 
@@ -184,7 +194,7 @@ async def fetch_page(
         print(page.markdown)
         ```
     """
-    async with WebSearchClient(config) as client:
+    async with _client_context(config, client_factory) as client:
         return await client.fetch(
             url,
             timeout=timeout,
@@ -203,6 +213,7 @@ async def fetch_pages(
     config: WebSearchConfig | None = None,
     on_progress: Callable[[FetchProgress], None] | None = None,
     parallel_extraction: bool = True,
+    client_factory: Callable[[], WebSearchClient] | None = None,
 ) -> list[WebPage]:
     """Fetch multiple pages with progress tracking and parallel extraction.
 
@@ -236,11 +247,10 @@ async def fetch_pages(
 
     start_time = datetime.now(UTC)
     results: list[WebPage | None] = [None] * len(urls)
-    url_to_index = {url: i for i, url in enumerate(urls)}
 
     progress = FetchProgress(total=len(urls))
 
-    async with WebSearchClient(config) as client:
+    async with _client_context(config, client_factory) as client:
         semaphore = asyncio.Semaphore(concurrency)
 
         async def fetch_one(url: str, index: int) -> None:
@@ -360,10 +370,9 @@ async def search_and_extract(
     max_pages: int = 20,
     max_depth: int = 2,
     same_domain_only: bool = True,
-    concurrency: int = 5,
     config: WebSearchConfig | None = None,
     relevance_threshold: float = 0.1,
-    on_progress: Callable[[FetchProgress], None] | None = None,
+    client_factory: Callable[[], WebSearchClient] | None = None,
 ) -> SearchResult:
     """Crawl a site and extract pages relevant to a query.
 
@@ -398,7 +407,7 @@ async def search_and_extract(
     """
     start_time = datetime.now(UTC)
 
-    async with WebSearchClient(config) as client:
+    async with _client_context(config, client_factory) as client:
         pages = await client.crawl(
             start_url,
             max_pages=max_pages,
@@ -450,10 +459,9 @@ async def map_site(
     max_depth: int = 3,
     same_domain_only: bool = True,
     include_external: bool = True,
-    concurrency: int = 5,
     config: WebSearchConfig | None = None,
     link_filter: Callable[[ExtractedLink], bool] | None = None,
-    on_progress: Callable[[FetchProgress], None] | None = None,
+    client_factory: Callable[[], WebSearchClient] | None = None,
 ) -> SiteMap:
     """Crawl and map a website's structure.
 
@@ -486,7 +494,7 @@ async def map_site(
     """
     start_time = datetime.now(UTC)
 
-    async with WebSearchClient(config) as client:
+    async with _client_context(config, client_factory) as client:
         pages = await client.crawl(
             start_url,
             max_pages=max_pages,
@@ -499,8 +507,6 @@ async def map_site(
     internal_links: list[ExtractedLink] = []
     external_links: list[ExtractedLink] = []
     seen_urls: set[str] = set()
-
-    max_depth_reached = 0
 
     for page in pages:
         for link in page.links:
@@ -520,7 +526,7 @@ async def map_site(
         pages=pages,
         internal_links=internal_links,
         external_links=external_links,
-        depth_reached=max_depth,  # Approximate - actual depth tracked in crawler
+        depth_reached=max_depth,
         duration_ms=duration_ms,
     )
 
@@ -533,6 +539,7 @@ async def fetch_with_retry(
     timeout: float | None = None,
     headers: dict[str, str] | None = None,
     config: WebSearchConfig | None = None,
+    client_factory: Callable[[], WebSearchClient] | None = None,
 ) -> WebPage:
     """Fetch a page with automatic retry on failure.
 
@@ -564,6 +571,7 @@ async def fetch_with_retry(
             timeout=timeout,
             headers=headers,
             config=config,
+            client_factory=client_factory,
         )
 
         if page.success:
@@ -588,6 +596,7 @@ async def extract_all_links(
     internal_only: bool = False,
     external_only: bool = False,
     config: WebSearchConfig | None = None,
+    client_factory: Callable[[], WebSearchClient] | None = None,
 ) -> list[ExtractedLink]:
     """Extract all links from multiple pages.
 
@@ -611,7 +620,12 @@ async def extract_all_links(
         print(f"Found {len(links)} unique internal links")
         ```
     """
-    pages = await fetch_pages(urls, concurrency=concurrency, config=config)
+    pages = await fetch_pages(
+        urls,
+        concurrency=concurrency,
+        config=config,
+        client_factory=client_factory,
+    )
 
     all_links: list[ExtractedLink] = []
     seen_urls: set[str] = set()

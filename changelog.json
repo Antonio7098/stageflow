@@ -19,6 +19,58 @@
   },
   "entries": [
     {
+      "version": "v0.4.0",
+      "date": "2026-01-15",
+      "changes": [
+        {
+          "type": "added",
+          "area": "websearch.run_utils",
+          "description": "Introduced high-level helpers (fetch_page/fetch_pages/fetch_with_retry/search_and_extract/map_site/extract_all_links) plus FetchProgress, SearchResult, and SiteMap dataclasses for accelerated agent workflows.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/websearch/run_utils.py",
+            "stageflow/websearch/__init__.py",
+            "tests/websearch/test_run_utils.py",
+            "docs/guides/websearch.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "fixed",
+          "area": "websearch.navigation",
+          "description": "FallbackNavigator now inspects each anchor tag individually, preventing pagination loops and improving multi-page crawling stability.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/websearch/navigator.py",
+            "tests/websearch/test_client.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "performance",
+          "description": "fetch_pages gained optional parallel extraction backed by a shared ThreadPoolExecutor to overlap CPU-bound HTML parsing with HTTP I/O.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/websearch/run_utils.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "docs",
+          "description": "Documented selectolax recommendation, client lifecycle guidance, run utilities, and new release highlights across README and docs/index.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/guides/websearch.md",
+            "docs/index.md",
+            "README.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.3.0",
       "date": "2026-01-14",
       "changes": [

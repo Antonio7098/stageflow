@@ -254,8 +254,6 @@ class TestRunSimplePipeline:
     @pytest.mark.asyncio
     async def test_accepts_pipeline_and_input(self):
         """Should accept pipeline and input_text as main arguments."""
-        pipeline = Pipeline().with_stage("test", MockStage, StageKind.TRANSFORM)
-
         # Verify it can be called with basic args - full execution
         # requires integration test environment
         assert callable(run_simple_pipeline)

@@ -16,6 +16,12 @@ Or install dependencies directly:
 pip install httpx selectolax
 ```
 
+> **Note:** `selectolax` provides the high-performance HTML parser used by
+> `DefaultContentExtractor` and `PageNavigator`. If it isn't installed, Stageflow
+> automatically falls back to regex-based extractors/navigators so everything still
+> works, but parsing is slower and navigation detection is less precise. Installing
+> `selectolax` is strongly recommended for production workloads.
+
 ## Quick Start
 
 ```python
