@@ -11,7 +11,6 @@ import sys
 import tomllib
 from collections.abc import Iterable
 from pathlib import Path
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 CHANGELOG_PATH = REPO_ROOT / "changelog.json"
