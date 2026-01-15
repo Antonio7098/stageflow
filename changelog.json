@@ -19,6 +19,45 @@
   },
   "entries": [
     {
+      "version": "v0.5.0",
+      "date": "2026-01-15",
+      "changes": [
+        {
+          "type": "added",
+          "area": "tools.executor",
+          "description": "ToolExecutor now exposes spawn_subpipeline(), enabling tools to launch child pipelines via SubpipelineSpawner with a single call.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/tools/executor.py",
+            "docs/advanced/subpipelines.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "observability",
+          "description": "Spawn operations emit structured ToolExecutor logs and surface SubpipelineResult metadata for improved tracing.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/tools/executor.py",
+            "docs/index.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "testing",
+          "description": "Introduced dedicated unit/integration suites covering subpipeline spawning, depth limits, registry lookup errors, and event emission.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/unit/tools/test_spawn_subpipeline.py",
+            "tests/integration/test_subpipelines.py"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.4.0",
       "date": "2026-01-15",
       "changes": [
