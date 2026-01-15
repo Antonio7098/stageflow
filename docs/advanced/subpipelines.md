@@ -431,6 +431,80 @@ class DelegatingAgentStage:
         return StageOutput.ok(response=result)
 ```
 
+## ToolExecutor.spawn_subpipeline API *(new in 0.5.0)*
+
+The simplest way to spawn a subpipeline from a tool is via `ToolExecutor.spawn_subpipeline()`:
+
+```python
+from stageflow.tools.executor import ToolExecutor
+
+executor = ToolExecutor()
+
+# Spawn a child pipeline
+result = await executor.spawn_subpipeline(
+    "validation_pipeline",  # Pipeline name from registry
+    ctx,                    # Parent PipelineContext
+    action.id,              # Correlation ID (typically action UUID)
+    topology_override="fast_kernel",        # Optional
+    execution_mode_override="strict",       # Optional
+)
+
+if result.success:
+    validated_data = result.data
+    print(f"Child {result.child_run_id} completed in {result.duration_ms}ms")
+else:
+    logger.error(f"Validation failed: {result.error}")
+```
+
+### Features
+
+- **Pipeline lookup** from the global `PipelineRegistry`
+- **Automatic graph building** and execution
+- **Full observability** via `SubpipelineSpawner` events
+- **Depth limit enforcement** (raises `MaxDepthExceededError`)
+- **Cancellation propagation** via `ChildRunTracker`
+- **Structured logging** with correlation IDs
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `pipeline_name` | `str` | Name of the registered pipeline to run |
+| `ctx` | `PipelineContext` | Parent context (will be forked for child) |
+| `correlation_id` | `UUID` | Action ID that triggered spawn (for tracing) |
+| `topology_override` | `str \| None` | Optional different topology for child |
+| `execution_mode_override` | `str \| None` | Optional different execution mode |
+
+### Returns
+
+`SubpipelineResult` with:
+- `success`: Whether child completed successfully
+- `child_run_id`: The child pipeline run UUID
+- `data`: Output data from child stages
+- `error`: Error message if failed
+- `duration_ms`: Execution time
+
+### Exceptions
+
+- `KeyError`: Pipeline name not found in registry
+- `MaxDepthExceededError`: Nesting depth limit exceeded
+
+### Dependency Injection
+
+For testing, inject custom spawner and registry:
+
+```python
+from stageflow.pipeline import PipelineRegistry, SubpipelineSpawner
+
+# Create with custom dependencies
+executor = ToolExecutor(
+    spawner=mock_spawner,
+    registry=mock_registry,
+)
+```
+
+---
+
 ## SubpipelineSpawner API
 
 ```python

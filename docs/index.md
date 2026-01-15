@@ -45,11 +45,11 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.4.0**
+> **New in Stageflow 0.5.0**
 > 
-> - **Websearch Run Utilities**: `fetch_page`, `fetch_pages`, `fetch_with_retry`, `search_and_extract`, `map_site`, and `extract_all_links` accelerate search-enabled agents.
-> - **Parallel Extraction**: Thread-pooled HTML parsing keeps CPUs busy while network requests are in-flight.
-> - **Navigation Reliability**: Pagination detection now handles per-link contexts, improving multi-page crawling stability.
+> - **Subpipeline Spawning Tool**: `ToolExecutor.spawn_subpipeline()` exposes the global `SubpipelineSpawner`, giving tools a one-liner API to launch child pipelines with full observability and cancellation propagation.
+> - **Observability & Logging**: ToolExecutor now logs spawn lifecycle events (start/completed/failure) with correlation IDs, and `SubpipelineResult` metadata is surfaced to calling stages.
+> - **Test & Docs Coverage**: Dedicated unit/integration suites validate depth limits, event emission, and registry lookups, and the advanced subpipeline guide now documents the new API end-to-end.
 
 ## Links
 
