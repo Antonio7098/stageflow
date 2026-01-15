@@ -65,7 +65,7 @@
           "type": "added",
           "area": "websearch.run_utils",
           "description": "Introduced high-level helpers (fetch_page/fetch_pages/fetch_with_retry/search_and_extract/map_site/extract_all_links) plus FetchProgress, SearchResult, and SiteMap dataclasses for accelerated agent workflows.",
-          "commit": "pending",
+          "commit": "bfc01a25aabf9f3b566c2164b5ca8c71d5340a95",
           "files_affected": [
             "stageflow/websearch/run_utils.py",
             "stageflow/websearch/__init__.py",
@@ -78,7 +78,7 @@
           "type": "fixed",
           "area": "websearch.navigation",
           "description": "FallbackNavigator now inspects each anchor tag individually, preventing pagination loops and improving multi-page crawling stability.",
-          "commit": "pending",
+          "commit": "bfc01a25aabf9f3b566c2164b5ca8c71d5340a95",
           "files_affected": [
             "stageflow/websearch/navigator.py",
             "tests/websearch/test_client.py"
