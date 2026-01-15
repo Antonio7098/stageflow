@@ -16,6 +16,12 @@ Or install dependencies directly:
 pip install httpx selectolax
 ```
 
+> **Note:** `selectolax` provides the high-performance HTML parser used by
+> `DefaultContentExtractor` and `PageNavigator`. If it isn't installed, Stageflow
+> automatically falls back to regex-based extractors/navigators so everything still
+> works, but parsing is slower and navigation detection is less precise. Installing
+> `selectolax` is strongly recommended for production workloads.
+
 ## Quick Start
 
 ```python
@@ -32,6 +38,26 @@ async def main():
         print(f"Links found: {len(page.links)}")
 
 asyncio.run(main())
+```
+
+### Client Lifecycle & Resource Management
+
+- **Short-lived scripts/tests**: Use `async with WebSearchClient()` so the underlying
+  `httpx.AsyncClient` is opened/closed automatically.
+- **Batch jobs and agents**: Create a single `WebSearchClient` and reuse it for the
+  entire run to take advantage of connection pooling. Call `await client.close()`
+  during shutdown to release sockets.
+- **Custom fetchers**: When providing your own `Fetcher`, the lifecycle is controlled
+  by that instance. Only call `client.close()` if your code created the fetcher; this
+  avoids double-closing shared resources.
+
+```python
+client = WebSearchClient()
+try:
+    pages = await client.fetch_many(urls, concurrency=8)
+    # ... process pages ...
+finally:
+    await client.close()
 ```
 
 ## Core Concepts
@@ -457,6 +483,106 @@ async def test_web_search_stage():
     assert "Test" in page.markdown
 ```
 
+## Run Utilities
+
+The `stageflow.websearch` module includes high-level utilities for common workflows.
+
+### Quick Fetch Functions
+
+```python
+from stageflow.websearch import fetch_page, fetch_pages, fetch_with_retry
+
+# Single page with minimal boilerplate
+page = await fetch_page("https://example.com")
+
+# Batch fetch with progress tracking
+def show_progress(p):
+    print(f"[{p.percent:.0f}%] {p.completed}/{p.total}")
+
+pages = await fetch_pages(
+    urls,
+    concurrency=10,
+    on_progress=show_progress,
+    parallel_extraction=True,  # Use thread pool for CPU-bound extraction
+)
+
+# Fetch with automatic retry
+page = await fetch_with_retry(
+    "https://flaky-server.com",
+    max_retries=3,
+    retry_delay=1.0,
+)
+```
+
+### Search and Extract
+
+Crawl a site and find pages relevant to a query:
+
+```python
+from stageflow.websearch import search_and_extract
+
+result = await search_and_extract(
+    start_url="https://docs.python.org",
+    query="asyncio tutorial",
+    max_pages=50,
+    max_depth=2,
+)
+
+print(f"Found {len(result.relevant_pages)} relevant pages")
+for page in result.relevant_pages[:5]:
+    print(f"- {page.title}: {page.url}")
+```
+
+### Site Mapping
+
+Map a website's structure and collect all links:
+
+```python
+from stageflow.websearch import map_site
+
+sitemap = await map_site(
+    "https://example.com",
+    max_pages=200,
+    max_depth=4,
+)
+
+print(f"Pages crawled: {len(sitemap.pages)}")
+print(f"Internal links: {len(sitemap.internal_links)}")
+print(f"External links: {len(sitemap.external_links)}")
+```
+
+### Link Extraction
+
+Extract and deduplicate links from multiple pages:
+
+```python
+from stageflow.websearch import extract_all_links
+
+links = await extract_all_links(
+    seed_urls,
+    concurrency=10,
+    internal_only=True,
+)
+
+print(f"Found {len(links)} unique internal links")
+```
+
+### Parallel Extraction
+
+The `fetch_pages` function supports parallel content extraction using a thread pool.
+This overlaps CPU-bound HTML parsing with network I/O for better throughput:
+
+```python
+# Enable parallel extraction (default: True)
+pages = await fetch_pages(urls, parallel_extraction=True)
+
+# Shutdown the thread pool during app cleanup
+from stageflow.websearch import shutdown_extraction_pool
+shutdown_extraction_pool()
+```
+
+---
+
 ## Error Handling
 
 ```python
@@ -514,3 +640,18 @@ print(len(truncated.markdown))  # <= 8000 (approximately)
 | `FetchConfig` | HTTP fetch settings |
 | `ExtractionConfig` | Content extraction settings |
 | `NavigationConfig` | Navigation detection settings |
+
+### Run Utilities
+
+| Function/Class | Description |
+|----------------|-------------|
+| `fetch_page()` | Fetch single page with minimal boilerplate |
+| `fetch_pages()` | Batch fetch with progress and parallel extraction |
+| `fetch_with_retry()` | Fetch with automatic retry on failure |
+| `search_and_extract()` | Crawl and filter pages by query relevance |
+| `map_site()` | Map website structure and collect links |
+| `extract_all_links()` | Extract deduplicated links from multiple pages |
+| `FetchProgress` | Progress info dataclass for batch fetches |
+| `SearchResult` | Result from `search_and_extract()` |
+| `SiteMap` | Result from `map_site()` |
+| `shutdown_extraction_pool()` | Cleanup thread pool on shutdown |

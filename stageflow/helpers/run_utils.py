@@ -573,10 +573,71 @@ class PipelineRunner:
             print(f"  Duration: {result.duration_ms:.1f}ms")
 
 
+async def run_simple_pipeline(
+    pipeline: Any,
+    input_text: str,
+    *,
+    execution_mode: str = "practice",
+    metadata: dict[str, Any] | None = None,
+    verbose: bool = False,
+    colorize: bool = False,
+) -> RunResult:
+    """Execute a pipeline with minimal boilerplate.
+
+    This is a convenience function that handles all context creation
+    automatically. Ideal for simple use cases, testing, and scripts.
+
+    Args:
+        pipeline: Pipeline to run (Pipeline instance or UnifiedStageGraph).
+        input_text: User input text.
+        execution_mode: Pipeline execution mode (default: "practice").
+        metadata: Optional metadata dict to include in snapshot.
+        verbose: Print events during execution (default: False).
+        colorize: Use ANSI colors in output (default: False).
+
+    Returns:
+        RunResult with execution status and data.
+
+    Example:
+        ```python
+        from stageflow.helpers import run_simple_pipeline
+
+        result = await run_simple_pipeline(
+            my_pipeline,
+            "Hello, world!",
+            execution_mode="practice",
+        )
+
+        if result.success:
+            print(f"Completed in {result.duration_ms}ms")
+            print(result.stages)
+        else:
+            print(f"Failed: {result.error}")
+        ```
+    """
+    runner = PipelineRunner(
+        verbose=verbose,
+        colorize=colorize,
+        capture_events=True,
+    )
+
+    snapshot_kwargs: dict[str, Any] = {}
+    if metadata:
+        snapshot_kwargs["metadata"] = metadata
+
+    return await runner.run(
+        pipeline,
+        input_text=input_text,
+        execution_mode=execution_mode,
+        **snapshot_kwargs,
+    )
+
+
 __all__ = [
     "JsonLogFormatter",
     "ObservableEventSink",
     "PipelineRunner",
     "RunResult",
+    "run_simple_pipeline",
     "setup_logging",
 ]

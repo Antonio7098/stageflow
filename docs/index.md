@@ -45,10 +45,11 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.3.0**
+> **New in Stageflow 0.4.0**
 > 
-> - **Web Search**: Integrate web search into your pipelines with the new `WebSearch` stage.
-> - **Improved Error Handling**: Enhanced error handling and recovery mechanisms for more robust pipelines.
+> - **Websearch Run Utilities**: `fetch_page`, `fetch_pages`, `fetch_with_retry`, `search_and_extract`, `map_site`, and `extract_all_links` accelerate search-enabled agents.
+> - **Parallel Extraction**: Thread-pooled HTML parsing keeps CPUs busy while network requests are in-flight.
+> - **Navigation Reliability**: Pagination detection now handles per-link contexts, improving multi-page crawling stability.
 
 ## Links
 
