@@ -933,17 +933,95 @@ Result of a pipeline run with metadata.
 
 ---
 
+### run_simple_pipeline()
+
+```python
+from stageflow.helpers import run_simple_pipeline
+```
+
+Execute a pipeline with minimal boilerplate. This convenience function handles all context creation automatically, ideal for simple use cases, testing, and scripts.
+
+**Signature:**
+```python
+async def run_simple_pipeline(
+    pipeline: Pipeline | UnifiedStageGraph,
+    input_text: str,
+    *,
+    execution_mode: str = "practice",
+    metadata: dict[str, Any] | None = None,
+    verbose: bool = False,
+    colorize: bool = False,
+) -> RunResult
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `pipeline` | `Pipeline \| UnifiedStageGraph` | Pipeline to run |
+| `input_text` | `str` | User input text |
+| `execution_mode` | `str` | Pipeline execution mode (default: "practice") |
+| `metadata` | `dict \| None` | Optional metadata dict to include in snapshot |
+| `verbose` | `bool` | Print events during execution (default: False) |
+| `colorize` | `bool` | Use ANSI colors in output (default: False) |
+
+**Returns:** `RunResult` with execution status and data.
+
+**Example:**
+```python
+from stageflow.helpers import run_simple_pipeline
+
+result = await run_simple_pipeline(
+    my_pipeline,
+    "Hello, world!",
+    execution_mode="practice",
+)
+
+if result.success:
+    print(f"Completed in {result.duration_ms}ms")
+    print(result.stages)
+else:
+    print(f"Failed: {result.error}")
+```
+
+---
+
 ### setup_logging()
 
 ```python
 from stageflow.helpers import setup_logging
 ```
 
-Configure logging for stageflow applications.
+Configure logging for stageflow applications with structured output support.
 
-**Example:**
+**Signature:**
 ```python
-setup_logging(level="INFO", format="json")
+setup_logging(
+    *,
+    verbose: bool = False,
+    json_format: bool = False,
+    log_file: str | None = None,
+) -> None
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `verbose` | `bool` | Enable DEBUG level logging (default: INFO) |
+| `json_format` | `bool` | Use JSON-structured log format for log aggregators |
+| `log_file` | `str \| None` | Optional file path for log output |
+
+**Examples:**
+```python
+# Basic verbose logging
+setup_logging(verbose=True)
+
+# JSON format for production/log aggregators
+setup_logging(json_format=True)
+
+# Log to file with JSON format
+setup_logging(json_format=True, log_file="pipeline.log")
 ```
 
 ---

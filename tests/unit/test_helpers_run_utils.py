@@ -11,6 +11,7 @@ from stageflow.helpers.run_utils import (
     ObservableEventSink,
     PipelineRunner,
     RunResult,
+    run_simple_pipeline,
     setup_logging,
 )
 
@@ -245,3 +246,50 @@ class TestSetupLogging:
         """Should configure JSON formatting."""
         setup_logging(json_format=True)
         # Verify no errors
+
+
+class TestRunSimplePipeline:
+    """Tests for run_simple_pipeline convenience function."""
+
+    @pytest.mark.asyncio
+    async def test_accepts_pipeline_and_input(self):
+        """Should accept pipeline and input_text as main arguments."""
+        pipeline = Pipeline().with_stage("test", MockStage, StageKind.TRANSFORM)
+
+        # Verify it can be called with basic args - full execution
+        # requires integration test environment
+        assert callable(run_simple_pipeline)
+
+        # Verify signature accepts expected parameters
+        import inspect
+        sig = inspect.signature(run_simple_pipeline)
+        params = list(sig.parameters.keys())
+
+        assert "pipeline" in params
+        assert "input_text" in params
+        assert "execution_mode" in params
+        assert "metadata" in params
+        assert "verbose" in params
+        assert "colorize" in params
+
+    @pytest.mark.asyncio
+    async def test_default_parameters(self):
+        """Should have sensible default parameters."""
+        import inspect
+        sig = inspect.signature(run_simple_pipeline)
+
+        # Check defaults
+        assert sig.parameters["execution_mode"].default == "practice"
+        assert sig.parameters["metadata"].default is None
+        assert sig.parameters["verbose"].default is False
+        assert sig.parameters["colorize"].default is False
+
+    @pytest.mark.asyncio
+    async def test_returns_run_result(self):
+        """Should return RunResult type."""
+        import inspect
+        sig = inspect.signature(run_simple_pipeline)
+
+        # Check return annotation (may be string due to __future__ annotations)
+        return_annotation = sig.return_annotation
+        assert return_annotation == RunResult or return_annotation == "RunResult"

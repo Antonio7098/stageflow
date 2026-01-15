@@ -170,12 +170,17 @@ class NavigationAction:
     - Submit a search form
 
     Attributes:
-        action_type: Type of action (link, pagination, expand, search)
+        action_type: Type of action. Valid values:
+            - ``"pagination"``: Pagination control (next/prev page)
+            - ``"nav_link"``: Navigation menu link
+            - ``"content_link"``: Link within main content area
+            - ``"external"``: External link to different domain
         url: Target URL if applicable
         label: Human-readable label
         selector: CSS selector for the element
-        priority: Suggested priority (1=highest)
-        metadata: Additional action-specific data
+        priority: Suggested priority (1=highest, lower is more important)
+        metadata: Additional action-specific data. For pagination actions,
+            may include ``{"direction": "next"}`` or ``{"direction": "prev"}``
     """
 
     action_type: str

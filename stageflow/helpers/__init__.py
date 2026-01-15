@@ -49,6 +49,7 @@ from stageflow.helpers.run_utils import (
     ObservableEventSink,
     PipelineRunner,
     RunResult,
+    run_simple_pipeline,
     setup_logging,
 )
 from stageflow.helpers.streaming import (
@@ -96,6 +97,7 @@ __all__ = [
     "ObservableEventSink",
     "PipelineRunner",
     "RunResult",
+    "run_simple_pipeline",
     "setup_logging",
     # Providers
     "LLMResponse",

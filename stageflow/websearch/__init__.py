@@ -35,7 +35,7 @@ Example:
     ```
 """
 
-from stageflow.websearch.client import WebSearchClient
+from stageflow.websearch.client import WebSearchClient, WebSearchConfig
 from stageflow.websearch.extractor import (
     ContentExtractor,
     DefaultContentExtractor,
@@ -54,6 +54,7 @@ from stageflow.websearch.models import (
     WebPage,
 )
 from stageflow.websearch.navigator import (
+    NavigationConfig,
     NavigationResult,
     Navigator,
     PageNavigator,
@@ -67,6 +68,7 @@ from stageflow.websearch.protocols import (
 __all__ = [
     # Main client
     "WebSearchClient",
+    "WebSearchConfig",
     # Protocols (for extension)
     "FetcherProtocol",
     "ContentExtractorProtocol",
@@ -83,6 +85,7 @@ __all__ = [
     # Navigator
     "Navigator",
     "PageNavigator",
+    "NavigationConfig",
     "NavigationResult",
     # Models
     "WebPage",
