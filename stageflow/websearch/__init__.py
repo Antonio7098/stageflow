@@ -64,6 +64,18 @@ from stageflow.websearch.protocols import (
     FetcherProtocol,
     NavigatorProtocol,
 )
+from stageflow.websearch.run_utils import (
+    FetchProgress,
+    SearchResult,
+    SiteMap,
+    extract_all_links,
+    fetch_page,
+    fetch_pages,
+    fetch_with_retry,
+    map_site,
+    search_and_extract,
+    shutdown_extraction_pool,
+)
 
 __all__ = [
     # Main client
@@ -92,4 +104,15 @@ __all__ = [
     "PageMetadata",
     "ExtractedLink",
     "NavigationAction",
+    # Run utilities
+    "FetchProgress",
+    "SearchResult",
+    "SiteMap",
+    "fetch_page",
+    "fetch_pages",
+    "fetch_with_retry",
+    "search_and_extract",
+    "map_site",
+    "extract_all_links",
+    "shutdown_extraction_pool",
 ]

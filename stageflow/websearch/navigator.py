@@ -489,32 +489,41 @@ class FallbackNavigator(Navigator):
         """Analyze page using regex patterns."""
         actions: list[NavigationAction] = []
 
-        next_patterns = [
-            r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>.*?(?:next|→|»|›).*?</a>',
-            r'<a[^>]+class=["\'][^"\']*next[^"\']*["\'][^>]*href=["\']([^"\']+)["\']',
-        ]
-        prev_patterns = [
-            r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>.*?(?:prev|←|«|‹).*?</a>',
-            r'<a[^>]+class=["\'][^"\']*prev[^"\']*["\'][^>]*href=["\']([^"\']+)["\']',
-        ]
+        anchor_pattern = re.compile(
+            r'<a([^>]*)href=["\']([^"\']+)["\']([^>]*)>(.*?)</a>',
+            re.I | re.DOTALL,
+        )
 
         next_url = None
         prev_url = None
 
-        for pattern in next_patterns:
-            match = re.search(pattern, html, re.I | re.DOTALL)
-            if match:
-                next_url = match.group(1)
-                if base_url:
-                    next_url = urljoin(base_url, next_url)
-                break
+        for match in anchor_pattern.finditer(html):
+            attrs = f"{match.group(1)} {match.group(3)}"
+            href = match.group(2)
+            inner_html = match.group(4)
 
-        for pattern in prev_patterns:
-            match = re.search(pattern, html, re.I | re.DOTALL)
-            if match:
-                prev_url = match.group(1)
-                if base_url:
-                    prev_url = urljoin(base_url, prev_url)
+            text = re.sub(r"<[^>]+>", "", inner_html).strip().lower()
+            class_match = re.search(r'class=["\']([^"\']+)["\']', attrs, re.I)
+            classes = class_match.group(1).lower() if class_match else ""
+
+            is_next = any(
+                token in text for token in self.config.next_link_texts
+            ) or "next" in classes
+            is_prev = any(
+                token in text for token in self.config.prev_link_texts
+            ) or "prev" in classes
+
+            if not href:
+                continue
+
+            resolved_href = urljoin(base_url, href) if base_url else href
+
+            if is_next and next_url is None:
+                next_url = resolved_href
+            if is_prev and prev_url is None:
+                prev_url = resolved_href
+
+            if next_url and prev_url:
                 break
 
         pagination = None
