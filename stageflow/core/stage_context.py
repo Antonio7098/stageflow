@@ -25,6 +25,7 @@ from .timer import PipelineTimer
 if TYPE_CHECKING:
     from stageflow.context import ContextSnapshot
     from stageflow.protocols import EventSink
+    from stageflow.stages.context import PipelineContext
     from stageflow.stages.inputs import StageInputs
 
 logger = logging.getLogger("stageflow.core.stage_context")
@@ -108,6 +109,54 @@ class StageContext:
                 logger.warning(f"Failed to emit event {type}: {e}")
         else:
             logger.debug(f"Event (no sink): {type}", extra=enriched_data)
+
+    def as_pipeline_context(
+        self,
+        *,
+        data: dict[str, Any] | None = None,
+        configuration: dict[str, Any] | None = None,
+        service: str | None = None,
+        db: Any = None,
+    ) -> PipelineContext:
+        """Create a mutable PipelineContext derived from this StageContext.
+
+        This helper reconstructs a PipelineContext using the immutable
+        snapshot data available to the stage so that stages can call
+        APIs (e.g., ToolExecutor.spawn_subpipeline) that require the
+        orchestration context rather than the execution wrapper.
+
+        Args:
+            data: Optional initial data dict for the pipeline context.
+            configuration: Optional configuration snapshot override.
+            service: Optional service label override (defaults to "pipeline").
+            db: Optional db/session handle to attach to the context.
+
+        Returns:
+            PipelineContext populated with the identifiers and metadata
+            from this StageContext.
+        """
+
+        from stageflow.stages.context import PipelineContext
+
+        kwargs: dict[str, Any] = {}
+        if self.event_sink is not None:
+            kwargs["event_sink"] = self.event_sink
+
+        return PipelineContext(
+            pipeline_run_id=self.snapshot.pipeline_run_id,
+            request_id=self.snapshot.request_id,
+            session_id=self.snapshot.session_id,
+            user_id=self.snapshot.user_id,
+            org_id=self.snapshot.org_id,
+            interaction_id=self.snapshot.interaction_id,
+            topology=self.snapshot.topology,
+            configuration=configuration.copy() if configuration else {},
+            execution_mode=self.snapshot.execution_mode,
+            service=service or "pipeline",
+            data=(data.copy() if data else {}),
+            db=db,
+            **kwargs,
+        )
 
     @classmethod
     def now(cls) -> datetime:
