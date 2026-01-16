@@ -113,6 +113,62 @@ class TestExecutionContextProtocol:
 class TestStageContextExecutionContext:
     """Test StageContext ExecutionContext implementation."""
 
+    def test_as_pipeline_context_basic(self):
+        """StageContext.as_pipeline_context should copy identity metadata."""
+        snapshot = _make_snapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="chat_fast",
+            execution_mode="practice",
+        )
+
+        class MockSink:
+            def try_emit(self, *, type: str, data: dict):
+                self.last = (type, data)
+
+        event_sink = MockSink()
+        stage_ctx = _make_stage_context(snapshot, event_sink=event_sink)
+
+        pipeline_ctx = stage_ctx.as_pipeline_context()
+
+        assert isinstance(pipeline_ctx, PipelineContext)
+        assert pipeline_ctx.pipeline_run_id == snapshot.pipeline_run_id
+        assert pipeline_ctx.request_id == snapshot.request_id
+        assert pipeline_ctx.session_id == snapshot.session_id
+        assert pipeline_ctx.user_id == snapshot.user_id
+        assert pipeline_ctx.org_id == snapshot.org_id
+        assert pipeline_ctx.interaction_id == snapshot.interaction_id
+        assert pipeline_ctx.topology == snapshot.topology
+        assert pipeline_ctx.execution_mode == snapshot.execution_mode
+        assert pipeline_ctx.event_sink is event_sink
+        assert pipeline_ctx.data == {}
+
+    def test_as_pipeline_context_overrides(self):
+        """Helper should respect optional overrides but avoid aliasing inputs."""
+        snapshot = _make_snapshot()
+        stage_ctx = _make_stage_context(snapshot)
+
+        config = {"routes": ["a", "b"]}
+        data = {"foo": "bar"}
+
+        pipeline_ctx = stage_ctx.as_pipeline_context(
+            configuration=config,
+            data=data,
+            service="voice",
+            db="session",
+        )
+
+        assert pipeline_ctx.configuration == config
+        assert pipeline_ctx.configuration is not config
+        assert pipeline_ctx.data == data
+        assert pipeline_ctx.data is not data
+        assert pipeline_ctx.service == "voice"
+        assert pipeline_ctx.db == "session"
+
     def test_pipeline_run_id_from_snapshot(self):
         """pipeline_run_id should come from snapshot."""
         run_id = uuid4()

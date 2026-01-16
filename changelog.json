@@ -19,6 +19,35 @@
   },
   "entries": [
     {
+      "version": "v0.5.1",
+      "date": "2026-01-16",
+      "changes": [
+        {
+          "type": "added",
+          "area": "core.stage_context",
+          "description": "StageContext now exposes as_pipeline_context() so custom stages can reconstruct PipelineContext instances for subpipeline spawning.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/core/stage_context.py",
+            "tests/unit/test_execution_context.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "docs",
+          "description": "Documented the StageContext → PipelineContext conversion helper across README, docs/index, and the advanced subpipeline guide.",
+          "commit": "pending",
+          "files_affected": [
+            "README.md",
+            "docs/index.md",
+            "docs/advanced/subpipelines.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.5.0",
       "date": "2026-01-15",
       "changes": [

@@ -431,7 +431,7 @@ class DelegatingAgentStage:
         return StageOutput.ok(response=result)
 ```
 
-## ToolExecutor.spawn_subpipeline API *(new in 0.5.0)*
+## ToolExecutor.spawn_subpipeline API *(updated in 0.5.1)*
 
 The simplest way to spawn a subpipeline from a tool is via `ToolExecutor.spawn_subpipeline()`:
 
@@ -488,6 +488,36 @@ else:
 
 - `KeyError`: Pipeline name not found in registry
 - `MaxDepthExceededError`: Nesting depth limit exceeded
+
+### Converting StageContext to PipelineContext
+
+Stages are executed with immutable `StageContext` instances derived from the
+mutable `PipelineContext` by the orchestrator. When a stage needs to call APIs
+that expect the richer pipeline-level context (for example,
+`ToolExecutor.spawn_subpipeline()`), use the helper:
+
+```python
+from stageflow.core import StageContext
+
+async def execute(self, ctx: StageContext) -> StageOutput:
+    pipeline_ctx = ctx.as_pipeline_context(
+        topology_override="subpipeline_general",
+        data={"invoked_by": ctx.stage_name},
+    )
+
+    result = await self.executor.spawn_subpipeline(
+        pipeline_name="general_chat",
+        ctx=pipeline_ctx,
+        correlation_id=uuid4(),
+    )
+
+    return StageOutput.ok(child=result.data)
+```
+
+`StageContext.as_pipeline_context()` copies the identifiers (run, request,
+session, etc.), topology, execution mode, and event sink from the snapshot so
+that stages can safely bridge back to the orchestration context without having
+to manually re-create the dataclass.
 
 ### Dependency Injection
 

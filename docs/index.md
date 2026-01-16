@@ -45,11 +45,10 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.5.0**
+> **New in Stageflow 0.5.1**
 > 
-> - **Subpipeline Spawning Tool**: `ToolExecutor.spawn_subpipeline()` exposes the global `SubpipelineSpawner`, giving tools a one-liner API to launch child pipelines with full observability and cancellation propagation.
-> - **Observability & Logging**: ToolExecutor now logs spawn lifecycle events (start/completed/failure) with correlation IDs, and `SubpipelineResult` metadata is surfaced to calling stages.
-> - **Test & Docs Coverage**: Dedicated unit/integration suites validate depth limits, event emission, and registry lookups, and the advanced subpipeline guide now documents the new API end-to-end.
+> - **StageContext → PipelineContext bridge**: Stages can now call `StageContext.as_pipeline_context()` to reconstruct a mutable `PipelineContext` when they need to spawn subpipelines or interact with tooling APIs that expect the richer context.
+> - **Updated subpipeline guide**: Documentation now includes the new helper, a runnable example, and guidance on when to convert execution contexts during agent delegation flows.
 
 ## Links
 
