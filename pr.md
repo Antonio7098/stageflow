@@ -24,6 +24,8 @@ If you touched docs-only content, still run these quickly to catch style drift. 
 
 ## 4. Version & Release Notes
 - Stageflow ships from `pyproject.toml`. Bump `project.version` whenever public APIs, helpers, or docs with user-visible behavior change.
+- Run `python scripts/log_helper.py add` to append a changelog entry (stores data in `changelog.json`).
+- Run `python scripts/check_version_sync.py` (add `--require-tag` when cutting a release) to confirm `pyproject.toml`, `changelog.json`, and docs match.
 - Update `docs/RELEASE_NOTES.md` (or the current sprint summary) to describe the change set. Mention UUID/memory/compression additions when applicable.
 
 ## 5. Final Validation

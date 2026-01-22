@@ -19,6 +19,52 @@
   },
   "entries": [
     {
+      "version": "v0.6.0",
+      "date": "2026-01-22",
+      "changes": [
+        {
+          "type": "added",
+          "area": "helpers.runtime",
+          "description": "Introduced UUIDv7 generation with clock-skew detection, sliding-window collision monitor, MemoryTracker/@track_memory decorator, and shallow delta compression utilities.",
+          "commit": "68cba4a",
+          "files_affected": [
+            "stageflow/helpers/uuid_utils.py",
+            "stageflow/helpers/memory_tracker.py",
+            "stageflow/compression/__init__.py",
+            "tests/unit/test_hardening_helpers.py",
+            "tests/unit/test_helpers_runtime*.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "pipeline.runner",
+          "description": "Added ImmutabilityInterceptor and ContextSizeInterceptor plus optional UUID/memory/context-size wiring in PipelineRunner and ToolExecutor.",
+          "commit": "68cba4a",
+          "files_affected": [
+            "stageflow/pipeline/interceptors_hardening.py",
+            "stageflow/helpers/run_utils.py",
+            "stageflow/tools/executor.py",
+            "tests/unit/pipeline/test_hardening_interceptors.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "docs",
+          "description": "Documented runtime safety & hardening features (UUID monitoring, memory tracking, compression) and updated Stageflow PR playbook.",
+          "commit": "68cba4a",
+          "files_affected": [
+            "docs/advanced/testing.md",
+            "docs/advanced/hardening.md",
+            "pr.md",
+            "ops/24-testers/fixes/CORE-Summary.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.5.1",
       "date": "2026-01-16",
       "changes": [

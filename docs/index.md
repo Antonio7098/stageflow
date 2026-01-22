@@ -45,10 +45,10 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.5.1**
+> **New in Stageflow 0.6.0**
 > 
-> - **StageContext → PipelineContext bridge**: Stages can now call `StageContext.as_pipeline_context()` to reconstruct a mutable `PipelineContext` when they need to spawn subpipelines or interact with tooling APIs that expect the richer context.
-> - **Updated subpipeline guide**: Documentation now includes the new helper, a runnable example, and guidance on when to convert execution contexts during agent delegation flows.
+> - **Runtime Hardening Helpers**: Added UUIDv7 generation with collision + clock-skew detection, MemoryTracker/@track_memory decorator, and shallow delta compression utilities for context payloads.
+> - **PipelineRunner Interceptors**: Optional ImmutabilityInterceptor and ContextSizeInterceptor can now be toggled via PipelineRunner/ToolExecutor flags for deeper validation and observability.
 
 ## Links
 

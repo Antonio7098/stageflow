@@ -29,3 +29,9 @@
 - `ruff check`
 
 Both commands pass on the current branch.
+
+## Changelog & Version
+
+- changelog.json: Not yet updated with this sprint’s entries (use `python scripts/log_helper.py add` to add v0.5.2).
+- pyproject.toml: Currently at v0.5.1; no breaking changes, but a minor bump is typical for additive hardening features.
+- PR playbook and scripts/log_helper.py and scripts/check_version_sync.py are in place for release hygiene.
