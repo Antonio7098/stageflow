@@ -2,6 +2,69 @@
 
 This guide covers testing patterns for stageflow pipelines, stages, and interceptors.
 
+## Runtime Safety and Hardening
+
+Stageflow provides optional hardening interceptors and helpers for development and production safety:
+
+### UUID Collision and Clock Skew Detection
+
+```python
+from stageflow.helpers.uuid_utils import UuidCollisionMonitor, generate_uuid7
+
+# Enable in PipelineRunner
+runner = PipelineRunner(
+    enable_uuid_monitor=True,
+    uuid_monitor_ttl_seconds=300,
+)
+
+# Use UUIDv7 for time-ordered IDs
+uid = generate_uuid7()  # Falls back to uuid4 if uuid6 unavailable
+```
+
+### Memory Tracking
+
+```python
+from stageflow.helpers.memory_tracker import MemoryTracker, track_memory
+
+# Enable in PipelineRunner
+runner = PipelineRunner(enable_memory_tracker=True)
+
+# Decorator for functions
+@track_memory(label="my_stage")
+async def expensive_work():
+    ...
+```
+
+### Deep Immutability Validation
+
+```python
+# Enable in PipelineRunner (slow, dev/testing only)
+runner = PipelineRunner(enable_immutability_check=True)
+```
+
+### Context Size Monitoring
+
+```python
+# Enable in PipelineRunner
+runner = PipelineRunner(
+    enable_context_size_monitor=True,
+    # Optionally customize thresholds via ContextSizeInterceptor
+)
+```
+
+### Compression Utilities
+
+```python
+from stageflow.compression import compress, apply_delta
+
+base = {"a": 1, "b": 2}
+current = {"a": 1, "b": 3, "c": 4}
+delta, metrics = compress(base, current)
+
+rebuilt = apply_delta(base, delta)
+assert rebuilt == current
+```
+
 ## Testing Pyramid
 
 ```

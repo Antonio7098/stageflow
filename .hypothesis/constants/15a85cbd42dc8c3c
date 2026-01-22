@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/context/output_bag.py
+# hypothesis_version: 6.150.0
+
+['OutputBag', 'OutputConflictError', 'OutputEntry', 'artifacts_count', 'attempt', 'data', 'duration_ms', 'entries', 'error', 'events_count', 'stage_count', 'stage_name', 'status', 'timestamp', 'total_attempts']

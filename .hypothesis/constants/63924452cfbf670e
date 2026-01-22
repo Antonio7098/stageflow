@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/pipeline/cancellation.py
+# hypothesis_version: 6.150.0
+
+[0.01, 5.0, 10.0, 'CancellationToken', 'Cleanup failed', 'Cleanup timed out', 'CleanupRegistry', 'StructuredTaskGroup', 'T', 'Task failed', '__cleanup_name__', 'cleanup_on_cancel', 'run_with_cleanup']

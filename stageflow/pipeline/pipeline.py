@@ -15,7 +15,7 @@ graph = pipeline.build()
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from stageflow.core import Stage, StageKind
@@ -34,6 +34,7 @@ class UnifiedStageSpec:
     kind: StageKind
     dependencies: tuple[str, ...] = field(default_factory=tuple)
     conditional: bool = False
+    config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -47,6 +48,7 @@ class Pipeline:
         stages: Mapping of stage name -> UnifiedStageSpec
     """
 
+    name: str = "pipeline"
     stages: dict[str, UnifiedStageSpec] = field(default_factory=dict)
 
     def with_stage(
@@ -56,6 +58,7 @@ class Pipeline:
         kind: StageKind,
         dependencies: tuple[str, ...] | None = None,
         conditional: bool = False,
+        config: dict[str, Any] | None = None,
     ) -> Pipeline:
         """Add a stage to this pipeline (fluent builder).
 
@@ -65,19 +68,24 @@ class Pipeline:
             kind: StageKind categorization
             dependencies: Names of stages that must complete first
             conditional: If True, stage may be skipped based on context
+            config: Optional kwargs passed to the stage constructor (class runners only)
 
             Returns:
             Self for method chaining
         """
+        if config and not isinstance(runner, type):
+            raise ValueError("config can only be used with stage classes")
+
         spec = UnifiedStageSpec(
             name=name,
             runner=runner,
             kind=kind,
             dependencies=dependencies or (),
             conditional=conditional,
+            config=dict(config or {}),
         )
         # Create new Pipeline instance to maintain immutability
-        new_pipeline = Pipeline(stages=dict(self.stages))
+        new_pipeline = Pipeline(name=self.name, stages=dict(self.stages))
         new_pipeline.stages[name] = spec
         return new_pipeline
 
@@ -95,7 +103,7 @@ class Pipeline:
         """
         merged_stages = dict(self.stages)
         merged_stages.update(other.stages)
-        return Pipeline(stages=merged_stages)
+        return Pipeline(name=self.name, stages=merged_stages)
 
     def build(self) -> UnifiedStageGraph:
         """Generate executable DAG for the orchestrator.
@@ -119,9 +127,10 @@ class Pipeline:
             if isinstance(spec.runner, type):
                 # It's a stage class, create a callable wrapper
                 stage_class = spec.runner
+                stage_config = dict(spec.config)
 
-                async def runner_wrapper(ctx, stage_cls=stage_class):
-                    stage_instance = stage_cls()
+                async def runner_wrapper(ctx, stage_cls=stage_class, stage_cfg=stage_config):
+                    stage_instance = stage_cls(**stage_cfg) if stage_cfg else stage_cls()
                     return await stage_instance.execute(ctx)
 
                 callable_runner = runner_wrapper

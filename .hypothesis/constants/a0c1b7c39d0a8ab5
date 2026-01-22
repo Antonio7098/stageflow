@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/helpers/run_utils.py
+# hypothesis_version: 6.150.0
+
+[0.0, 300.0, 100, 1000, '\nBy category:', '\nNo events captured.', '\nRecent events:', '\x1b[0m', '\x1b[90m', '\x1b[91m', '\x1b[92m', '\x1b[93m', '\x1b[94m', '\x1b[96m', '%H:%M:%S', '-', '.', '...', '=', 'EVENT SUMMARY', 'JsonLogFormatter', 'ObservableEventSink', 'PipelineRunner', 'RESULTS', 'RunResult', '__pipeline_root__', 'action_type', 'asyncio', 'behavior', 'build', 'cancel_reason', 'cancelled', 'channel', 'cli', 'completed', 'data', 'duration_ms', 'elapsed_ms', 'error', 'error_type', 'event', 'exception', 'execution_mode', 'failed', 'level', 'logger', 'message', 'metadata', 'pipeline', 'pipeline:cancelled', 'pipeline:end', 'pipeline:error', 'pipeline:start', 'pipeline_run_id', 'practice', 'reason', 'result', 'run_simple_pipeline', 'setup_logging', 'skip', 'stage', 'stages', 'started', 'success', 'timestamp', 'tool', 'tool_name', 'type', 'urllib3']

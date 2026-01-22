@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/websearch/fetcher.py
+# hypothesis_version: 6.150.0
+
+[0.0, 1.0, 30.0, 200, 400, 404, 500, 1000, 10000000, '429', '502', '503', '504', ';', 'FetchConfig', 'FetchResult', 'Fetcher', 'HTTPX_AVAILABLE', 'HttpFetcher', 'MockFetcher', 'Not Found', 'Unknown error', 'User-Agent', 'application/xhtml', 'charset=', 'connection', 'content-type', 'content_length', 'content_type', 'duration_ms', 'error', 'final_url', 'headers', 'refused', 'replace', 'request_id', 'reset', 'retry_count', 'status_code', 'temporary', 'text/html', 'text/plain', 'timeout', 'url', 'utf-8']

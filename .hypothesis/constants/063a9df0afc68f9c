@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/helpers/providers.py
+# hypothesis_version: 6.150.0
+
+[0.0, 1.0, 16000, 'LLMResponse', 'STTResponse', 'TTSResponse', 'byte_count', 'cached_tokens', 'channels', 'characters_processed', 'confidence', 'content', 'duration_ms', 'en', 'finish_reason', 'format', 'input_tokens', 'is_final', 'language', 'latency_ms', 'llm.cached_tokens', 'llm.finish_reason', 'llm.input_tokens', 'llm.latency_ms', 'llm.model', 'llm.output_tokens', 'llm.provider', 'llm.total_tokens', 'model', 'output_tokens', 'pcm_16', 'provider', 'sample_rate', 'stt.confidence', 'stt.duration_ms', 'stt.is_final', 'stt.language', 'stt.latency_ms', 'stt.model', 'stt.provider', 'text', 'tool_calls', 'total_tokens', 'tts.byte_count', 'tts.duration_ms', 'tts.format', 'tts.latency_ms', 'tts.model', 'tts.provider', 'tts.sample_rate', 'words']

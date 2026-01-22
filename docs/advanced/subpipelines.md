@@ -149,6 +149,22 @@ class ToolDispatcher(Stage):
             return {"success": False, "error": str(e)}
 ```
 
+### What the `runner` Callable Must Do
+
+`SubpipelineSpawner.spawn()` expects you to pass a coroutine function with the
+signature `async def runner(child_ctx: PipelineContext) -> dict[str, Any]`.
+This runner is responsible for:
+
+1. Building or reusing the child pipeline graph.
+2. Converting the provided `PipelineContext` into a `StageContext`.
+3. Running the graph and returning a plain `dict` payload (the framework wraps
+   it into `SubpipelineResult.data`).
+
+`ToolExecutor.spawn_subpipeline()` wires this runner up automatically, so most
+teams never have to construct it. If you implement your own orchestration layer,
+use the same contract so the spawner can emit events, enforce depth limits, and
+handle cancellations.
+
 ### Telemetry & Tool Resolution in Subpipelines
 
 Subpipeline stages often orchestrate multiple tools. Standardize telemetry by resolving LLM-provided tool calls before spawning a child run and wiring streaming emitters through the child context:

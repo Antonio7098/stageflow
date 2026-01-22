@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/compression/__init__.py
+# hypothesis_version: 6.150.0
+
+[1.0, 'CompressionMetrics', 'apply_delta', 'compress', 'compute_delta', 'remove', 'set', 'utf-8']

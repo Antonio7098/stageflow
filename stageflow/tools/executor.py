@@ -15,6 +15,8 @@ from uuid import UUID
 from .registry import get_tool_registry
 
 if TYPE_CHECKING:
+    from stageflow.helpers.memory_tracker import MemoryTracker
+    from stageflow.helpers.uuid_utils import UuidCollisionMonitor
     from stageflow.pipeline.registry import PipelineRegistry
     from stageflow.pipeline.subpipeline import SubpipelineResult, SubpipelineSpawner
     from stageflow.stages.context import PipelineContext
@@ -76,16 +78,22 @@ class ToolExecutor:
         *,
         spawner: SubpipelineSpawner | None = None,
         registry: PipelineRegistry | None = None,
+        uuid_monitor: UuidCollisionMonitor | None = None,
+        memory_tracker: MemoryTracker | None = None,
     ) -> None:
         """Initialize ToolExecutor.
 
         Args:
             spawner: Optional SubpipelineSpawner for dependency injection (defaults to global).
             registry: Optional PipelineRegistry for dependency injection (defaults to global).
+            uuid_monitor: Optional UUID collision monitor for telemetry.
+            memory_tracker: Optional memory tracker for growth metrics.
         """
         self.tool_registry = get_tool_registry()
         self._spawner = spawner
         self._pipeline_registry = registry
+        self._uuid_monitor = uuid_monitor
+        self._memory_tracker = memory_tracker
 
     @property
     def spawner(self) -> SubpipelineSpawner:
@@ -216,6 +224,14 @@ class ToolExecutor:
         start_time = time.perf_counter()
         parent_run_id = ctx.pipeline_run_id
 
+        # Wire UUID monitor if present
+        if self._uuid_monitor:
+            self._uuid_monitor.observe(correlation_id)
+
+        # Wire memory tracker if present
+        if self._memory_tracker:
+            self._memory_tracker.observe(label="subpipeline:start")
+
         logger.info(
             "Spawning subpipeline",
             extra={
@@ -303,6 +319,8 @@ class ToolExecutor:
             )
 
             duration_ms = (time.perf_counter() - start_time) * 1000
+            if self._memory_tracker:
+                self._memory_tracker.observe(label="subpipeline:end")
             logger.info(
                 "Subpipeline completed",
                 extra={
@@ -319,6 +337,8 @@ class ToolExecutor:
 
         except MaxDepthExceededError:
             duration_ms = (time.perf_counter() - start_time) * 1000
+            if self._memory_tracker:
+                self._memory_tracker.observe(label="subpipeline:depth_exceeded")
             logger.error(
                 "Subpipeline spawn rejected: max depth exceeded",
                 extra={
@@ -332,6 +352,8 @@ class ToolExecutor:
 
         except Exception as e:
             duration_ms = (time.perf_counter() - start_time) * 1000
+            if self._memory_tracker:
+                self._memory_tracker.observe(label="subpipeline:error")
             logger.error(
                 f"Subpipeline spawn failed: {e}",
                 extra={

@@ -39,6 +39,8 @@ from stageflow.context import ContextSnapshot
 from stageflow.context.identity import RunIdentity
 from stageflow.core import PipelineTimer, StageContext
 from stageflow.events import set_event_sink
+from stageflow.helpers.memory_tracker import MemoryTracker
+from stageflow.helpers.uuid_utils import UuidCollisionMonitor
 from stageflow.pipeline.dag import UnifiedPipelineCancelled, UnifiedStageGraph
 
 
@@ -352,6 +354,12 @@ class PipelineRunner:
         verbose: bool = True,
         colorize: bool = True,
         capture_events: bool = True,
+        enable_uuid_monitor: bool = False,
+        enable_memory_tracker: bool = False,
+        uuid_monitor_ttl_seconds: float = 300.0,
+        memory_tracker_auto_start: bool = True,
+        enable_immutability_check: bool = False,
+        enable_context_size_monitor: bool = False,
     ) -> None:
         """Initialize runner.
 
@@ -359,10 +367,28 @@ class PipelineRunner:
             verbose: Print events during execution.
             colorize: Use ANSI colors in output.
             capture_events: Capture events for post-run analysis.
+            enable_uuid_monitor: Enable UUID collision detection.
+            enable_memory_tracker: Enable memory growth tracking.
+            uuid_monitor_ttl_seconds: TTL for UUID monitor sliding window.
+            memory_tracker_auto_start: Whether to auto-start the memory tracker.
+            enable_immutability_check: Enable deep context immutability validation (slow).
+            enable_context_size_monitor: Enable context payload size warnings.
         """
         self._verbose = verbose
         self._colorize = colorize
         self._capture_events = capture_events
+        self._enable_immutability_check = enable_immutability_check
+        self._enable_context_size_monitor = enable_context_size_monitor
+        self._uuid_monitor = (
+            UuidCollisionMonitor(ttl_seconds=uuid_monitor_ttl_seconds, category="pipeline")
+            if enable_uuid_monitor
+            else None
+        )
+        self._memory_tracker = (
+            MemoryTracker(auto_start=memory_tracker_auto_start)
+            if enable_memory_tracker
+            else None
+        )
 
     def create_snapshot(
         self,
@@ -456,6 +482,14 @@ class PipelineRunner:
                 **snapshot_kwargs,
             )
 
+        # Wire UUID monitor if enabled
+        if self._uuid_monitor:
+            self._uuid_monitor.observe(snapshot.pipeline_run_id)
+
+        # Wire memory tracker if enabled
+        if self._memory_tracker:
+            self._memory_tracker.observe(label="pipeline:start")
+
         # Build graph if needed
         # Build graph if needed
         if hasattr(pipeline, "build"):
@@ -464,6 +498,30 @@ class PipelineRunner:
             graph = pipeline
         else:
             graph = UnifiedStageGraph(specs=pipeline)
+
+        # Inject hardening interceptors if enabled
+        if self._enable_immutability_check or self._enable_context_size_monitor:
+            from stageflow.pipeline.interceptors_hardening import (
+                ContextSizeInterceptor,
+                ImmutabilityInterceptor,
+            )
+            # Create a new list to avoid mutating the graph's defaults
+            hardening = []
+            if self._enable_immutability_check:
+                hardening.append(ImmutabilityInterceptor())
+            if self._enable_context_size_monitor:
+                hardening.append(ContextSizeInterceptor())
+
+            # Prepend hardening interceptors (they need to wrap everything)
+            # But note: graph._interceptors might be shared if it came from default
+            # so we must be careful. However, StageGraph copies the list on init if passed.
+            # If we are modifying an existing graph instance, we have to patch it.
+            # Ideally we'd pass these to graph.run(), but graph.run() doesn't take interceptors.
+            # We must monkey-patch the graph instance for this run.
+            # A safer way is to create a new graph with merged interceptors if we built it.
+
+            current_interceptors = list(graph._interceptors)
+            graph._interceptors = hardening + current_interceptors
 
         from stageflow.stages.inputs import create_stage_inputs
 
@@ -499,6 +557,9 @@ class PipelineRunner:
             results = await graph.run(stage_ctx)
             duration_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
 
+            if self._memory_tracker:
+                self._memory_tracker.observe(label="pipeline:end")
+
             return RunResult(
                 success=True,
                 stages={name: output.data for name, output in results.items()},
@@ -509,6 +570,9 @@ class PipelineRunner:
 
         except UnifiedPipelineCancelled as e:
             duration_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+
+            if self._memory_tracker:
+                self._memory_tracker.observe(label="pipeline:cancelled")
 
             return RunResult(
                 success=True,
@@ -522,6 +586,9 @@ class PipelineRunner:
 
         except Exception as e:
             duration_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
+
+            if self._memory_tracker:
+                self._memory_tracker.observe(label="pipeline:error")
 
             return RunResult(
                 success=False,

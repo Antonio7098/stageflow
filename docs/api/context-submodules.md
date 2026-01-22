@@ -320,28 +320,31 @@ profile = ProfileEnrichment(
 from stageflow.context import MemoryEnrichment
 ```
 
-Memory enrichment data for conversation context.
+Memory enrichment data describing what the pipeline already knows about the user.
 
 **Constructor:**
 ```python
 MemoryEnrichment(
-    short_term: list[dict[str, Any]] = [],
-    long_term: list[dict[str, Any]] = [],
-    metadata: dict[str, Any] = {}
+    recent_topics: list[str] | None = None,
+    key_facts: list[str] | None = None,
+    interaction_history_summary: str | None = None,
 )
 ```
 
 **Attributes:**
-- `short_term`: Short-term memory entries
-- `long_term`: Long-term memory entries
-- `metadata`: Additional memory metadata
+- `recent_topics`: Short bullet list of what has been discussed recently.
+- `key_facts`: Canonical facts we want to retain (preferences, goals, etc.).
+- `interaction_history_summary`: Optional natural-language summary of the chat history.
+
+> Legacy aliases `short_term`, `long_term`, and `summary` are still accepted but emit a
+> warning at runtime. Prefer the canonical field names above going forward.
 
 **Example:**
 ```python
 memory = MemoryEnrichment(
-    short_term=[{"content": "User mentioned they like Python", "type": "preference"}],
-    long_term=[{"skill": "programming", "level": "advanced"}],
-    metadata={"last_updated": "2023-01-01"}
+    recent_topics=["Onboarding", "SDK"],
+    key_facts=["Prefers async examples"],
+    interaction_history_summary="Walked through Stageflow install, now exploring agents",
 )
 ```
 
@@ -356,25 +359,33 @@ Document enrichment data for context-aware processing.
 **Constructor:**
 ```python
 DocumentEnrichment(
-    documents: list[dict[str, Any]] = [],
-    embeddings: dict[str, Any] = {},
-    metadata: dict[str, Any] = {}
+    document_id: str | None = None,
+    document_type: str | None = None,
+    blocks: list[dict[str, Any]] | None = None,
+    metadata: dict[str, Any] | None = None,
 )
 ```
 
 **Attributes:**
-- `documents`: List of relevant documents
-- `embeddings`: Document embeddings for similarity search
-- `metadata`: Additional document metadata
+- `document_id`: Stable identifier for the document.
+- `document_type`: Format label such as `pdf`, `markdown`, etc.
+- `blocks`: Structured blocks (text, tables, etc.) already extracted from the document.
+- `metadata`: Additional structured metadata (page counts, tags, source system, ...).
+
+The constructor also accepts legacy aliases (`doc_id`, `doc_type`, and `content`/`documents`).
+They are automatically converted into the canonical fields while emitting warnings so you can
+modernize gradually.
 
 **Example:**
 ```python
-docs = DocumentEnrichment(
-    documents=[
-        {"id": "doc1", "content": "Python programming guide", "relevance": 0.9}
+doc = DocumentEnrichment(
+    document_id="kb-42",
+    document_type="markdown",
+    blocks=[
+        {"type": "heading", "level": 2, "content": "Install"},
+        {"type": "text", "content": "Run `pip install stageflow-core`."},
     ],
-    embeddings={"doc1": [0.1, 0.2, 0.3]},
-    metadata={"source": "knowledge_base"}
+    metadata={"source": "knowledge_base", "language": "en"},
 )
 ```
 

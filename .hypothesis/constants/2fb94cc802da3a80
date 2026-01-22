@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/tools/executor.py
+# hypothesis_version: 6.150.0
+
+[1000, 'Spawning subpipeline', 'ToolExecutor', 'ToolExecutorResult', '__subpipeline_root__', 'child_run_id', 'correlation_id', 'duration_ms', 'error_type', 'parent_run_id', 'parent_stage_id', 'pipeline_name', 'requires_reentry', 'stage.tool_executor', 'subpipeline:end', 'subpipeline:error', 'subpipeline:start', 'success', 'topology_override']

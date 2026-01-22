@@ -8,6 +8,9 @@ This package provides reusable helpers for common pipeline patterns:
 - analytics: Analytics export adapters
 - mocks: Mock providers for testing (LLM, STT, TTS, auth)
 - run_utils: Pipeline execution and logging utilities
+- uuid_utils: UUID collision detection and telemetry
+- memory_tracker: Runtime memory growth tracking
+- compression: Delta compression utilities for context payloads
 """
 
 from stageflow.helpers.analytics import (
@@ -33,6 +36,7 @@ from stageflow.helpers.memory import (
     MemoryStore,
     MemoryWriteStage,
 )
+from stageflow.helpers.memory_tracker import MemorySample, MemoryTracker, track_memory
 from stageflow.helpers.mocks import (
     MockAuthProvider,
     MockLLMProvider,
@@ -58,6 +62,13 @@ from stageflow.helpers.streaming import (
     ChunkQueue,
     StreamConfig,
     StreamingBuffer,
+)
+from stageflow.helpers.uuid_utils import (
+    ClockSkewDetector,
+    UuidCollisionMonitor,
+    UuidEvent,
+    UuidEventListener,
+    generate_uuid7,
 )
 
 __all__ = [
@@ -103,4 +114,13 @@ __all__ = [
     "LLMResponse",
     "STTResponse",
     "TTSResponse",
+    # Runtime helpers
+    "UuidCollisionMonitor",
+    "UuidEvent",
+    "UuidEventListener",
+    "ClockSkewDetector",
+    "generate_uuid7",
+    "MemoryTracker",
+    "MemorySample",
+    "track_memory",
 ]

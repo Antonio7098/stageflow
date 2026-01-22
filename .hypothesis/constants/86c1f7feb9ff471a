@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/websearch/models.py
+# hypothesis_version: 6.150.0
+
+[0.0, 200, 400, 10000, '! ', '. ', '//', '? ', 'ExtractedLink', 'NavigationAction', 'PageMetadata', 'PaginationInfo', 'WebPage', 'action_type', 'author', 'canonical_url', 'content_type', 'context', 'current_page', 'description', 'error', 'extract_duration_ms', 'fetch_duration_ms', 'fetched_at', 'final_url', 'http://', 'https:', 'https://', 'is_internal', 'keywords', 'label', 'language', 'links', 'markdown', 'metadata', 'navigation_actions', 'next_url', 'og_image', 'page_urls', 'pagination', 'plain_text', 'prev_url', 'priority', 'published_date', 'rel', 'selector', 'status_code', 'text', 'title', 'total_pages', 'url', 'word_count']
