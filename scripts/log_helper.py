@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHANGELOG_PATH = REPO_ROOT / "changelog.json"
@@ -111,7 +112,7 @@ def collect_changelog_changes(
 
 
 def add_changelog_entry(file_path: Path) -> None:
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
     data = ensure_json(
         file_path,
         "entries",
@@ -174,7 +175,7 @@ def select_entry(
 
 
 def edit_changelog_entry(file_path: Path, *, version: str | None = None) -> None:
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
     data = ensure_json(file_path, "entries")
     entries = data["entries"]
     idx, entry = select_entry(
@@ -217,7 +218,7 @@ def delete_changelog_entry(file_path: Path, *, version: str | None = None) -> No
 
 
 def add_bug_entry(file_path: Path) -> None:
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    now = datetime.now(UTC).isoformat(timespec="seconds")
     data = ensure_json(
         file_path,
         "bugs",
@@ -297,7 +298,7 @@ def edit_bug_entry(file_path: Path, *, bug_id: str | None = None) -> None:
         "owner": field("owner", default="unassigned"),
         "created_at": field(
             "created_at",
-            default=bug.get("created_at") or datetime.now(timezone.utc).isoformat(),
+            default=bug.get("created_at") or datetime.now(UTC).isoformat(),
         ),
         "resolved_at": field("resolved_at", default=""),
         "description": field("description", required=True),
