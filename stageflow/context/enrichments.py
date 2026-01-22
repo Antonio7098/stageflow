@@ -18,6 +18,9 @@ from uuid import UUID
 logger = logging.getLogger("stageflow.context.enrichments")
 
 
+logger = logging.getLogger("stageflow.context.enrichments")
+
+
 @dataclass(frozen=True, slots=True)
 class ProfileEnrichment:
     """User profile enrichment data.
