@@ -32,6 +32,6 @@ Both commands pass on the current branch.
 
 ## Changelog & Version
 
-- changelog.json: Not yet updated with this sprint’s entries (use `python scripts/log_helper.py add` to add v0.5.2).
-- pyproject.toml: Currently at v0.5.1; no breaking changes, but a minor bump is typical for additive hardening features.
+- changelog.json: Updated with v0.7.0 contract hardening entry (typed outputs, schema registry, structured errors, CLI tooling).
+- pyproject.toml: Bumped to v0.7.0 for public API additions.
 - PR playbook and scripts/log_helper.py and scripts/check_version_sync.py are in place for release hygiene.
