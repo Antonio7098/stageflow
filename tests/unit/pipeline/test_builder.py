@@ -187,7 +187,7 @@ class TestPipelineBuilder:
         """Test that build() raises on empty pipeline."""
         pipeline = PipelineBuilder(name="empty")
 
-        with pytest.raises(ValueError, match="empty"):
+        with pytest.raises(PipelineValidationError, match="empty pipeline"):
             pipeline.build()
 
     def test_get_stage(self):

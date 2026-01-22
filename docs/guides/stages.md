@@ -399,6 +399,68 @@ return StageOutput.ok(
 )
 ```
 
+### Typed Outputs & Schema Versions
+
+For structured payloads, wrap `StageOutput.ok(...)` with
+`stageflow.contracts.TypedStageOutput`. This helper validates data using a
+Pydantic model and tags outputs with schema versions for downstream safety.
+
+```python
+from pydantic import BaseModel, Field
+from stageflow.contracts import TypedStageOutput
+
+
+class SummaryPayload(BaseModel):
+    text: str
+    confidence: float = Field(ge=0, le=1)
+
+
+summary_output = TypedStageOutput(
+    SummaryPayload,
+    default_version="summary/v1",  # optional fallback
+)
+
+
+class SummarizeStage:
+    name = "summarize"
+    kind = StageKind.TRANSFORM
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        payload = SummaryPayload(
+            text="processed result",
+            confidence=0.94,
+        )
+        return summary_output.ok(payload)
+```
+
+Typed helpers support async factories and timestamped versions:
+
+```python
+typed = TypedStageOutput(
+    SummaryPayload,
+    version_factory=TypedStageOutput.timestamp_version,
+)
+
+output = await typed.ok_async(build_payload)
+```
+
+Register contracts with the shared registry to enable compatibility diffing
+and CLI linting:
+
+```python
+typed.register_contract(
+    stage="summarize",
+    description="Summaries returned to orchestrator",
+)
+
+report = registry.diff("summarize", from_version="summary/v1", to_version="summary/v2")
+if not report.is_compatible:
+    raise RuntimeError(report.summary())
+```
+
+See [Schema Registry & Typed Outputs](../advanced/testing.md#schema-registry--typed-outputs)
+for CLI commands and compatibility guardrails.
+
 ### Skip Output
 
 Skip the stage without error (useful for conditional stages):

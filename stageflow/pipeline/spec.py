@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from stageflow.contracts import ContractErrorInfo
+
 if TYPE_CHECKING:
     from stageflow.core import StageOutput
     from stageflow.stages.context import PipelineContext
@@ -17,9 +19,33 @@ if TYPE_CHECKING:
 class PipelineValidationError(Exception):
     """Raised when pipeline validation fails."""
 
-    def __init__(self, message: str, stages: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        stages: list[str] | None = None,
+        *,
+        error_info: ContractErrorInfo | None = None,
+    ) -> None:
         super().__init__(message)
         self.stages = stages or []
+        self.error_info = error_info
+
+    def with_context(self, **context: Any) -> PipelineValidationError:
+        """Attach extra context to the structured error payload."""
+
+        if self.error_info is None:
+            return self
+        self.error_info = self.error_info.with_context(**context)
+        return self
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize structured error data for logging or APIs."""
+
+        return {
+            "message": str(self),
+            "stages": self.stages,
+            "error_info": self.error_info.to_dict() if self.error_info else None,
+        }
 
 
 class CycleDetectedError(PipelineValidationError):
@@ -36,7 +62,14 @@ class CycleDetectedError(PipelineValidationError):
         self.cycle_path = cycle_path
         cycle_str = " -> ".join(cycle_path)
         message = f"Pipeline contains a cycle: {cycle_str}"
-        super().__init__(message, stages=stages or cycle_path)
+        error_info = ContractErrorInfo(
+            code="CONTRACT-004-CYCLE",
+            summary="Pipeline contains a dependency cycle",
+            fix_hint="Break the cycle by removing one dependency in the loop.",
+            doc_url="https://github.com/stageflow/stageflow/blob/main/docs/guides/stages.md#contract-troubleshooting",
+            context={"cycle_path": cycle_path},
+        )
+        super().__init__(message, stages=stages or cycle_path, error_info=error_info)
 
     def __repr__(self) -> str:
         return f"CycleDetectedError(cycle_path={self.cycle_path})"

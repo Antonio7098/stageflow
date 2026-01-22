@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/pipeline/builder.py
+# hypothesis_version: 6.150.0
+
+['CONTRACT-004-EMPTY', 'PipelineBuilder', '__name__', 'dependency', 'existing_runner', 'incoming_runner', 'pipeline', 'stage']

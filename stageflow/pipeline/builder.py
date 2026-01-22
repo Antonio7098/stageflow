@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from stageflow.observability.wide_events import WideEventEmitter
     from stageflow.pipeline.dag import StageGraph
 
+from stageflow.contracts import ContractErrorInfo
 from stageflow.pipeline.spec import (
     CycleDetectedError,
     PipelineSpec,
@@ -52,9 +53,17 @@ class PipelineBuilder:
         for stage_name, spec in self.stages.items():
             for dep in spec.dependencies:
                 if dep not in self.stages:
+                    error_info = ContractErrorInfo(
+                        code="CONTRACT-004-MISSING_DEP",
+                        summary="Stage depends on an undefined dependency",
+                        fix_hint="Add the missing stage or remove it from the dependency list.",
+                        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#missing-stage-dependencies",
+                        context={"stage": stage_name, "dependency": dep},
+                    )
                     raise PipelineValidationError(
                         f"Stage '{stage_name}' depends on '{dep}' which does not exist",
                         stages=[stage_name, dep],
+                        error_info=error_info,
                     )
 
         # Check for cycles using Kahn's algorithm (topological sort)
@@ -199,9 +208,21 @@ class PipelineBuilder:
                     or existing.dependencies != spec.dependencies
                     or existing.conditional != spec.conditional
                 ):
+                    error_info = ContractErrorInfo(
+                        code="CONTRACT-004-CONFLICT",
+                        summary="Stage defined multiple times with conflicting specs",
+                        fix_hint="Ensure composed pipelines define the stage with identical runner and dependencies.",
+                        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#conflicting-stage-definitions",
+                        context={
+                            "stage": name,
+                            "existing_runner": getattr(existing.runner, "__name__", str(existing.runner)),
+                            "incoming_runner": getattr(spec.runner, "__name__", str(spec.runner)),
+                        },
+                    )
                     raise PipelineValidationError(
                         f"Stage '{name}' exists in both pipelines with different specs",
                         stages=[name],
+                        error_info=error_info,
                     )
             else:
                 merged_stages[name] = spec
@@ -232,7 +253,13 @@ class PipelineBuilder:
             ValueError: If pipeline is empty
         """
         if not self.stages:
-            raise ValueError("Cannot build empty pipeline")
+            error_info = ContractErrorInfo(
+                code="CONTRACT-004-EMPTY",
+                summary="Cannot build a pipeline with zero stages",
+                fix_hint="Add at least one stage before calling build().",
+                doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#empty-pipelines",
+            )
+            raise PipelineValidationError("Cannot build empty pipeline", error_info=error_info)
 
         from stageflow.pipeline.dag import StageGraph, StageSpec
 

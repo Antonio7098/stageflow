@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/contracts/registry.py
+# hypothesis_version: 6.150.0
+
+['ContractMetadata', 'ContractRegistry', 'breaking', 'compatible', 'null', 'object', 'properties', 'registry', 'required', 'type', 'validation']

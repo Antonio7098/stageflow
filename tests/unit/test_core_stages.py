@@ -222,6 +222,30 @@ class TestStageOutput:
         assert output.error == "Retry needed"
         assert output.data["retry_after"] == 60
 
+    def test_factory_methods_accept_version(self):
+        """StageOutput factories should propagate version metadata."""
+        ok = StageOutput.ok(result="x", version="v1")
+        skip = StageOutput.skip(reason="noop", version="v2")
+        cancel = StageOutput.cancel(reason="halt", version="2024-01-01")
+        fail = StageOutput.fail(error="err", version="beta")
+        retry = StageOutput.retry(error="try", version="gamma")
+
+        assert ok.version == "v1"
+        assert skip.version == "v2"
+        assert cancel.version == "2024-01-01"
+        assert fail.version == "beta"
+        assert retry.version == "gamma"
+
+    def test_with_version_returns_new_instance(self):
+        """with_version should return a copy with updated schema tag."""
+        original = StageOutput.ok(result="done")
+        tagged = original.with_version("v1.0.0")
+
+        assert original.version is None
+        assert tagged.version == "v1.0.0"
+        assert tagged.data == original.data
+        assert tagged.status == original.status
+
     # === Duration tracking tests ===
 
     def test_duration_ms_default_none(self):
