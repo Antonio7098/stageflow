@@ -45,7 +45,7 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.6.0**
+> **New in Stageflow 0.7.0**
 > 
 > - **Runtime Hardening Helpers**: Added UUIDv7 generation with collision + clock-skew detection, MemoryTracker/@track_memory decorator, and shallow delta compression utilities for context payloads.
 > - **PipelineRunner Interceptors**: Optional ImmutabilityInterceptor and ContextSizeInterceptor can now be toggled via PipelineRunner/ToolExecutor flags for deeper validation and observability.

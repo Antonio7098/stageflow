@@ -19,6 +19,51 @@
   },
   "entries": [
     {
+      "version": "v0.7.0",
+      "date": "2026-01-22",
+      "changes": [
+        {
+          "type": "added",
+          "area": "contracts",
+          "description": "Implemented TypedStageOutput helper, StageOutput version tagging, schema registry with compatibility diffing, and structured ContractErrorInfo metadata across pipeline validation.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/contracts/*",
+            "stageflow/core/stage_output.py",
+            "stageflow/pipeline/spec.py",
+            "stageflow/pipeline/builder.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "cli",
+          "description": "Added contracts CLI (list/diff/plan-upgrade) plus documentation for typed outputs, schema registry, and error messaging.",
+          "commit": "pending",
+          "files_affected": [
+            "scripts/contracts.py",
+            "stageflow/cli/__main__.py",
+            "docs/guides/stages.md",
+            "docs/advanced/testing.md",
+            "docs/advanced/error-messages.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "tests",
+          "description": "Expanded unit coverage for typed outputs, registry diffing, suggestions, and StageOutput version metadata.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/unit/test_contracts_*.py",
+            "tests/unit/test_core_stages.py",
+            "tests/unit/pipeline/test_builder.py"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.6.0",
       "date": "2026-01-22",
       "changes": [

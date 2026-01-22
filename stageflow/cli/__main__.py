@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def main() -> int:
@@ -19,11 +20,12 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Commands:
-  lint    Check pipeline dependencies for issues
+  lint       Check pipeline dependencies for issues
+  contracts  Manage schema contracts and diff versions
 
 Examples:
   python -m stageflow.cli lint pipeline.py
-  python -m stageflow.cli lint my_app/pipelines/ --verbose
+  python -m stageflow.cli contracts list --module app/pipelines/summarize.py
         """,
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -33,6 +35,13 @@ Examples:
         "lint",
         help="Lint pipeline dependencies",
         description="Check pipeline definitions for dependency issues",
+    )
+
+    # Contracts subcommand
+    subparsers.add_parser(
+        "contracts",
+        help="Manage schema contracts and diff versions",
+        description="Contract registry management and schema diffing",
     )
     lint_parser.add_argument(
         "file",
@@ -54,7 +63,7 @@ Examples:
         help="Treat warnings as errors",
     )
 
-    args = parser.parse_args()
+    args, extras = parser.parse_known_args()
 
     if args.command is None:
         parser.print_help()
@@ -122,6 +131,13 @@ Examples:
             print(result)
 
         return 0 if result.valid else 1
+
+    if args.command == "contracts":
+        # Delegate to the contracts script, forwarding argparse extras
+        import subprocess
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "contracts.py"
+        result = subprocess.run([sys.executable, str(script_path)] + extras)
+        return result.returncode
 
     return 0
 

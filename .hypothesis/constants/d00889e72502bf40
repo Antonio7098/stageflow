@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/contracts/errors.py
+# hypothesis_version: 6.150.0
+
+['code', 'context', 'doc_url', 'fix_hint', 'summary']

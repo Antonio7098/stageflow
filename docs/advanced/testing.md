@@ -65,6 +65,81 @@ rebuilt = apply_delta(base, delta)
 assert rebuilt == current
 ```
 
+## Schema Registry & Typed Outputs
+
+Typed payloads plus schema diffing prevent accidental breaking changes. Stage
+authors should:
+
+1. Define a Pydantic model for the stage output payload.
+2. Wrap the model with `stageflow.contracts.TypedStageOutput`.
+3. Register the contract with the shared registry (typically at module import).
+4. Run the `stageflow contracts ...` CLI commands in CI to diff versions.
+
+```python
+from pydantic import BaseModel
+from stageflow.contracts import TypedStageOutput
+
+
+class SummarizePayload(BaseModel):
+    text: str
+    confidence: float
+
+
+summarize_output = TypedStageOutput(
+    SummarizePayload,
+    version_factory=TypedStageOutput.timestamp_version,
+)
+
+
+async def execute(self, ctx: StageContext) -> StageOutput:
+    payload = await build_payload()
+    return summarize_output.ok(payload)
+```
+
+Register the schema once so CLI tooling can diff versions:
+
+```python
+summarize_output.register_contract(
+    stage="summarize",
+    version="summary/v2",
+    description="Response returned to orchestrator entry point",
+)
+```
+
+### CLI Workflows
+
+```bash
+# Discover contracts in a module and list versions
+python -m stageflow.cli contracts list app/pipelines/summarize.py
+
+# Diff two versions and fail CI on breaking changes
+python -m stageflow.cli contracts diff \
+  --module app/pipelines/summarize.py \
+  --stage summarize --from summary/v1 --to summary/v2
+
+# Generate upgrade plan/runbook text for reviewers
+python -m stageflow.cli contracts plan-upgrade \
+  --module app/pipelines/summarize.py \
+  --stage summarize --from summary/v1 --to summary/v2
+```
+
+`diff` emits JSON/TTY compatibility reports. `plan-upgrade` augments the diff
+with remediation steps pulled from `ContractSuggestion` entries, producing
+copy-pastable PR comments.
+
+### Lint Integration
+
+`stageflow cli lint` now enriches `DependencyIssue` errors with structured
+contract codes, documentation links, and suggestion text. Enable `--json` to
+surface doc URLs in CI dashboards. Add a pre-commit hook that runs:
+
+```bash
+python -m stageflow.cli lint pipelines/my_pipeline.py --strict
+```
+
+Warnings (isolated stages, orphaned deps) can be escalated via `--strict` to
+enforce DAG hygiene before contract registration.
+
 ## Testing Pyramid
 
 ```

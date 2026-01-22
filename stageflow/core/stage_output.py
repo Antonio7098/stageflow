@@ -50,21 +50,43 @@ class StageOutput:
     events: list[StageEvent] = field(default_factory=list)
     error: str | None = None
     duration_ms: int | None = None
+    version: str | None = None
 
     @classmethod
-    def ok(cls, data: dict[str, Any] | None = None, **kwargs) -> StageOutput:
+    def ok(
+        cls,
+        data: dict[str, Any] | None = None,
+        *,
+        version: str | None = None,
+        **kwargs,
+    ) -> StageOutput:
         """Create a successful output."""
-        return cls(status=StageStatus.OK, data=data or kwargs)
+        payload = data or kwargs
+        return cls(status=StageStatus.OK, data=payload, version=version)
 
     @classmethod
-    def skip(cls, reason: str = "", data: dict[str, Any] | None = None) -> StageOutput:
+    def skip(
+        cls,
+        reason: str = "",
+        data: dict[str, Any] | None = None,
+        *,
+        version: str | None = None,
+    ) -> StageOutput:
         """Create a skipped output."""
-        return cls(status=StageStatus.SKIP, data={"reason": reason, **(data or {})})
+        payload = {"reason": reason, **(data or {})}
+        return cls(status=StageStatus.SKIP, data=payload, version=version)
 
     @classmethod
-    def cancel(cls, reason: str = "", data: dict[str, Any] | None = None) -> StageOutput:
+    def cancel(
+        cls,
+        reason: str = "",
+        data: dict[str, Any] | None = None,
+        *,
+        version: str | None = None,
+    ) -> StageOutput:
         """Create a cancelled output to stop pipeline without error."""
-        return cls(status=StageStatus.CANCEL, data={"cancel_reason": reason, **(data or {})})
+        payload = {"cancel_reason": reason, **(data or {})}
+        return cls(status=StageStatus.CANCEL, data=payload, version=version)
 
     @classmethod
     def fail(
@@ -73,6 +95,7 @@ class StageOutput:
         data: dict[str, Any] | None = None,
         *,
         response: str | None = None,
+        version: str | None = None,
     ) -> StageOutput:
         """Create a failed output.
 
@@ -86,12 +109,18 @@ class StageOutput:
             provided, `error` takes precedence.
         """
         error_msg = error or response or "Unknown error"
-        return cls(status=StageStatus.FAIL, error=error_msg, data=data or {})
+        return cls(status=StageStatus.FAIL, error=error_msg, data=data or {}, version=version)
 
     @classmethod
-    def retry(cls, error: str, data: dict[str, Any] | None = None) -> StageOutput:
+    def retry(
+        cls,
+        error: str,
+        data: dict[str, Any] | None = None,
+        *,
+        version: str | None = None,
+    ) -> StageOutput:
         """Create a retry-needed output."""
-        return cls(status=StageStatus.RETRY, error=error, data=data or {})
+        return cls(status=StageStatus.RETRY, error=error, data=data or {}, version=version)
 
     def with_duration(self, duration_ms: int) -> StageOutput:
         """Return a copy of this output with duration_ms set.
@@ -112,4 +141,18 @@ class StageOutput:
             events=self.events,
             error=self.error,
             duration_ms=duration_ms,
+            version=self.version,
+        )
+
+    def with_version(self, version: str) -> StageOutput:
+        """Return a copy with an explicit schema version tag."""
+
+        return StageOutput(
+            status=self.status,
+            data=self.data,
+            artifacts=self.artifacts,
+            events=self.events,
+            error=self.error,
+            duration_ms=self.duration_ms,
+            version=version,
         )
