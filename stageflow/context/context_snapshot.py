@@ -266,7 +266,7 @@ class ContextSnapshot(Generic[T]):
                 interaction_id=UUID(data["interaction_id"]) if data.get("interaction_id") else None,
             )
 
-        # Parse enrichments - prefer new composed format, fall back to flat
+        # Parse enrichments - prefer new composed format, allow new canonical bundles, fall back to flat legacy fields
         enrichments = None
         if data.get("enrichments") and isinstance(data["enrichments"], dict):
             enrichments = Enrichments.from_dict(data["enrichments"])
@@ -294,7 +294,7 @@ class ContextSnapshot(Generic[T]):
                     web_results=web_results,
                 )
 
-        # Parse conversation - prefer new composed format, fall back to flat
+        # Parse conversation - prefer new composed format, allow new canonical structures, fall back to flat
         conversation = None
         if data.get("conversation") and isinstance(data["conversation"], dict):
             conversation = Conversation.from_dict(data["conversation"])
@@ -315,13 +315,13 @@ class ContextSnapshot(Generic[T]):
                 )
 
             routing_decision = None
-            if data.get("routing_decision"):
-                rd = data["routing_decision"]
+            routing = data.get("routing_decision")
+            if routing and isinstance(routing, dict):
                 routing_decision = RoutingDecision(
-                    agent_id=rd["agent_id"],
-                    pipeline_name=rd["pipeline_name"],
-                    topology=rd["topology"],
-                    reason=rd.get("reason"),
+                    agent_id=routing.get("agent_id"),
+                    pipeline_name=routing.get("pipeline_name"),
+                    topology=routing.get("topology"),
+                    reason=routing.get("reason"),
                 )
 
             if messages or routing_decision:

@@ -121,6 +121,12 @@ async def main():
 asyncio.run(main())
 ```
 
+> **Testing tip**: When you only need to run a single stage in isolation,
+> use `stageflow.testing.create_test_stage_context()` instead of
+> manually wiring `StageInputs` and `PipelineTimer`. It produces a
+> ready-to-use `StageContext` with sensible defaults and optional
+> `prior_outputs` so you can focus on the stage logic itself.
+
 ## Complete Example
 
 Here's the full working code:

@@ -158,6 +158,17 @@ class TestPipeline:
         """Test empty Pipeline has no stages."""
         pipeline = Pipeline()
         assert pipeline.stages == {}
+        assert pipeline.name == "pipeline"
+
+    def test_pipeline_with_custom_name(self):
+        """Pipeline constructor should accept a friendly name."""
+        pipeline = Pipeline(name="demo").with_stage(
+            "simple",
+            SimpleStage,
+            StageKind.TRANSFORM,
+        )
+        assert pipeline.name == "demo"
+        assert "simple" in pipeline.stages
 
     def test_with_stage_single(self):
         """Test adding a single stage."""
@@ -219,6 +230,36 @@ class TestPipeline:
         )
         # Last one wins
         assert pipeline.stages["duplicate"].runner == TransformStage
+
+    def test_with_stage_config_injected_into_class(self):
+        """Config kwargs are passed to class-based stages."""
+
+        class StageWithConfig(SimpleStage):  # pragma: no cover - simple helper
+            def __init__(self, flag: bool = False):
+                self.flag = flag
+
+            async def execute(self, _ctx: StageContext) -> StageOutput:
+                return StageOutput.ok(flag=self.flag)
+
+        pipeline = Pipeline().with_stage(
+            "configurable",
+            StageWithConfig,
+            StageKind.TRANSFORM,
+            config={"flag": True},
+        )
+        spec = pipeline.stages["configurable"]
+        assert spec.config == {"flag": True}
+
+    def test_with_stage_config_rejects_instances(self):
+        """Providing config for stage instances should raise."""
+        instance = SimpleStage()
+        with pytest.raises(ValueError):
+            Pipeline().with_stage(
+                "instance",
+                instance,
+                StageKind.TRANSFORM,
+                config={"unused": True},
+            )
 
     def test_compose_empty_with_empty(self):
         """Test composing two empty pipelines."""
