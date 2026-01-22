@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/websearch/protocols.py
+# hypothesis_version: 6.150.0
+
+['ExtractionResult', 'FetchResult', 'FetcherProtocol', 'NavigatorProtocol', 'PaginationInfo']

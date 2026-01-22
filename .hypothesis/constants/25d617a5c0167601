@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/cli/lint.py
+# hypothesis_version: 6.150.0
+
+['\nIssues:', ' -> ', '--json', '--strict', '--verbose', '-v', '<module>', '_', '__main__', '_pipeline', 'accessed_stage', 'create_', 'dependency_count', 'error', 'file', 'get_from', 'get_output', 'has_output', 'info', 'issues', 'line_number', 'message', 'pipeline_module', 'require_from', 'severity', 'stage_count', 'stage_name', 'store_true', 'suggestion', 'valid', 'warning']

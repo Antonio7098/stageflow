@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/helpers/memory_tracker.py
+# hypothesis_version: 6.150.0
+
+[1024, 'MemorySample', 'MemoryTracker', 'T', 'track_memory']

@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/helpers/streaming.py
+# hypothesis_version: 6.150.0
+
+[0.0, 100, 200, 1000, 2000, 4096, 16000, 'AudioChunk', 'AudioFormat', 'BackpressureMonitor', 'BackpressureStats', 'ChunkQueue', 'EventEmitter', 'StreamConfig', 'StreamingBuffer', 'T', 'ascii', 'blocked_ms', 'blocked_puts', 'buffer_duration_ms', 'bytes_available', 'bytes_buffered', 'bytes_dropped', 'bytes_requested', 'channels', 'data', 'drop_rate', 'dropped_items', 'duration_ms', 'fill_percentage', 'float_32', 'format', 'is_final', 'is_ready', 'max_duration_ms', 'max_queue_size', 'max_size', 'metadata', 'mp3', 'ogg_opus', 'overflow', 'pcm_16', 'pcm_24', 'pcm_32', 'queue_full', 'queue_size', 'reason', 'sample_rate', 'sequence', 'stream.chunk_dropped', 'stream.queue_closed', 'timestamp_ms', 'total_blocked_ms', 'total_dropped', 'total_items', 'total_read', 'total_received', 'underrun_active', 'wav', 'webm']

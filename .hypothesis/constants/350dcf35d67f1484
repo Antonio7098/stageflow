@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/context/enrichments.py
+# hypothesis_version: 6.150.0
+
+[', ', 'blocks', 'content', 'display_name', 'document_id', 'document_type', 'documents', 'goals', 'id', 'key_facts', 'memory', 'metadata', 'preferences', 'profile', 'recent_topics', 'text', 'type', 'user_id', 'web_results']

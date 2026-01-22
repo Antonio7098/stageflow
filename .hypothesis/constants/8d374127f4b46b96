@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/pipeline/interceptors_hardening.py
+# hypothesis_version: 6.150.0
+
+[100, 1024, 'context_size', 'context_size_bytes', 'data', 'error', 'immutability_check', 'record_metric', 'snapshot', 'stage', 'stage_name', 'stageflow.hardening', 'to_dict', 'unknown']

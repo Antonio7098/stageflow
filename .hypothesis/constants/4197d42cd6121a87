@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/stageflow/stageflow/websearch/client.py
+# hypothesis_version: 6.150.0
+
+[200, 1000, 10000, 'WebSearchClient', 'WebSearchConfig', '__aenter__', 'close', 'create_mock_client']

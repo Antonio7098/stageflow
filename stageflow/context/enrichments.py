@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
-
 logger = logging.getLogger("stageflow.context.enrichments")
 
 
