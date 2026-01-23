@@ -434,10 +434,10 @@ class TestEnrichUtilitiesIntegration:
 
     def test_conflict_detector_integration(self):
         """Verify ConflictDetector resolves conflicts."""
-        from stageflow.context.enrich import ConflictDetector, ConflictResolution
-        
+        from stageflow.context.enrich import ConflictDetector
+
         detector = ConflictDetector()
-        
+
         # Test keep_new strategy
         result = detector.check_and_resolve(
             "test_field",
@@ -446,7 +446,7 @@ class TestEnrichUtilitiesIntegration:
         )
         assert result.resolution == "keep_new"
         assert result.merged_value == {"key": "new"}
-        
+
         # Test keep_old strategy
         detector_old = ConflictDetector(default_strategy="keep_old")
         result = detector_old.check_and_resolve(
