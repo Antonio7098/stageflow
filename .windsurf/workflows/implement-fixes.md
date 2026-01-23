@@ -1,0 +1,1 @@
+read the relevant fix file and tier. implement, updating the tracker as you go. include comprehensive testing (unit, integration). make sure that any changes/enghancements are represented in /docs. at the end, update /changelog.json (with releveant version number). Keep in mind: solid principles, scalability, reliability, maintainablity, observability, speed, performance.
