@@ -1,9 +1,10 @@
 """Tests for retry interceptor."""
 
-import asyncio
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
+import pytest
+
+from stageflow.pipeline.interceptors import ErrorAction
 from stageflow.pipeline.retry import (
     BackoffStrategy,
     JitterStrategy,
@@ -12,7 +13,6 @@ from stageflow.pipeline.retry import (
     ServiceUnavailableError,
     TransientError,
 )
-from stageflow.pipeline.interceptors import ErrorAction
 
 
 class TestBackoffStrategy:
@@ -48,7 +48,7 @@ class TestRetryInterceptor:
     def test_initialization(self):
         """Test interceptor initialization with defaults."""
         interceptor = RetryInterceptor()
-        
+
         assert interceptor.max_attempts == 3
         assert interceptor.base_delay_ms == 1000
         assert interceptor.max_delay_ms == 30000
@@ -64,7 +64,7 @@ class TestRetryInterceptor:
             backoff_strategy=BackoffStrategy.LINEAR,
             jitter_strategy=JitterStrategy.NONE,
         )
-        
+
         assert interceptor.max_attempts == 5
         assert interceptor.base_delay_ms == 500
         assert interceptor.backoff_strategy == BackoffStrategy.LINEAR
@@ -76,7 +76,7 @@ class TestRetryInterceptor:
             backoff_strategy=BackoffStrategy.EXPONENTIAL,
             jitter_strategy=JitterStrategy.NONE,
         )
-        
+
         # attempt 0: 1000 * 2^0 = 1000
         assert interceptor._calculate_delay("test", 0) == 1000
         # attempt 1: 1000 * 2^1 = 2000
@@ -91,7 +91,7 @@ class TestRetryInterceptor:
             backoff_strategy=BackoffStrategy.LINEAR,
             jitter_strategy=JitterStrategy.NONE,
         )
-        
+
         # attempt 0: 1000 * 1 = 1000
         assert interceptor._calculate_delay("test", 0) == 1000
         # attempt 1: 1000 * 2 = 2000
@@ -106,7 +106,7 @@ class TestRetryInterceptor:
             backoff_strategy=BackoffStrategy.CONSTANT,
             jitter_strategy=JitterStrategy.NONE,
         )
-        
+
         # All attempts should have same delay
         assert interceptor._calculate_delay("test", 0) == 1000
         assert interceptor._calculate_delay("test", 1) == 1000
@@ -120,7 +120,7 @@ class TestRetryInterceptor:
             backoff_strategy=BackoffStrategy.EXPONENTIAL,
             jitter_strategy=JitterStrategy.NONE,
         )
-        
+
         # attempt 2: 10000 * 4 = 40000, but capped at 15000
         assert interceptor._calculate_delay("test", 2) == 15000
 
@@ -131,10 +131,10 @@ class TestRetryInterceptor:
             backoff_strategy=BackoffStrategy.CONSTANT,
             jitter_strategy=JitterStrategy.FULL,
         )
-        
+
         # Run multiple times to verify range
         delays = [interceptor._calculate_delay("test", 0) for _ in range(100)]
-        
+
         # All values should be in [0, 1000]
         assert all(0 <= d <= 1000 for d in delays)
         # Should have some variation (not all same)
@@ -147,10 +147,10 @@ class TestRetryInterceptor:
             backoff_strategy=BackoffStrategy.CONSTANT,
             jitter_strategy=JitterStrategy.EQUAL,
         )
-        
+
         # Run multiple times to verify range
         delays = [interceptor._calculate_delay("test", 0) for _ in range(100)]
-        
+
         # All values should be in [500, 1000] (half fixed, half random)
         assert all(500 <= d <= 1000 for d in delays)
 
@@ -158,12 +158,12 @@ class TestRetryInterceptor:
     async def test_before_initializes_retry_state(self):
         """Test that before() initializes retry state."""
         interceptor = RetryInterceptor()
-        
+
         ctx = MagicMock()
         ctx.data = {}
-        
+
         await interceptor.before("test_stage", ctx)
-        
+
         assert "_retry.test_stage" in ctx.data
         assert ctx.data["_retry.test_stage"]["attempt"] == 0
 
@@ -175,16 +175,16 @@ class TestRetryInterceptor:
             base_delay_ms=10,  # Short delay for test
             jitter_strategy=JitterStrategy.NONE,
         )
-        
+
         ctx = MagicMock()
         ctx.data = {"_retry.test_stage": {"attempt": 0}}
         ctx.event_sink = MagicMock()
         ctx.event_sink.try_emit = MagicMock()
-        
+
         error = TimeoutError("Connection timed out")
-        
+
         action = await interceptor.on_error("test_stage", error, ctx)
-        
+
         assert action == ErrorAction.RETRY
         assert ctx.data["_retry.test_stage"]["attempt"] == 1
 
@@ -192,30 +192,30 @@ class TestRetryInterceptor:
     async def test_on_error_non_retryable_error(self):
         """Test on_error returns FAIL for non-retryable errors."""
         interceptor = RetryInterceptor()
-        
+
         ctx = MagicMock()
         ctx.data = {"_retry.test_stage": {"attempt": 0}}
-        
+
         error = ValueError("Invalid input")  # Not in retryable_errors
-        
+
         action = await interceptor.on_error("test_stage", error, ctx)
-        
+
         assert action == ErrorAction.FAIL
 
     @pytest.mark.asyncio
     async def test_on_error_exhausted_retries(self):
         """Test on_error returns FAIL when retries exhausted."""
         interceptor = RetryInterceptor(max_attempts=3)
-        
+
         ctx = MagicMock()
         ctx.data = {"_retry.test_stage": {"attempt": 2}}  # Already tried 2 times
         ctx.event_sink = MagicMock()
         ctx.event_sink.try_emit = MagicMock()
-        
+
         error = TimeoutError("Connection timed out")
-        
+
         action = await interceptor.on_error("test_stage", error, ctx)
-        
+
         assert action == ErrorAction.FAIL
 
     @pytest.mark.asyncio
@@ -227,20 +227,20 @@ class TestRetryInterceptor:
             retryable_errors=(RateLimitError, ServiceUnavailableError),
             jitter_strategy=JitterStrategy.NONE,
         )
-        
+
         ctx = MagicMock()
         ctx.data = {"_retry.test_stage": {"attempt": 0}}
         ctx.event_sink = MagicMock()
         ctx.event_sink.try_emit = MagicMock()
-        
+
         # RateLimitError should be retryable
         error = RateLimitError("Rate limit exceeded", retry_after=60)
         action = await interceptor.on_error("test_stage", error, ctx)
         assert action == ErrorAction.RETRY
-        
+
         # Reset state
         ctx.data = {"_retry.test_stage": {"attempt": 0}}
-        
+
         # TimeoutError should NOT be retryable (not in custom list)
         error = TimeoutError("Timeout")
         action = await interceptor.on_error("test_stage", error, ctx)
@@ -253,13 +253,13 @@ class TestTransientErrors:
     def test_rate_limit_error(self):
         """Test RateLimitError attributes."""
         error = RateLimitError("Rate limit exceeded", retry_after=60)
-        
+
         assert str(error) == "Rate limit exceeded"
         assert error.retry_after == 60
 
     def test_service_unavailable_error(self):
         """Test ServiceUnavailableError."""
         error = ServiceUnavailableError("Service temporarily unavailable")
-        
+
         assert isinstance(error, TransientError)
         assert str(error) == "Service temporarily unavailable"
