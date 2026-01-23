@@ -61,8 +61,9 @@ Run this minimal example to verify everything works:
 
 ```python
 import asyncio
-from stageflow import Pipeline, StageKind, StageOutput, StageContext
-from stageflow.context import ContextSnapshot
+from stageflow import Pipeline, StageKind, StageOutput, StageContext, PipelineTimer
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 
 class HelloStage:
     name = "hello"
@@ -72,14 +73,16 @@ class HelloStage:
         return StageOutput.ok(message="Hello, Stageflow!")
 
 async def main():
-    # Create a minimal context snapshot
+    # Create a minimal context snapshot with RunIdentity
     snapshot = ContextSnapshot(
-        pipeline_run_id=None,
-        request_id=None,
-        session_id=None,
-        user_id=None,
-        org_id=None,
-        interaction_id=None,
+        run_id=RunIdentity(
+            pipeline_run_id=None,
+            request_id=None,
+            session_id=None,
+            user_id=None,
+            org_id=None,
+            interaction_id=None,
+        ),
         topology=None,
         execution_mode=None,
     )
@@ -88,8 +91,14 @@ async def main():
     pipeline = Pipeline().with_stage("hello", HelloStage, StageKind.TRANSFORM)
     graph = pipeline.build()
     
-    # Create context and run
-    ctx = StageContext(snapshot=snapshot)
+    # Create context with required parameters
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
+    
     results = await graph.run(ctx)
     
     print(results["hello"].data)  # {'message': 'Hello, Stageflow!'}

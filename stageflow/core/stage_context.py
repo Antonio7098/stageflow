@@ -110,6 +110,25 @@ class StageContext:
         else:
             logger.debug(f"Event (no sink): {type}", extra=enriched_data)
 
+    def record_stage_event(self, stage: str, status: str, **kwargs) -> None:
+        """Record a stage execution event.
+
+        This method is called by the pipeline execution engine to record
+        stage lifecycle events (started, completed, failed, etc.).
+
+        Args:
+            stage: Stage name
+            status: Event status (e.g., "started", "completed", "failed")
+            **kwargs: Additional event data
+        """
+        event_data = {
+            "stage": stage,
+            "status": status,
+            "stage_name": self.stage_name,
+            **kwargs,
+        }
+        self.try_emit_event(f"stage.{status}", event_data)
+
     def as_pipeline_context(
         self,
         *,

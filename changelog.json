@@ -19,6 +19,42 @@
   },
   "entries": [
     {
+      "version": "v0.9.1",
+      "date": "2026-01-24",
+      "changes": [
+        {
+          "type": "added",
+          "area": "core.stage_context",
+          "description": "Added record_stage_event() method to StageContext for pipeline integration and stage lifecycle event recording.",
+          "commit": "fix/v0.9.0-integration-fixes",
+          "files_affected": [
+            "stageflow/core/stage_context.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "fixed",
+          "area": "docs.installation",
+          "description": "Updated installation guide to use correct ContextSnapshot API with RunIdentity and proper StageContext initialization.",
+          "commit": "fix/v0.9.0-integration-fixes",
+          "files_affected": [
+            "docs/getting-started/installation.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "tests.integration",
+          "description": "Added comprehensive integration tests for v0.9.0 features including StageContext event handling, ContextSnapshot creation, VersionMetadata API, pipeline builder integration, and ENRICH utilities.",
+          "commit": "fix/v0.9.0-integration-fixes",
+          "files_affected": [
+            "tests/test_v090_integration.py"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.9.0",
       "date": "2026-01-24",
       "changes": [
