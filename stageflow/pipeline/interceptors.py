@@ -14,7 +14,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # pragma: no cover
+    from stageflow.pipeline.idempotency import IdempotencyStore
 
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.result import StageResult
@@ -46,6 +49,10 @@ class InterceptorError(Exception):
     def __init__(self, message: str, interceptor_name: str) -> None:
         super().__init__(message)
         self.interceptor_name = interceptor_name
+
+
+class CriticalInterceptorError(InterceptorError):
+    """Interceptor error that should abort stage execution immediately."""
 
 
 @dataclass(slots=True)
@@ -353,23 +360,41 @@ class TimeoutInterceptor(BaseInterceptor):
         ctx.data.pop(f"_timeout.{stage_name}", None)
 
 
-def get_default_interceptors(include_auth: bool = False) -> list[BaseInterceptor]:
+def get_default_interceptors(
+    *,
+    include_auth: bool = False,
+    include_idempotency: bool = True,
+    idempotency_store: IdempotencyStore | None = None,
+) -> list[BaseInterceptor]:
     """Get the default set of interceptors for pipeline execution.
 
     Args:
         include_auth: Whether to include authentication interceptors
+        include_idempotency: Whether to enforce idempotency for WORK stages
+        idempotency_store: Optional shared idempotency store
 
     Returns:
         List of interceptors in priority order (low to high)
     """
-    interceptors = [
-        TimeoutInterceptor(),  # Priority 5 - runs first
-        CircuitBreakerInterceptor(),  # Priority 10
-        TracingInterceptor(),  # Priority 20
-        MetricsInterceptor(),  # Priority 40
-        ChildTrackerMetricsInterceptor(),  # Priority 45
-        LoggingInterceptor(),  # Priority 50
-    ]
+    interceptors: list[BaseInterceptor] = []
+
+    if include_idempotency:
+        from stageflow.pipeline.idempotency import IdempotencyInterceptor
+
+        interceptors.append(
+            IdempotencyInterceptor(store=idempotency_store)
+        )
+
+    interceptors.extend(
+        [
+            TimeoutInterceptor(),  # Priority 5 - runs first
+            CircuitBreakerInterceptor(),  # Priority 10
+            TracingInterceptor(),  # Priority 20
+            MetricsInterceptor(),  # Priority 40
+            ChildTrackerMetricsInterceptor(),  # Priority 45
+            LoggingInterceptor(),  # Priority 50
+        ]
+    )
 
     if include_auth:
         # Add auth interceptors with appropriate priorities
@@ -435,6 +460,8 @@ async def run_with_interceptors(
                 )
                 break
         except Exception as e:
+            if isinstance(e, CriticalInterceptorError):
+                raise
             # Isolated interceptor errors don't crash the stage
             logger.error(
                 f"Interceptor {i.name} before() failed: {e}",
@@ -529,6 +556,8 @@ async def run_with_interceptors(
         try:
             await i.after(stage_name, result, ctx)
         except Exception as e:
+            if isinstance(e, CriticalInterceptorError):
+                raise
             # Isolated - don't crash the stage
             logger.error(
                 f"Interceptor {i.name} after() failed: {e}",
@@ -543,6 +572,7 @@ __all__ = [
     "InterceptorResult",
     "InterceptorContext",
     "InterceptorError",
+    "CriticalInterceptorError",
     "ErrorAction",
     "BaseInterceptor",
     "LoggingInterceptor",
