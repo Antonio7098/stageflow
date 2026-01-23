@@ -127,6 +127,42 @@ asyncio.run(main())
 > ready-to-use `StageContext` with sensible defaults and optional
 > `prior_outputs` so you can focus on the stage logic itself.
 
+## Detecting & Preventing Cycles
+
+Stageflow validates pipelines at build time, but you can catch dependency
+issues even earlier by running the lint pass while you iterate. The
+`stageflow.cli.lint_pipeline()` helper checks for:
+
+- Circular dependencies
+- Missing or misspelled dependency names
+- Self-dependencies and orphaned stages
+
+```python
+from stageflow import Pipeline, StageKind
+from stageflow.cli.lint import lint_pipeline
+
+pipeline = (
+    Pipeline()
+    .with_stage("a", StageA, StageKind.TRANSFORM, dependencies=("c",))
+    .with_stage("b", StageB, StageKind.TRANSFORM, dependencies=("a",))
+    .with_stage("c", StageC, StageKind.TRANSFORM, dependencies=("b",))
+)
+
+lint_result = lint_pipeline(pipeline)
+if not lint_result.valid:
+    for issue in lint_result.issues:
+        print(issue.message)
+```
+
+For cycles, the pipeline builder raises `CycleDetectedError`, which
+contains structured troubleshooting metadata (error code, fix hint, docs
+link). Breaking a cycle is as simple as removing one dependency in the
+loop or routing through a dedicated router stage.
+
+> **Tip**: Run `stageflow cli lint` in CI to block regressions—its output
+> mirrors the structured `ContractErrorInfo` that Stageflow surfaces at
+> runtime, making it easier to share remediation hints across your team.
+
 ## Complete Example
 
 Here's the full working code:

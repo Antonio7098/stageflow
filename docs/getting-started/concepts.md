@@ -213,6 +213,7 @@ class StageB:
 
 **Interceptors** are middleware that wrap stage execution. They handle cross-cutting concerns:
 
+- **Idempotency** — Short-circuit duplicate WORK stages using cached `StageResult`s keyed by request metadata
 - **Logging** — Structured logging of stage events
 - **Streaming Telemetry** — Emit queue/backpressure events from `ChunkQueue` or `StreamingBuffer`
 - **Metrics** — Duration, success/failure tracking
@@ -226,8 +227,8 @@ from stageflow import get_default_interceptors
 
 # Default interceptors are applied automatically
 interceptors = get_default_interceptors()
-# [TimeoutInterceptor, CircuitBreakerInterceptor, TracingInterceptor, 
-#  MetricsInterceptor, LoggingInterceptor]
+# [IdempotencyInterceptor, TimeoutInterceptor, CircuitBreakerInterceptor,
+#  TracingInterceptor, MetricsInterceptor, ChildTrackerMetricsInterceptor, LoggingInterceptor]
 ```
 
 ## Events

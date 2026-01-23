@@ -308,7 +308,7 @@ Response: I received your message: 'I want to buy a subscription'. How can I hel
 ## With Conversation History
 
 ```python
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Create snapshot with message history
 snapshot = ContextSnapshot(
@@ -325,12 +325,12 @@ snapshot = ContextSnapshot(
         Message(
             role="user",
             content="What is Python?",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         ),
         Message(
             role="assistant",
             content="Python is a programming language known for its simplicity.",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         ),
     ],
 )

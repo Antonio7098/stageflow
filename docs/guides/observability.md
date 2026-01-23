@@ -92,6 +92,8 @@ Use production-grade sinks (Kafka, Pub/Sub, OTLP) for critical telemetry. Defaul
 ### Custom Event Sink
 
 ```python
+from datetime import datetime, timezone
+
 class DatabaseEventSink:
     """Store events in a database."""
     
@@ -102,7 +104,7 @@ class DatabaseEventSink:
         await self.db.insert("pipeline_events", {
             "type": type,
             "data": data,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
         })
     
     def try_emit(self, *, type: str, data: dict) -> None:
@@ -582,6 +584,8 @@ class PipelineRunLogger(Protocol):
 ### Implementation Example
 
 ```python
+from datetime import datetime, timezone
+
 class DatabasePipelineRunLogger:
     def __init__(self, db):
         self.db = db
@@ -591,7 +595,7 @@ class DatabasePipelineRunLogger:
             "id": pipeline_run_id,
             "pipeline_name": pipeline_name,
             "status": "running",
-            "started_at": datetime.utcnow(),
+            "started_at": datetime.now(timezone.utc),
             **kwargs,
         })
     
@@ -599,7 +603,7 @@ class DatabasePipelineRunLogger:
         await self.db.update("pipeline_runs", pipeline_run_id, {
             "status": status,
             "duration_ms": duration_ms,
-            "completed_at": datetime.utcnow(),
+            "completed_at": datetime.now(timezone.utc),
         })
     
     async def log_run_failed(self, *, pipeline_run_id, error, stage, **kwargs):
@@ -607,7 +611,7 @@ class DatabasePipelineRunLogger:
             "status": "failed",
             "error": error,
             "failed_stage": stage,
-            "failed_at": datetime.utcnow(),
+            "failed_at": datetime.now(timezone.utc),
         })
 ```
 

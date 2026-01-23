@@ -332,7 +332,72 @@ def create_adaptive_pipeline(ctx) -> Pipeline:
         pipeline = pipeline.with_stage("advanced", AdvancedStage, StageKind.TRANSFORM)
     
     return pipeline
+
+### Conditional Control Flow Tips
+
+Stageflow executes every stage whose dependencies are satisfied. Router
+output alone does **not** prevent downstream branches from running—you
+must explicitly inspect the router decision and return
+`StageOutput.skip()` for non-selected branches.
+
+```python
+class RouterStage:
+    name = "router"
+    kind = StageKind.ROUTE
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        intent = (ctx.snapshot.input_text or "").strip().lower()
+        if "math" in intent:
+            return StageOutput.ok(route="math")
+        if "sql" in intent:
+            return StageOutput.ok(route="sql")
+        return StageOutput.ok(route="default")
+
+
+class MathStage:
+    name = "math"
+    kind = StageKind.TRANSFORM
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        route = ctx.inputs.get_from("router", "route", default="default")
+        if route != "math":
+            return StageOutput.skip(reason="not_math_route")
+        # business logic here
+        return StageOutput.ok()
 ```
+
+Common patterns:
+
+1. Make routers cheap and deterministic.
+2. Downstream branches inspect router outputs and call `skip()` early to
+   avoid wasted work.
+3. Aggregate branch results via a WORK stage that inspects
+   `ctx.inputs.get_output("branch", default=StageOutput.skip(...))`.
+
+### Cancel Semantics
+
+`StageOutput.cancel()` stops the **entire pipeline**, not just the
+current branch. When a stage returns CANCEL, the executor raises
+`UnifiedPipelineCancelled`, cancels outstanding tasks, and surfaces the
+`cancel_reason` you provided. Reserve cancel for intentional shutdowns
+(user abort, guardrail hard-stop, feature flag). If you merely want to
+skip work, use `StageOutput.skip()` instead.
+
+Recommended workflow:
+
+1. Emit a telemetry event before calling `StageOutput.cancel()` so
+   operators know why the run stopped.
+2. Include actionable data inside the payload:
+
+```python
+return StageOutput.cancel(
+    reason="credit_limit_exceeded",
+    data={"org_id": str(ctx.snapshot.org_id), "outstanding": outstanding},
+)
+```
+
+3. Attach a runbook link in the event payload or surrounding docs so
+   on-call engineers can follow the remediation steps.
 
 ## Best Practices
 
@@ -398,6 +463,42 @@ def test_enrichment_component():
     # Verify stages
     assert "profile" in [s.name for s in graph.stage_specs]
     assert "memory" in [s.name for s in graph.stage_specs]
+
+## Detecting & Preventing Cycles
+
+Complex compositions increase the risk of accidental cycles. Stageflow
+provides two layers of defense to keep DAGs acyclic:
+
+1. **Lint before build**: `stageflow.cli.lint_pipeline()` surfaces
+   cycles, missing dependencies, and orphans before you even create a
+   `StageGraph`.
+2. **Structured build errors**: The pipeline builder raises
+   `CycleDetectedError` with a `ContractErrorInfo` payload (code,
+   summary, fix hint, docs URL) so you can pinpoint the offending stage
+   loop immediately.
+
+```python
+from stageflow import Pipeline, StageKind
+from stageflow.cli.lint import lint_pipeline
+
+pipeline = (
+    Pipeline()
+    .with_stage("router", RouterStage, StageKind.ROUTE)
+    .with_stage("branch_a", BranchAStage, StageKind.TRANSFORM, dependencies=("router",))
+    .with_stage("branch_b", BranchBStage, StageKind.TRANSFORM, dependencies=("branch_a",))
+    .with_stage("router", RouterStage, StageKind.ROUTE, dependencies=("branch_b",))  # cycle
+)
+
+result = lint_pipeline(pipeline)
+if not result.valid:
+    raise ValueError("Dependency issues detected", result.issues)
+
+graph = pipeline.build()  # Raises CycleDetectedError with detailed guidance
+```
+
+> **Operational tip**: Wire `stageflow cli lint` into CI and fail the
+> build on any `IssueSeverity.ERROR`. Attach the emitted cycle path to
+> your incident tracker so the fix is obvious to reviewers.
 ```
 
 ### 5. Verify Telemetry Contracts

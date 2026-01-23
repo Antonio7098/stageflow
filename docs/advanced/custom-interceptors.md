@@ -185,7 +185,7 @@ class RetryInterceptor(BaseInterceptor):
 
 ```python
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("request_logger")
 
@@ -194,7 +194,7 @@ class RequestLoggingInterceptor(BaseInterceptor):
     priority = 45
 
     async def before(self, stage_name: str, ctx: PipelineContext) -> None:
-        ctx.data[f"_request_log.{stage_name}.start"] = datetime.utcnow()
+        ctx.data[f"_request_log.{stage_name}.start"] = datetime.now(timezone.utc)
         
         logger.info(
             f"Stage {stage_name} starting",
@@ -210,7 +210,7 @@ class RequestLoggingInterceptor(BaseInterceptor):
         start = ctx.data.pop(f"_request_log.{stage_name}.start", None)
         duration_ms = 0
         if start:
-            duration_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
+            duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
 
         logger.info(
             f"Stage {stage_name} completed",

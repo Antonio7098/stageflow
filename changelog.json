@@ -19,6 +19,195 @@
   },
   "entries": [
     {
+      "version": "v0.8.0",
+      "date": "2026-01-23",
+      "changes": [
+        {
+          "type": "added",
+          "area": "pipeline.guard_retry",
+          "description": "UnifiedStageGraph now accepts guard_retry_strategy policies (max attempts, stagnation hashing, timeout) and emits guard_retry.* events while automatically rerunning the configured transformer + guard loop.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/pipeline/dag.py",
+            "stageflow/pipeline/pipeline.py"
+          ],
+          "issues": [
+            "DAG-003"
+          ]
+        },
+        {
+          "type": "added",
+          "area": "docs.guard_retry",
+          "description": "Updated Guard Retry cookbook to show GuardRetryStrategy wiring and document new guard_retry.* metrics/events for observability.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/examples/agent-tools.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "tests.execution",
+          "description": "Expanded execution/configuration suites with guard retry success, max-attempt exhaustion, stagnation, timeout, and builder validation scenarios.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/execution/test_unified_graph.py",
+            "tests/configuration/test_pipeline.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "fixed",
+          "area": "pipeline.idempotency",
+          "description": "IdempotencyInterceptor now uses per-key asyncio locks so concurrent duplicates block until the cached StageResult is stored, closing remaining race conditions in high-QPS workloads.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/pipeline/idempotency.py",
+            "tests/unit/pipeline/test_idempotency_interceptor.py"
+          ],
+          "issues": [
+            "BUG-072",
+            "BUG-073",
+            "BUG-075"
+          ]
+        },
+        {
+          "type": "added",
+          "area": "docs.idempotency",
+          "description": "Published advanced idempotency guide, updated core docs/examples to use timezone-aware timestamps, and linked the new guide from the docs index for WORK phase hardening.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/advanced/idempotency.md",
+            "docs/index.md",
+            "docs/guides/context.md",
+            "docs/guides/observability.md",
+            "docs/advanced/custom-interceptors.md",
+            "docs/api/events.md",
+            "docs/api/wide-events.md",
+            "docs/examples/chat.md"
+          ],
+          "issues": [
+            "DX-071",
+            "BUG-076"
+          ]
+        },
+        {
+          "type": "added",
+          "area": "docs.enrich_phase1",
+          "description": "Documented ENRICH Phase 1 guidance: multi-hop RAG example, knowledge verification guards, version-aware enrichment patterns, and context management best practices.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/examples/multi-hop-rag.md",
+            "docs/advanced/knowledge-verification.md",
+            "docs/guides/enrich.md",
+            "docs/advanced/context-management.md",
+            "ops/24-testers/fixes/ENRICH-Fixes.md"
+          ],
+          "issues": [
+            "ENRICH-001",
+            "ENRICH-003",
+            "ENRICH-004",
+            "ENRICH-005"
+          ]
+        },
+        {
+          "type": "fixed",
+          "area": "helpers.guardrails",
+          "description": "GuardrailStage now emits mandatory guardrail.fail_open audits, ContentFilter normalizes leetspeak/obfuscation, and InjectionDetector covers social-engineering prompts with matching unit/docs updates.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/helpers/guardrails.py",
+            "tests/unit/test_helpers_guardrails.py",
+            "docs/api/helpers.md",
+            "ops/24-testers/fixes/GUARD-Fixes.md"
+          ],
+          "issues": [
+            "BUG-056",
+            "BUG-066",
+            "BUG-055"
+          ]
+        },
+        {
+          "type": "added",
+          "area": "helpers.timestamps",
+          "description": "Introduced parse_timestamp()/detect_unix_precision() utilities covering ISO 8601, RFC 2822, and multi-precision Unix epochs with UTC normalization.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/helpers/timestamps.py",
+            "stageflow/helpers/__init__.py"
+          ],
+          "issues": [
+            "BUG-032",
+            "BUG-031"
+          ]
+        },
+        {
+          "type": "fixed",
+          "area": "docs",
+          "description": "Corrected StageContext examples to reference ctx.try_emit_event() and documented the new timestamp helpers for tester alignment.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/api/core.md",
+            "docs/api/events.md",
+            "ops/24-testers/fixes/TRANSFORM-Fixes.md"
+          ],
+          "issues": [
+            "DX-036"
+          ]
+        },
+        {
+          "type": "added",
+          "area": "tests",
+          "description": "Added unit coverage for timestamp precision detection, RFC 2822 parsing, and timezone normalization edge cases.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/unit/test_helpers_timestamps.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "pipeline.idempotency",
+          "description": "Introduced IdempotencyInterceptor + InMemoryIdempotencyStore, wired it into get_default_interceptors with CriticalInterceptorError handling so duplicate WORK stages short-circuit safely.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/pipeline/idempotency.py",
+            "stageflow/pipeline/interceptors.py"
+          ],
+          "issues": [
+            "BUG-072",
+            "BUG-073"
+          ]
+        },
+        {
+          "type": "added",
+          "area": "tests.pipeline",
+          "description": "Split idempotency unit coverage into interceptor/store suites and added framework integration tests validating short-circuiting + default interceptor ordering.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/unit/pipeline/test_idempotency_interceptor.py",
+            "tests/unit/pipeline/test_inmemory_idempotency_store.py",
+            "tests/framework/test_interceptors.py"
+          ],
+          "issues": [
+            "BUG-072",
+            "BUG-073"
+          ]
+        },
+        {
+          "type": "changed",
+          "area": "docs.interceptors",
+          "description": "Updated the concepts + interceptor guides to cover IdempotencyInterceptor defaults, shared store wiring, and the revised ordering of get_default_interceptors().",
+          "commit": "pending",
+          "files_affected": [
+            "docs/getting-started/concepts.md",
+            "docs/guides/interceptors.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.7.0",
       "date": "2026-01-22",
       "changes": [
