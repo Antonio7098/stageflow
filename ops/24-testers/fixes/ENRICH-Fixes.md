@@ -58,10 +58,10 @@ Synthesizes ENRICH-001, ENRICH-003, ENRICH-004, ENRICH-005 findings covering mul
 
 | # | Status | Enhancement | Priority | Design Considerations |
 |---|--------|-------------|----------|----------------------|
-| 1 | Not Started | **Truncation Event Emission** | P1 | Add `ctx.emit_event("context.truncated", {...})` when content dropped. Include: bytes_dropped, reason, affected_keys. **Safety**: Event-only, no behavior change. |
-| 2 | Not Started | **Context Utilization Property** | P1 | Add `ctx.context_utilization` returning `{tokens_used, tokens_limit, utilization_pct}`. **Observability**: Enables monitoring dashboards. |
-| 3 | Not Started | **Version Metadata in StageOutput** | P1 | Already exists via `StageOutput.ok(version=...)` from contracts module. Document and promote usage. |
-| 4 | Not Started | **Conflict Detection Event** | P2 | Emit `enrich.version_conflict` when multiple document versions retrieved. **Reliability**: Explicit over silent. |
+| 1 | Complete | **Truncation Event Emission** | P1 | Added `TruncationTracker` in `stageflow/context/enrich.py` with event emission. Includes: tokens_removed, strategy, content_type, reason. **Safety**: Event-only, no behavior change. |
+| 2 | Complete | **Context Utilization Property** | P1 | Added `ContextUtilization` in `stageflow/context/enrich.py` returning `{tokens_used, tokens_limit, utilization_pct}`. **Observability**: Enables monitoring dashboards. |
+| 3 | Complete | **Version Metadata in StageOutput** | P1 | Added `VersionMetadata` in `stageflow/context/enrich.py` with checksum, TTL, and staleness detection. Documented usage. |
+| 4 | Complete | **Conflict Detection Event** | P2 | Added `ConflictDetector` in `stageflow/context/enrich.py` with merge strategies and conflict resolution. **Reliability**: Explicit over silent. |
 
 ### Phase 3: Stageflow Plus Components (Medium Term)
 

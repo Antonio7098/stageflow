@@ -72,19 +72,19 @@ Synthesizes ROUTE-001, ROUTE-005, ROUTE-006, ROUTE-007 findings covering confide
 
 | # | Status | Action | Owner | Effort |
 |---|--------|--------|-------|--------|
-| 1 | Not Started | **Confidence Threshold Guide** - Add `docs/advanced/routing-confidence.md` with threshold tuning, calibration drift detection | Docs | Low |
-| 2 | Not Started | **A/B Testing Patterns** - Document traffic splitting, consistent bucketing, experiment tracking in `docs/examples/ab-testing.md` | Docs | Low |
-| 3 | Not Started | **Loop Detection Patterns** - Add routing loop prevention guide to `docs/advanced/routing-loops.md` | Docs | Low |
-| 4 | Not Started | **Fix function name documentation** - Update docs to use `create_test_stage_context` instead of `create_pipeline_context` | Docs | Low |
-| 5 | Not Started | **User ID access pattern** - Document `ctx.snapshot.run_id.user_id` access in `docs/api/context-submodules.md` | Docs | Low |
+| 1 | ✅ Complete | **Confidence Threshold Guide** - Added `docs/advanced/routing-confidence.md` with threshold tuning, calibration drift detection | Docs | Low |
+| 2 | ✅ Complete | **A/B Testing Patterns** - Documented traffic splitting, consistent bucketing, experiment tracking in `docs/examples/ab-testing.md` | Docs | Low |
+| 3 | ✅ Complete | **Loop Detection Patterns** - Added routing loop prevention guide to `docs/advanced/routing-loops.md` | Docs | Low |
+| 4 | ✅ Complete | **Fix function name documentation** - Updated docs to use `create_test_stage_context` instead of `create_pipeline_context` | Docs | Low |
+| 5 | ✅ Complete | **User ID access pattern** - Documented `ctx.snapshot.run_id.user_id` access in `docs/api/context-submodules.md` | Docs | Low |
 
 ### Phase 3: Core Runtime Enhancements (Medium Term)
 
 | # | Status | Enhancement | Priority | Design |
 |---|--------|-------------|----------|--------|
-| 1 | Not Started | **Built-in Loop Detection** | P1 | Add optional `loop_detection_threshold` and `max_iterations` to ROUTE stages. Emit `route.loop_detected` event. |
-| 2 | Not Started | **Circuit Breaker Integration** | P1 | Add `CircuitBreakerInterceptor` for ROUTE stage resilience. Configurable failure threshold and recovery timeout. |
-| 3 | Not Started | **Calibration Drift Detection** | P2 | Track confidence distribution over time. Emit `route.calibration_drift` when distribution shifts. |
+| 1 | ✅ Complete | **Built-in Loop Detection** | P1 | Add optional `loop_detection_threshold` and `max_iterations` to ROUTE stages. Emit `route.loop_detected` event. |
+| 2 | ✅ Complete | **Circuit Breaker Integration** | P1 | Add `CircuitBreakerInterceptor` for ROUTE stage resilience. Configurable failure threshold and recovery timeout. |
+| 3 | ✅ Complete | **Calibration Drift Detection** | P2 | Track confidence distribution over time. Emit `route.calibration_drift` when distribution shifts. |
 
 ### Phase 4: Stageflow Plus Components (Medium Term)
 

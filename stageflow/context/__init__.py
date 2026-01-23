@@ -23,6 +23,14 @@ from stageflow.context.extensions import ExtensionBundle
 from stageflow.context.identity import RunIdentity
 from stageflow.context.output_bag import OutputBag, OutputConflictError, OutputEntry
 from stageflow.context.types import Message, RoutingDecision
+from stageflow.context.enrich import (
+    ConflictDetector,
+    ConflictResolution,
+    ContextUtilization,
+    TruncationEvent,
+    TruncationTracker,
+    VersionMetadata,
+)
 
 __all__ = [
     # Core snapshot
@@ -47,4 +55,11 @@ __all__ = [
     # Legacy (deprecated)
     "ContextBag",
     "DataConflictError",
+    # ENRICH utilities (v0.9.0)
+    "ContextUtilization",
+    "TruncationEvent",
+    "TruncationTracker",
+    "VersionMetadata",
+    "ConflictDetector",
+    "ConflictResolution",
 ]

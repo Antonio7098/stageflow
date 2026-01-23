@@ -33,6 +33,30 @@ from stageflow.pipeline.subpipeline import (
     set_child_tracker,
     set_subpipeline_spawner,
 )
+from stageflow.pipeline.failure_tolerance import (
+    BackpressureConfig,
+    BackpressureMonitor,
+    ConditionalDependency,
+    FailureCollector,
+    FailureMode,
+    FailureRecord,
+    FailureSummary,
+)
+from stageflow.pipeline.retry import (
+    BackoffStrategy,
+    JitterStrategy,
+    RateLimitError,
+    RetryInterceptor,
+    ServiceUnavailableError,
+    TransientError,
+)
+from stageflow.pipeline.builder_helpers import (
+    FluentPipelineBuilder,
+    with_conditional_branch,
+    with_fan_out_fan_in,
+    with_linear_chain,
+    with_parallel_stages,
+)
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.result import StageError, StageResult
 
@@ -72,4 +96,25 @@ __all__ = [
     "get_subpipeline_spawner",
     "set_subpipeline_spawner",
     "clear_subpipeline_spawner",
+    # Failure tolerance (v0.9.0)
+    "FailureMode",
+    "FailureRecord",
+    "FailureSummary",
+    "FailureCollector",
+    "BackpressureConfig",
+    "BackpressureMonitor",
+    "ConditionalDependency",
+    # Retry interceptor (v0.9.0)
+    "RetryInterceptor",
+    "BackoffStrategy",
+    "JitterStrategy",
+    "TransientError",
+    "RateLimitError",
+    "ServiceUnavailableError",
+    # Builder helpers (v0.9.0)
+    "FluentPipelineBuilder",
+    "with_linear_chain",
+    "with_parallel_stages",
+    "with_fan_out_fan_in",
+    "with_conditional_branch",
 ]

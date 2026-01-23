@@ -87,20 +87,20 @@ Synthesizes WORK-001, WORK-002, WORK-003, WORK-005, WORK-010 findings covering t
 
 | # | Status | Action | Owner | Effort |
 |---|--------|--------|-------|--------|
-| 1 | Not Started | **Saga Pattern Guide** - Add `docs/advanced/saga-pattern.md` with compensation patterns, state machine design | Docs | Medium |
-| 2 | Not Started | **Retry Patterns Guide** - Add `docs/advanced/retry-backoff.md` with strategy selection, jitter configuration | Docs | Low |
-| 3 | Not Started | **Checkpoint/Restore Guide** - Add `docs/advanced/checkpointing.md` with ContextSnapshot patterns | Docs | Low |
-| 4 | Not Started | **Tool Registry API Update** - Fix docs to use `register()` instead of `register_tool()` | Docs | Low |
-| 5 | Not Started | **Sandboxing Integration Guide** - Add `docs/advanced/tool-sandboxing.md` with container/microVM patterns | Docs | Medium |
+| 1 | ✅ **Saga Pattern Guide** - Added `docs/advanced/saga-pattern.md` with compensation handlers, state machines, and rollback strategies | Docs | Medium |
+| 2 | ✅ **Retry Patterns Guide** - Added `docs/advanced/retry-backoff.md` covering exponential/linear/constant backoff, jitter strategies, and RetryInterceptor usage | Docs | Medium |
+| 3 | ✅ **Checkpoint Guide** - Added `docs/advanced/checkpointing.md` for long-running pipeline state persistence and recovery | Docs | Medium |
+| 4 | ✅ **Tool Registry docs** - Updated `docs/api/tools.md` with current API, examples, and sandboxing considerations | Docs | Low |
+| 5 | ✅ **Sandboxing Guide** - Added `docs/advanced/tool-sandboxing.md` covering Docker/process isolation, network policies, and resource quotas | Docs | Medium |
 
 ### Phase 3: Core Runtime Enhancements (Medium Term)
 
 | # | Status | Enhancement | Priority | Design |
 |---|--------|-------------|----------|--------|
-| 1 | Not Started | **IdempotencyInterceptor** | P0 | Extract idempotency_key from context, check store before execution, return cached result for duplicates, validate parameters match. |
-| 2 | Not Started | **RetryInterceptor** | P1 | Configurable max_attempts, base_delay, backoff_strategy, jitter. Automatic retry on `StageOutput.retry()` or transient errors. |
-| 3 | Not Started | **Cached Result Return** | P1 | For duplicate requests, return cached `StageOutput` instead of re-executing. |
-| 4 | Not Started | **Parameter Validation** | P2 | Detect parameter mismatches for same idempotency key. Fail with clear error. |
+| 1 | ✅ **IdempotencyInterceptor** | P0 | Extract idempotency_key from context, check store before execution, return cached result for duplicates, validate parameters match. |
+| 2 | ✅ **RetryInterceptor** | P1 | Configurable max_attempts, base_delay, backoff_strategy, jitter. Automatic retry on `StageOutput.retry()` or transient errors. |
+| 3 | ✅ **Cached Result Return** | P1 | For duplicate requests, return cached `StageOutput` instead of re-executing. |
+| 4 | ✅ **Parameter Validation** | P2 | Detect parameter mismatches for same idempotency key. Fail with clear error. |
 
 ### Phase 4: Stageflow Plus Components (Medium Term)
 

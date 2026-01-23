@@ -67,18 +67,18 @@ Synthesizes TRANSFORM-001, TRANSFORM-004, TRANSFORM-005 findings covering multim
 
 | # | Status | Action | Owner | Effort |
 |---|--------|--------|-------|--------|
-| 1 | Not Started | **Multimodal Fusion Cookbook** - Add `docs/examples/multimodal-fusion.md` with image+text+audio patterns | Docs | Medium |
-| 2 | Not Started | **Timestamp Handling Guide** - Add `docs/guides/timestamps.md` with ISO 8601, RFC 2822, Unix epoch patterns | Docs | Low |
-| 3 | Not Started | **Chunking Patterns Guide** - Add `docs/advanced/chunking.md` with fixed-size, semantic, recursive strategies | Docs | Low |
-| 4 | Not Started | **Error Context Enhancement** - Document pattern for modality-specific error metadata in `StageOutput.fail()` | Docs | Low |
+| 1 | ✅ Complete | **Multimodal Fusion Cookbook** - Added `docs/examples/multimodal-fusion.md` with image+text+audio patterns | Docs | Medium |
+| 2 | ✅ Complete | **Timestamp Handling Guide** - Added `docs/guides/timestamps.md` with ISO 8601, RFC 2822, Unix epoch patterns | Docs | Low |
+| 3 | ✅ Complete | **Chunking Patterns Guide** - Added `docs/advanced/chunking.md` with fixed-size, semantic, recursive strategies | Docs | Low |
+| 4 | ✅ Complete | **Error Context Enhancement** - Documented pattern for modality-specific error metadata in `StageOutput.fail()` | Docs | Low |
 
 ### Phase 3: Core Runtime Enhancements (Medium Term)
 
 | # | Status | Enhancement | Priority | Design |
 |---|--------|-------------|----------|--------|
-| 1 | Not Started | **Structured Error Metadata** | P1 | Extend `StageOutput.fail()` to accept `metadata: dict` for modality context, stack traces, remediation hints. |
-| 2 | Not Started | **Timestamp Utilities** | P2 | Add `stageflow.helpers.timestamps` module with `parse_timestamp()`, `normalize_to_utc()`, `detect_format()`. |
-| 3 | Not Started | **Chunking Utilities** | P2 | Add `stageflow.helpers.chunking` module with `fixed_size_chunk()`, `semantic_chunk()`, `assemble_chunks()`. |
+| 1 | ✅ Complete | **Structured Error Metadata** | P1 | Extend `StageOutput.fail()` to accept `metadata: dict` for modality context, stack traces, remediation hints. |
+| 2 | ✅ Complete | **Timestamp Utilities** | P2 | Add `stageflow.helpers.timestamps` module with `parse_timestamp()`, `normalize_to_utc()`, `detect_format()`. |
+| 3 | ✅ Complete | **Chunking Utilities** | P2 | Add `stageflow.helpers.chunking` module with `fixed_size_chunk()`, `semantic_chunk()`, `assemble_chunks()`. |
 
 ### Phase 4: Stageflow Plus Components (Medium Term)
 

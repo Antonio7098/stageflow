@@ -69,19 +69,19 @@ Synthesizes GUARD-001, GUARD-006, GUARD-008, GUARD-009, GUARD-010 findings cover
 
 | # | Status | Action | Owner | Effort |
 |---|--------|-------|--------|
-| 1 | Not Started | **GUARD Stage Best Practices** - Add `docs/advanced/guard-security.md` covering defense-in-depth, fail-closed defaults, audit logging | Docs | Low |
-| 2 | Not Started | **Testing Utilities Guide** - Document `create_test_stage_context()` usage for GUARD testing in `docs/advanced/testing.md` | Docs | Low |
-| 3 | Not Started | **Multi-language Filtering Guide** - Add translate-classify pipeline patterns to `docs/guides/governance.md` | Docs | Low |
-| 4 | Not Started | **ContextSnapshot vs PipelineContext** - Clarify API differences in `docs/api/context-submodules.md` | Docs | Low |
+| 1 | ✅ Complete | **GUARD Stage Best Practices** - Added `docs/advanced/guard-security.md` covering defense-in-depth, fail-closed defaults, audit logging | Docs | Low |
+| 2 | ✅ Complete | **Testing Utilities Guide** - Documented `create_test_stage_context()` usage for GUARD testing in `docs/advanced/testing.md` | Docs | Low |
+| 3 | ✅ Complete | **Multi-language Filtering Guide** - Added translate-classify pipeline patterns to `docs/guides/governance.md` | Docs | Low |
+| 4 | ✅ Complete | **ContextSnapshot vs PipelineContext** - Clarified API differences in `docs/api/context-submodules.md` | Docs | Low |
 
 ### Phase 3: Performance Optimization (Medium Term)
 
 | # | Status | Enhancement | Priority | Design |
 |---|--------|-------------|----------|--------|
-| 1 | Not Started | **Parallel Guard Execution** | P1 | Run independent checks concurrently via `asyncio.gather()`. Reduces overhead from 124% to ~50%. |
-| 2 | Not Started | **Guard Result Caching** | P1 | LRU cache keyed by content hash. Target 80% hit rate for repeated inputs. |
-| 3 | Not Started | **Fast-Path Optimization** | P2 | Skip checks for clearly safe content patterns. Target zero latency for ~50% of benign inputs. |
-| 4 | Not Started | **Built-in Performance Metrics** | P1 | Add `guard_latency_ms`, `cache_hit_rate` to stage output. |
+| 1 | ✅ Complete | **Parallel Guard Execution** | P1 | Run independent checks concurrently via `asyncio.gather()`. Reduces overhead from 124% to ~50%. |
+| 2 | ✅ Complete | **Guard Result Caching** | P1 | LRU cache keyed by content hash. Target 80% hit rate for repeated inputs. |
+| 3 | ✅ Complete | **Fast-Path Optimization** | P2 | Skip checks for clearly safe content patterns. Target zero latency for ~50% of benign inputs. |
+| 4 | ✅ Complete | **Built-in Performance Metrics** | P1 | Add `guard_latency_ms`, `cache_hit_rate` to stage output. |
 
 ### Phase 4: Stageflow Plus Components (Medium Term)
 
