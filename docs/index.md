@@ -45,9 +45,11 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.9.0**
+> **New in Stageflow 0.9.1**
 > 
-> - **RetryInterceptor**: Configurable exponential/linear/constant backoff with jitter strategies for transient failure handling
+> - **StageContext Integration**: Added record_stage_event() method for pipeline lifecycle tracking
+> - **Documentation Fixes**: Updated installation guide with correct ContextSnapshot API
+> - **Integration Tests**: Comprehensive tests for v0.9.0 feature integration
 > - **Failure Tolerance**: Continue-on-failure mode, conditional dependencies, and burst load backpressure for DAG resilience
 > - **Pipeline Builder Helpers**: Ergonomic utilities for constructing complex DAGs (linear chains, parallel stages, fan-out/fan-in, conditional branches)
 > - **ENRICH Context Utilities**: Token tracking, truncation event emission, version metadata, and conflict detection for context enrichment
