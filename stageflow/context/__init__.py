@@ -13,6 +13,14 @@ This module provides the context types used throughout stageflow:
 from stageflow.context.bag import ContextBag, DataConflictError
 from stageflow.context.context_snapshot import ContextSnapshot
 from stageflow.context.conversation import Conversation
+from stageflow.context.enrich import (
+    ConflictDetector,
+    ConflictResolution,
+    ContextUtilization,
+    TruncationEvent,
+    TruncationTracker,
+    VersionMetadata,
+)
 from stageflow.context.enrichments import (
     DocumentEnrichment,
     Enrichments,
@@ -23,14 +31,6 @@ from stageflow.context.extensions import ExtensionBundle
 from stageflow.context.identity import RunIdentity
 from stageflow.context.output_bag import OutputBag, OutputConflictError, OutputEntry
 from stageflow.context.types import Message, RoutingDecision
-from stageflow.context.enrich import (
-    ConflictDetector,
-    ConflictResolution,
-    ContextUtilization,
-    TruncationEvent,
-    TruncationTracker,
-    VersionMetadata,
-)
 
 __all__ = [
     # Core snapshot
