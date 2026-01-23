@@ -45,10 +45,13 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.8.0**
+> **New in Stageflow 0.9.0**
 > 
-> - **Runtime Hardening Helpers**: Added UUIDv7 generation with collision + clock-skew detection, MemoryTracker/@track_memory decorator, and shallow delta compression utilities for context payloads.
-> - **PipelineRunner Interceptors**: Optional ImmutabilityInterceptor and ContextSizeInterceptor can now be toggled via PipelineRunner/ToolExecutor flags for deeper validation and observability.
+> - **RetryInterceptor**: Configurable exponential/linear/constant backoff with jitter strategies for transient failure handling
+> - **Failure Tolerance**: Continue-on-failure mode, conditional dependencies, and burst load backpressure for DAG resilience
+> - **Pipeline Builder Helpers**: Ergonomic utilities for constructing complex DAGs (linear chains, parallel stages, fan-out/fan-in, conditional branches)
+> - **ENRICH Context Utilities**: Token tracking, truncation event emission, version metadata, and conflict detection for context enrichment
+> - **Comprehensive Documentation**: 16 new guides covering retry patterns, saga patterns, checkpointing, sandboxing, multimodal fusion, timestamps, chunking, security, A/B testing, and routing patterns
 
 ## Links
 

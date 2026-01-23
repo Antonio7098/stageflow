@@ -62,17 +62,17 @@ Synthesizes DAG-001/003/005/006/008/010 findings covering cycle detection, guard
 | # | Status | Enhancement | Priority | Design Considerations |
 |---|--------|-------------|----------|----------------------|
 | 1 | Complete | **Retry-on-Guard Failure** | P1 | Add optional `guard_retry_strategy` to `Pipeline`/`UnifiedStageGraph` that catches guard-stage `StageStatus.FAIL`, emits metrics, routes back to transformer until max iterations/timeout. Loop-detection guardrails (iteration limit + hash-based stagnation). |
-| 2 | Not Started | **Continue-on-Failure Mode** | P1 | Introduce executor flag `continue_on_failure=True` that records failed outputs but keeps scheduling unrelated branches. Surfaces failures in final summary for fan-out diagnostics. |
-| 3 | Not Started | **Conditional Dependencies MVP** | P1 | Extend `UnifiedStageSpec` with optional `when` expression (JMESPath over upstream outputs) to skip enqueuing stages whose predicates fail, avoiding wasted work. |
-| 4 | Not Started | **Burst Load Backpressure** | P0/P1 | Add semaphore-backed concurrency limits (`max_active_stages`), optional queueing, `BurstHandlerInterceptor` watching P95 latency + active tasks to flip cancellation or shed load. |
+| 2 | ✅ Complete | **Continue-on-Failure Mode** | P1 | Introduce executor flag `continue_on_failure=True` that records failed outputs but keeps scheduling unrelated branches. Surfaces failures in final summary for fan-out diagnostics. |
+| 3 | ✅ Complete | **Conditional Dependencies MVP** | P1 | Extend `UnifiedStageSpec` with optional `when` expression (JMESPath over upstream outputs) to skip enqueuing stages whose predicates fail, avoiding wasted work. |
+| 4 | ✅ Complete | **Burst Load Backpressure** | P0/P1 | Add semaphore-backed concurrency limits (`max_active_stages`), optional queueing, `BurstHandlerInterceptor` watching P95 latency + active tasks to flip cancellation or shed load. |
 
 ### Phase 3: Ergonomics & Testing Utilities (Medium Term)
 
 | # | Status | Enhancement | Priority | Design Considerations |
 |---|--------|-------------|----------|----------------------|
-| 1 | Not Started | **PipelineBuilder Helpers** | P1 | Provide `with_linear_chain(count, stage_factory)` and `with_parallel_stage(prefix, count, stage_factory)` utilities for deep/wide DAGs with minimal boilerplate. |
-| 2 | Not Started | **Stage/Test Context Factories** | P1 | Ship `stageflow.testing.create_stage_context()` / `create_pipeline_context()` helpers wrapping verbose constructors for docs/tests. |
-| 3 | Not Started | **Progress & Memory Hooks** | P2 | Add optional per-N-stage callbacks/logging to `UnifiedStageGraph` plus lightweight memory counters for long DAG runs. |
+| 1 | ✅ Complete | **PipelineBuilder Helpers** | P1 | Provide `with_linear_chain(count, stage_factory)` and `with_parallel_stage(prefix, count, stage_factory)` utilities for deep/wide DAGs with minimal boilerplate. |
+| 2 | ✅ Complete | **Stage/Test Context Factories** | P1 | Ship `stageflow.testing.create_stage_context()` / `create_pipeline_context()` helpers wrapping verbose constructors for docs/tests. |
+| 3 | ✅ Complete | **Progress & Memory Hooks** | P2 | Add optional per-N-stage callbacks/logging to `UnifiedStageGraph` plus lightweight memory counters for long DAG runs. |
 
 ---
 

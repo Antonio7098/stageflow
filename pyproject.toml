@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "stageflow-core"
-version = "0.8.0"
+version = "0.9.0"
  description = "A DAG-based pipeline orchestration framework for building observable, composable stage pipelines"
 readme = "README.md"
 license = "MIT"

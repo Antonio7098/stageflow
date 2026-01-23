@@ -13,6 +13,14 @@ This module provides the context types used throughout stageflow:
 from stageflow.context.bag import ContextBag, DataConflictError
 from stageflow.context.context_snapshot import ContextSnapshot
 from stageflow.context.conversation import Conversation
+from stageflow.context.enrich import (
+    ConflictDetector,
+    ConflictResolution,
+    ContextUtilization,
+    TruncationEvent,
+    TruncationTracker,
+    VersionMetadata,
+)
 from stageflow.context.enrichments import (
     DocumentEnrichment,
     Enrichments,
@@ -47,4 +55,11 @@ __all__ = [
     # Legacy (deprecated)
     "ContextBag",
     "DataConflictError",
+    # ENRICH utilities (v0.9.0)
+    "ContextUtilization",
+    "TruncationEvent",
+    "TruncationTracker",
+    "VersionMetadata",
+    "ConflictDetector",
+    "ConflictResolution",
 ]
