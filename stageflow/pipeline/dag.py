@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections import defaultdict
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 from stageflow.core import (
     PipelineTimer,
     StageContext,
+    StageKind,
     StageOutput,
     StageStatus,
 )
@@ -16,6 +20,11 @@ from stageflow.observability.wide_events import WideEventEmitter
 from stageflow.pipeline.cancellation import (
     CancellationToken,
     CleanupRegistry,
+)
+from stageflow.pipeline.guard_retry import (
+    GuardRetryPolicy,
+    GuardRetryStrategy,
+    hash_retry_payload,
 )
 from stageflow.pipeline.interceptors import (
     BaseInterceptor,
@@ -49,6 +58,14 @@ class UnifiedStageSpec:
     kind: StageKind | None = None
     dependencies: tuple[str, ...] = field(default_factory=tuple)
     conditional: bool = False
+
+
+@dataclass(slots=True)
+class GuardRetryRuntimeState:
+    attempts: int = 0
+    stagnation_hits: int = 0
+    last_hash: str | None = None
+    started_at: float | None = None
 
 
 class StageExecutionError(StageError):
@@ -340,6 +357,7 @@ class UnifiedStageGraph:
         specs: Iterable[UnifiedStageSpec],
         *,
         cleanup_timeout: float = 10.0,
+        guard_retry_strategy: GuardRetryStrategy | None = None,
     ) -> None:
         self._specs = {spec.name: spec for spec in specs}
         if len(self._specs) == 0:
@@ -347,6 +365,9 @@ class UnifiedStageGraph:
         self._cleanup_timeout = cleanup_timeout
         self._cleanup_registry: CleanupRegistry | None = None
         self._cancel_token: CancellationToken | None = None
+        self._guard_retry_strategy = guard_retry_strategy
+        if self._guard_retry_strategy is not None:
+            self._guard_retry_strategy.validate(self._specs)
 
     @property
     def cleanup_registry(self) -> CleanupRegistry | None:
@@ -404,10 +425,23 @@ class UnifiedStageGraph:
         shared_timer = ctx.timer or PipelineTimer()
 
         completed: dict[str, StageOutput] = {}
+        guard_retry_state: dict[str, GuardRetryRuntimeState] = {}
+        pending_guard_retries: dict[str, list[str]] = defaultdict(list)
+        finalized: set[str] = set()
+        active_retry_targets: set[str] = set()
         in_degree: dict[str, int] = {
             name: len(set(spec.dependencies)) for name, spec in self._specs.items()
         }
         active_tasks: set[asyncio.Task[tuple[str, StageOutput]]] = set()
+
+        def emit_guard_retry_event(event: str, **payload: Any) -> None:
+            try:
+                ctx.try_emit_event(type=f"guard_retry.{event}", data=payload)
+            except AttributeError:
+                logger.debug(
+                    "Guard retry event skipped (no context emitter)",
+                    extra={"event": "guard_retry_event_skipped", "payload": payload},
+                )
 
         async def run_cleanup() -> None:
             """Run all registered cleanup callbacks."""
@@ -429,7 +463,9 @@ class UnifiedStageGraph:
                 )
 
         def schedule_stage(name: str) -> None:
-            task = asyncio.create_task(self._execute_node(name, ctx, completed, shared_timer))
+            task = asyncio.create_task(
+                self._execute_node(name, ctx, completed, shared_timer)
+            )
             active_tasks.add(task)
 
         try:
@@ -437,7 +473,7 @@ class UnifiedStageGraph:
             for name in ready_nodes:
                 schedule_stage(name)
 
-            while len(completed) < len(self._specs):
+            while len(finalized) < len(self._specs):
                 # Check for cooperative cancellation
                 if self._cancel_token and self._cancel_token.is_cancelled:
                     logger.info(
@@ -495,7 +531,116 @@ class UnifiedStageGraph:
                         raise exc  # type: ignore[misc]
 
                     stage_name, stage_output = task.result()
+
+                    policy: GuardRetryPolicy | None = None
+                    spec = self._specs[stage_name]
+                    if (
+                        self._guard_retry_strategy is not None
+                        and spec.kind == StageKind.GUARD
+                    ):
+                        policy = self._guard_retry_strategy.get_policy(stage_name)
+
+                    # Always record latest output; finalized guard result may change if retry completes
                     completed[stage_name] = stage_output
+
+                    if (
+                        policy
+                        and stage_output.status == StageStatus.FAIL
+                    ):
+                        retry_state = guard_retry_state.setdefault(
+                            stage_name, GuardRetryRuntimeState()
+                        )
+                        if retry_state.started_at is None:
+                            retry_state.started_at = time.monotonic()
+
+                        retry_state.attempts += 1
+
+                        retry_hash = hash_retry_payload(stage_output, policy.hash_fields)
+                        if retry_hash and retry_hash == retry_state.last_hash:
+                            retry_state.stagnation_hits += 1
+                        else:
+                            retry_state.stagnation_hits = 0
+                        retry_state.last_hash = retry_hash
+
+                        emit_guard_retry_event(
+                            "attempt",
+                            guard=stage_name,
+                            attempt=retry_state.attempts,
+                            retry_stage=policy.retry_stage,
+                            max_attempts=policy.max_attempts,
+                            stagnation_hits=retry_state.stagnation_hits,
+                            timeout_seconds=policy.timeout_seconds,
+                        )
+
+                        exceeded_attempts = retry_state.attempts >= policy.max_attempts
+                        exceeded_stagnation = (
+                            policy.stagnation_limit is not None
+                            and retry_state.stagnation_hits >= policy.stagnation_limit
+                        )
+                        exceeded_timeout = False
+                        if policy.timeout_seconds is not None and retry_state.started_at:
+                            exceeded_timeout = (
+                                time.monotonic() - retry_state.started_at
+                                >= policy.timeout_seconds
+                            )
+
+                        if exceeded_attempts or exceeded_stagnation or exceeded_timeout:
+                            logger.error(
+                                "Guard retry limits exceeded",
+                                extra={
+                                    "event": "guard_retry_exhausted",
+                                    "guard": stage_name,
+                                    "attempts": retry_state.attempts,
+                                    "stagnation_hits": retry_state.stagnation_hits,
+                                    "timeout": exceeded_timeout,
+                                },
+                            )
+                            emit_guard_retry_event(
+                                "exhausted",
+                                guard=stage_name,
+                                attempts=retry_state.attempts,
+                                stagnation_hits=retry_state.stagnation_hits,
+                                retry_stage=policy.retry_stage,
+                                timeout_seconds=policy.timeout_seconds,
+                                reason="timeout"
+                                if exceeded_timeout
+                                else "stagnation"
+                                if exceeded_stagnation
+                                else "max_attempts",
+                            )
+                            finalized.add(stage_name)
+                        else:
+                            logger.info(
+                                "Scheduling guard retry",
+                                extra={
+                                    "event": "guard_retry",
+                                    "guard": stage_name,
+                                    "attempt": retry_state.attempts,
+                                    "retry_stage": policy.retry_stage,
+                                },
+                            )
+                            emit_guard_retry_event(
+                                "scheduled",
+                                guard=stage_name,
+                                attempt=retry_state.attempts,
+                                retry_stage=policy.retry_stage,
+                                stagnation_hits=retry_state.stagnation_hits,
+                                timeout_seconds=policy.timeout_seconds,
+                            )
+                            pending_guard_retries[policy.retry_stage].append(stage_name)
+                            if policy.retry_stage not in active_retry_targets:
+                                active_retry_targets.add(policy.retry_stage)
+                                schedule_stage(policy.retry_stage)
+                            else:
+                                logger.debug(
+                                    "Retry stage already active",
+                                    extra={
+                                        "event": "guard_retry_stage_active",
+                                        "retry_stage": policy.retry_stage,
+                                        "guard": stage_name,
+                                    },
+                                )
+                            continue
 
                     if stage_output.status == StageStatus.CANCEL:
                         logger.info(
@@ -504,7 +649,7 @@ class UnifiedStageGraph:
                                 "event": "pipeline_cancelled",
                                 "stage": stage_name,
                                 "reason": stage_output.data.get("cancel_reason", ""),
-                                "stages_completed": list(completed.keys()),
+                                "stages_completed": list(finalized),
                             },
                         )
                         if self._cancel_token:
@@ -519,6 +664,36 @@ class UnifiedStageGraph:
                             results=completed,
                         )
 
+                    if stage_output.status == StageStatus.FAIL:
+                        raise UnifiedStageExecutionError(
+                            stage=stage_name,
+                            original=RuntimeError(stage_output.error or "Stage failed"),
+                        )
+
+                    if stage_name in guard_retry_state and stage_output.status != StageStatus.FAIL:
+                        recovered_state = guard_retry_state.pop(stage_name, None)
+                        if recovered_state and recovered_state.attempts:
+                            emit_guard_retry_event(
+                                "recovered",
+                                guard=stage_name,
+                                attempts=recovered_state.attempts,
+                            )
+
+                    pending_guards = pending_guard_retries.pop(stage_name, [])
+                    if stage_name in active_retry_targets:
+                        active_retry_targets.discard(stage_name)
+                    if pending_guards:
+                        for guard_name in pending_guards:
+                            logger.debug(
+                                "Scheduling guard after retry stage completion",
+                                extra={
+                                    "event": "guard_retry_after_stage",
+                                    "retry_stage": stage_name,
+                                    "guard": guard_name,
+                                },
+                            )
+                            schedule_stage(guard_name)
+
                     logger.info(
                         f"Stage {stage_name} completed with status={stage_output.status.value}, data_keys={list(stage_output.data.keys())}",
                         extra={
@@ -529,11 +704,13 @@ class UnifiedStageGraph:
                         },
                     )
 
-                    for potential_child, spec in self._specs.items():
-                        if stage_name in spec.dependencies:
-                            in_degree[potential_child] -= 1
-                            if in_degree[potential_child] == 0:
-                                schedule_stage(potential_child)
+                    if stage_name not in finalized:
+                        finalized.add(stage_name)
+                        for potential_child, spec in self._specs.items():
+                            if stage_name in spec.dependencies:
+                                in_degree[potential_child] -= 1
+                                if in_degree[potential_child] == 0:
+                                    schedule_stage(potential_child)
 
             logger.info(
                 "UnifiedStageGraph execution completed",
@@ -682,10 +859,7 @@ class UnifiedStageGraph:
                         "duration_ms": duration_ms,
                     },
                 )
-                raise UnifiedStageExecutionError(
-                    stage=spec.name,
-                    original=Exception(result.error or "Stage failed"),
-                )
+                return result
 
             return result
 
@@ -720,9 +894,6 @@ class UnifiedStageGraph:
 
         raise TypeError(f"Stage {name} returned unsupported result type {type(raw)}")
 
-
-# Import StageKind for use in UnifiedStageSpec
-from stageflow.core import StageKind  # noqa: E402
 
 __all__ = [
     "StageExecutionError",
