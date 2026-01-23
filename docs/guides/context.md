@@ -105,7 +105,7 @@ The `ContextSnapshot` is an **immutable**, **serializable** view of the world. I
 
 ```python
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 from stageflow.context import (
     ContextSnapshot,
     Message,
@@ -130,8 +130,8 @@ snapshot = ContextSnapshot(
     # Input
     input_text="Hello, how are you?",
     messages=[
-        Message(role="user", content="Hi there", timestamp=datetime.utcnow()),
-        Message(role="assistant", content="Hello!", timestamp=datetime.utcnow()),
+        Message(role="user", content="Hi there", timestamp=datetime.now(timezone.utc)),
+        Message(role="assistant", content="Hello!", timestamp=datetime.now(timezone.utc)),
     ],
     
     # Enrichments (optional, can be populated by stages)
@@ -497,24 +497,25 @@ if skills:
 The `messages` field contains conversation history:
 
 ```python
+from datetime import datetime, timezone
 from stageflow.context import Message
 
 messages = [
     Message(
         role="system",
         content="You are a helpful assistant.",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         metadata={"source": "config"},
     ),
     Message(
         role="user",
         content="Hello!",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     ),
     Message(
         role="assistant",
         content="Hi there! How can I help?",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         metadata={"model": "gpt-4"},
     ),
 ]

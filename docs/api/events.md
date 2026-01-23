@@ -5,6 +5,7 @@ This document provides the API reference for the event system.
 ## EventSink Protocol
 
 ```python
+from datetime import datetime, timezone
 from stageflow import EventSink
 ```
 
@@ -224,7 +225,7 @@ class DatabaseEventSink:
         await self.db.insert("events", {
             "type": type,
             "data": data,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
         })
     
     def try_emit(self, *, type: str, data: dict | None) -> None:
@@ -246,14 +247,14 @@ from stageflow import StageContext, StageOutput
 class MyStage:
     async def execute(self, ctx: StageContext) -> StageOutput:
         # Emit custom event
-        ctx.emit_event("custom.processing_started", {
+        ctx.try_emit_event("custom.processing_started", {
             "step": "validation",
             "input_size": len(ctx.snapshot.input_text or ""),
         })
         
         # Do work...
         
-        ctx.emit_event("custom.processing_completed", {
+        ctx.try_emit_event("custom.processing_completed", {
             "step": "validation",
             "result": "passed",
         })
@@ -330,7 +331,7 @@ If LLM responses include tool calls, prefer resolving them via `ToolRegistry.par
 ```python
 resolved, unresolved = registry.parse_and_resolve(tool_calls)
 for call in unresolved:
-    ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
+    ctx.try_emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
 ```
 
 Execution events (examples):

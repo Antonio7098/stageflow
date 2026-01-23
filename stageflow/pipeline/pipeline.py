@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from stageflow.core import Stage, StageKind
+    from stageflow.pipeline.guard_retry import GuardRetryStrategy
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +106,11 @@ class Pipeline:
         merged_stages.update(other.stages)
         return Pipeline(name=self.name, stages=merged_stages)
 
-    def build(self) -> UnifiedStageGraph:
+    def build(
+        self,
+        *,
+        guard_retry_strategy: GuardRetryStrategy | None = None,
+    ) -> UnifiedStageGraph:
         """Generate executable DAG for the orchestrator.
 
         Creates a UnifiedStageGraph from the stage specifications.
@@ -161,7 +166,10 @@ class Pipeline:
         # Import here to avoid circular imports
         from stageflow.pipeline.dag import UnifiedStageGraph
 
-        return UnifiedStageGraph(specs=specs_for_graph)  # type: ignore
+        return UnifiedStageGraph(  # type: ignore
+            specs=specs_for_graph,
+            guard_retry_strategy=guard_retry_strategy,
+        )
 
 
 # Forward declaration for type hints

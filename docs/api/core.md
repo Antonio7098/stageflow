@@ -203,12 +203,13 @@ StageContext(snapshot: ContextSnapshot, config: dict | None = None)
 
 ### Methods
 
-#### `emit_event(type: str, data: dict) -> None`
+#### `try_emit_event(type: str, data: dict) -> None`
 
-Emit an event during execution.
+Emit an event during execution without blocking. This delegates to the
+configured event sink if present and safely no-ops otherwise.
 
 ```python
-ctx.emit_event("custom.started", {"step": 1})
+ctx.try_emit_event("custom.started", {"step": 1})
 ```
 
 #### `add_artifact(type: str, payload: dict) -> None`
@@ -230,10 +231,6 @@ Get a value from any output data.
 #### `to_dict() -> dict[str, Any]`
 
 Convert context to dictionary for serialization.
-
-#### `try_emit_event(type: str, data: dict) -> None`
-
-Emit an event without blocking (fire-and-forget).
 
 #### `now() -> datetime` (classmethod)
 
@@ -332,7 +329,7 @@ class ProcessingStage:
         previous_result = ctx.inputs.get("result")
         
         # Emit event
-        ctx.emit_event("processing.started", {"input_length": len(input_text or "")})
+        ctx.try_emit_event("processing.started", {"input_length": len(input_text or "")})
         
         # Add artifact
         ctx.add_artifact("result", {"processed": True})

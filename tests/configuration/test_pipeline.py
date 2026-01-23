@@ -19,6 +19,7 @@ from stageflow.core import (
     StageOutput,
     StageStatus,
 )
+from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
 from stageflow.pipeline.pipeline import (
     Pipeline,
     UnifiedStageSpec,
@@ -381,6 +382,39 @@ class TestPipeline:
         pipeline = Pipeline().with_stage("instance", instance, StageKind.TRANSFORM)
         graph = pipeline.build()
         assert graph.stage_specs[0].name == "instance"
+
+    def test_build_accepts_guard_retry_strategy(self):
+        """Pipeline.build should pass guard retry strategies to the graph."""
+
+        pipeline = (
+            Pipeline()
+            .with_stage("agent", SimpleStage, StageKind.TRANSFORM)
+            .with_stage(
+                "guard",
+                GuardStage,
+                StageKind.GUARD,
+                dependencies=("agent",),
+            )
+        )
+
+        strategy = GuardRetryStrategy(
+            policies={"guard": GuardRetryPolicy(retry_stage="agent", max_attempts=2)}
+        )
+
+        graph = pipeline.build(guard_retry_strategy=strategy)
+
+        assert graph._guard_retry_strategy is strategy
+
+    def test_build_guard_retry_requires_dependency(self):
+        """Guard retry validation should fail when dependency is missing."""
+
+        pipeline = Pipeline().with_stage("guard", GuardStage, StageKind.GUARD)
+        strategy = GuardRetryStrategy(
+            policies={"guard": GuardRetryPolicy(retry_stage="agent", max_attempts=2)}
+        )
+
+        with pytest.raises(ValueError):
+            pipeline.build(guard_retry_strategy=strategy)
 
     def test_build_creates_callable_runner(self):
         """Test that build() creates callable runners for stage classes."""

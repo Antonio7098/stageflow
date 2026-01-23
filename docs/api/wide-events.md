@@ -543,6 +543,7 @@ Wide events work with any EventSink implementation:
 
 Example custom sink:
 ```python
+from datetime import datetime, timezone
 from stageflow.events import EventSink
 
 class DatabaseEventSink(EventSink):
@@ -550,6 +551,6 @@ class DatabaseEventSink(EventSink):
         await self.db.insert("events", {
             "type": type,
             "data": json.dumps(data),
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         })
 ```

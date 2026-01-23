@@ -30,6 +30,7 @@ from stageflow.pipeline.dag import (
     UnifiedStageGraph,
     UnifiedStageSpec,
 )
+from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
 from stageflow.stages.inputs import StageInputs
 
 # === Test Fixtures ===
@@ -358,6 +359,163 @@ class TestUnifiedStageGraphExecution:
 
         output = results["test"]
         assert output is not None
+
+    @pytest.mark.asyncio
+    async def test_guard_retry_requeues_guard(self):
+        """Guard failure should rerun transformer then guard until success."""
+
+        agent_runs = 0
+        guard_runs = 0
+
+        async def agent(_ctx: StageContext) -> StageOutput:
+            nonlocal agent_runs
+            agent_runs += 1
+            return StageOutput.ok(data={"value": agent_runs})
+
+        async def guard(ctx: StageContext) -> StageOutput:
+            nonlocal guard_runs
+            guard_runs += 1
+            value = ctx.inputs.get_from("agent", "value", default=0)
+            if value < 2:
+                return StageOutput.fail(error="too_low", data={"value": value})
+            return StageOutput.ok()
+
+        specs = [
+            UnifiedStageSpec(name="agent", runner=agent, kind=StageKind.TRANSFORM),
+            UnifiedStageSpec(
+                name="guard",
+                runner=guard,
+                kind=StageKind.GUARD,
+                dependencies=("agent",),
+            ),
+        ]
+
+        strategy = GuardRetryStrategy(
+            policies={"guard": GuardRetryPolicy(retry_stage="agent", max_attempts=3)}
+        )
+
+        graph = UnifiedStageGraph(specs=specs, guard_retry_strategy=strategy)
+        ctx = create_context()
+
+        results = await graph.run(ctx)
+
+        assert agent_runs == 2
+        assert guard_runs == 2
+        assert results["guard"].status == StageStatus.OK
+        assert results["agent"].data["value"] == 2
+
+    @pytest.mark.asyncio
+    async def test_guard_retry_exhaustion_raises(self):
+        """Guard retries that exceed limits should raise execution error."""
+
+        async def agent(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"value": 0})
+
+        async def guard(_ctx: StageContext) -> StageOutput:
+            return StageOutput.fail(error="always_fail")
+
+        specs = [
+            UnifiedStageSpec(name="agent", runner=agent, kind=StageKind.TRANSFORM),
+            UnifiedStageSpec(
+                name="guard",
+                runner=guard,
+                kind=StageKind.GUARD,
+                dependencies=("agent",),
+            ),
+        ]
+
+        strategy = GuardRetryStrategy(
+            policies={"guard": GuardRetryPolicy(retry_stage="agent", max_attempts=2)}
+        )
+
+        graph = UnifiedStageGraph(specs=specs, guard_retry_strategy=strategy)
+        ctx = create_context()
+
+        with pytest.raises(UnifiedStageExecutionError) as exc_info:
+            await graph.run(ctx)
+
+        assert exc_info.value.stage == "guard"
+
+    @pytest.mark.asyncio
+    async def test_guard_retry_stagnation_triggers_limit(self):
+        """Repeated identical failures should trip stagnation guardrail."""
+
+        async def agent(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"value": 1})
+
+        async def guard(ctx: StageContext) -> StageOutput:
+            value = ctx.inputs.get_from("agent", "value")
+            return StageOutput.fail(error="repeat", data={"value": value})
+
+        specs = [
+            UnifiedStageSpec(name="agent", runner=agent, kind=StageKind.TRANSFORM),
+            UnifiedStageSpec(
+                name="guard",
+                runner=guard,
+                kind=StageKind.GUARD,
+                dependencies=("agent",),
+            ),
+        ]
+
+        strategy = GuardRetryStrategy(
+            policies={
+                "guard": GuardRetryPolicy(
+                    retry_stage="agent", max_attempts=5, stagnation_limit=1
+                )
+            }
+        )
+
+        graph = UnifiedStageGraph(specs=specs, guard_retry_strategy=strategy)
+        ctx = create_context()
+
+        with pytest.raises(UnifiedStageExecutionError) as exc_info:
+            await graph.run(ctx)
+
+        assert exc_info.value.stage == "guard"
+
+    @pytest.mark.asyncio
+    async def test_guard_retry_timeout_trips_limit(self, monkeypatch):
+        """Timeout guardrail should stop retries even with remaining attempts."""
+
+        async def agent(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"value": 0})
+
+        async def guard(_ctx: StageContext) -> StageOutput:
+            return StageOutput.fail(error="slow")
+
+        specs = [
+            UnifiedStageSpec(name="agent", runner=agent, kind=StageKind.TRANSFORM),
+            UnifiedStageSpec(
+                name="guard",
+                runner=guard,
+                kind=StageKind.GUARD,
+                dependencies=("agent",),
+            ),
+        ]
+
+        fake_time = {"value": 0.0}
+
+        def fake_monotonic() -> float:
+            fake_time["value"] += 0.6
+            return fake_time["value"]
+
+        monkeypatch.setattr("stageflow.pipeline.dag.time.monotonic", fake_monotonic)
+
+        strategy = GuardRetryStrategy(
+            policies={
+                "guard": GuardRetryPolicy(
+                    retry_stage="agent", max_attempts=4, timeout_seconds=0.5
+                )
+            }
+        )
+
+        graph = UnifiedStageGraph(specs=specs, guard_retry_strategy=strategy)
+        ctx = create_context()
+
+        with pytest.raises(UnifiedStageExecutionError) as exc_info:
+            await graph.run(ctx)
+
+        assert exc_info.value.stage == "guard"
 
 
 # === Test Error Handling ===

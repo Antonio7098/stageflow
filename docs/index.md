@@ -109,6 +109,7 @@ The docs are organized into the following sections:
 - [**Pipeline Composition**](advanced/composition.md) — Merging and extending pipelines
 - [**Subpipeline Runs**](advanced/subpipelines.md) — Nested pipeline execution
 - [**Custom Interceptors**](advanced/custom-interceptors.md) — Build your own middleware
+- [**Idempotency Patterns**](advanced/idempotency.md) — Enforce duplicate suppression for WORK stages
 - [**Error Handling**](advanced/errors.md) — Error taxonomy and recovery strategies
 - [**Testing Strategies**](advanced/testing.md) — Unit, integration, and contract testing
 - [**Extensions**](advanced/extensions.md) — Add application-specific data to contexts

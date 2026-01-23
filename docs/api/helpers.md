@@ -386,7 +386,7 @@ Configuration for guardrail behavior.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `fail_on_violation` | `bool` | Return FAIL status on violations |
+| `fail_on_violation`: Return FAIL or just log violations. |
 | `transform_content` | `bool` | Apply transformations (redaction, etc.) |
 | `violation_threshold` | `float` | Minimum severity to consider a violation |
 | `log_violations` | `bool` | Log violations to event sink |
@@ -449,7 +449,7 @@ print(result.transformed_content)
 from stageflow.helpers import ContentFilter
 ```
 
-Filters content for profanity, toxicity, and blocked topics.
+Filters content for profanity, toxicity, and blocked topics. The filter automatically normalizes common "leetspeak" substitutions (`h3ll -> hell`, `@ -> a`, etc.) before evaluation so disguised profanity and obfuscated patterns are still detected.
 
 **Constructor:**
 ```python
@@ -488,12 +488,9 @@ print(result.passed)  # False
 from stageflow.helpers import InjectionDetector
 ```
 
-Detects prompt injection attempts.
+Detects prompt injection attempts, including instruction overrides and role manipulation.
 
-**Detected Patterns:**
-- Instruction overrides ("ignore previous instructions")
-- Role manipulation ("you are now a different assistant")
-- System prompt leakage attempts
+The built-in pattern set covers instruction overrides, social-engineering style trust-building prompts (e.g., "as your trusted advisor"), multi-step override scripts, and prompts that try to escalate privileges by impersonating security testers or auditors. Provide `additional_patterns` to extend coverage with org-specific rules.
 
 **Constructor:**
 ```python
@@ -574,6 +571,8 @@ GuardrailStage(
 - `violations`: List of violations found
 - `transformed_content`: Content after transformations (if any)
 - `checks_run`: Number of checks executed
+
+When `fail_on_violation=False`, GuardrailStage emits a mandatory `guardrail.fail_open` audit event explaining which violations were bypassed, including request identifiers and violation metadata. Use this event for compliance review or SIEM ingestion.
 
 **Example:**
 ```python
@@ -1099,6 +1098,35 @@ Standardized text-to-speech response data.
 
 ---
 
+## Timestamp Utilities
+
+Timestamp parsing utilities live in `stageflow.helpers.timestamps`. They provide
+consistent handling for ISO 8601 strings, RFC 2822 headers, human-readable
+dates, and Unix epochs with automatic precision detection.
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `parse_timestamp(value: str | int | float, *, default_timezone: tzinfo | None = UTC) -> datetime` | Accepts strings or numbers (ISO 8601, RFC 2822, human-readable) and returns a timezone-aware UTC datetime. |
+| `detect_unix_precision(timestamp: int | float) -> Literal["seconds", "milliseconds", "microseconds"]` | Inspects the digit count to determine whether the epoch value is in seconds, milliseconds, or microseconds before conversion. |
+| `normalize_to_utc(dt: datetime, *, default_timezone: tzinfo | None = UTC) -> datetime` | Applies a fallback timezone to naive datetimes and returns a UTC-normalized value. |
+
+### Example
+
+```python
+from stageflow.helpers import parse_timestamp
+
+received = "Thu, 05 Oct 2023 14:48:00 GMT"  # RFC 2822 header
+timestamp = parse_timestamp(received)
+assert timestamp.tzinfo is UTC
+```
+
+Use these helpers inside transform stages to preprocess headers and payloads
+without worrying about mixed precision epochs or timezone handling.
+
+---
+
 ## Usage Examples
 
 ### Complete Chat Pipeline with Memory and Guardrails
@@ -1177,7 +1205,7 @@ from stageflow.helpers import ChunkQueue, StreamingBuffer, BackpressureMonitor
 
 # Create streaming components
 queue = ChunkQueue(max_size=1000, event_emitter=ctx.try_emit_event)
-buffer = StreamingBuffer(max_size=10000)
+buffer = StreamingBuffer(max_size=10000, event_emitter=ctx.try_emit_event)
 monitor = BackpressureMonitor(threshold=0.8)
 
 # Process audio chunks
@@ -1187,7 +1215,7 @@ async def process_audio(audio_stream):
             await queue.put(chunk)
         else:
             # Handle backpressure
-            ctx.emit_event("stream.backpressure", {"queue_size": queue.size()})
+            ctx.try_emit_event("stream.backpressure", {"queue_size": queue.size()})
 ```
 
 ---

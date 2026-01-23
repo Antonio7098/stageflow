@@ -376,25 +376,19 @@ def get_default_interceptors(
     Returns:
         List of interceptors in priority order (low to high)
     """
-    interceptors: list[BaseInterceptor] = []
+    interceptors: list[BaseInterceptor] = [
+        TimeoutInterceptor(),  # Priority 5 - runs first
+        CircuitBreakerInterceptor(),  # Priority 10
+        TracingInterceptor(),  # Priority 20
+        MetricsInterceptor(),  # Priority 40
+        ChildTrackerMetricsInterceptor(),  # Priority 45
+        LoggingInterceptor(),  # Priority 50
+    ]
 
     if include_idempotency:
         from stageflow.pipeline.idempotency import IdempotencyInterceptor
 
-        interceptors.append(
-            IdempotencyInterceptor(store=idempotency_store)
-        )
-
-    interceptors.extend(
-        [
-            TimeoutInterceptor(),  # Priority 5 - runs first
-            CircuitBreakerInterceptor(),  # Priority 10
-            TracingInterceptor(),  # Priority 20
-            MetricsInterceptor(),  # Priority 40
-            ChildTrackerMetricsInterceptor(),  # Priority 45
-            LoggingInterceptor(),  # Priority 50
-        ]
-    )
+        interceptors.insert(1, IdempotencyInterceptor(store=idempotency_store))
 
     if include_auth:
         # Add auth interceptors with appropriate priorities
@@ -411,7 +405,7 @@ def get_default_interceptors(
             PolicyGatewayInterceptor(),  # Priority 39
         ])
 
-    return interceptors
+    return sorted(interceptors, key=lambda interceptor: interceptor.priority)
 
 
 async def run_with_interceptors(

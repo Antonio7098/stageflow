@@ -26,12 +26,41 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Protocol
 
 from stageflow.core import StageContext, StageKind, StageOutput
+
+logger = logging.getLogger("stageflow.helpers.guardrails")
+
+
+_LEET_TRANSLATION = str.maketrans(
+    {
+        "0": "o",
+        "1": "l",
+        "2": "z",
+        "3": "e",
+        "4": "a",
+        "5": "s",
+        "6": "g",
+        "7": "t",
+        "8": "b",
+        "9": "g",
+        "@": "a",
+        "$": "s",
+        "!": "i",
+        "+": "t",
+    }
+)
+
+
+def _normalize_leetspeak(text: str) -> str:
+    """Return text with common leetspeak substitutions normalized."""
+
+    return text.translate(_LEET_TRANSLATION)
 
 
 class ViolationType(Enum):
@@ -272,11 +301,13 @@ class ContentFilter:
     def check(self, content: str, _context: dict[str, Any] | None = None) -> GuardrailResult:
         """Check content for blocked patterns and profanity."""
         violations: list[PolicyViolation] = []
+        normalized_content = _normalize_leetspeak(content)
         words = set(re.findall(r"\b\w+\b", content.lower()))
+        normalized_words = set(re.findall(r"\b\w+\b", normalized_content.lower()))
 
         # Check profanity
         if self._block_profanity:
-            found_profanity = words & self._profanity
+            found_profanity = (words | normalized_words) & self._profanity
             for word in found_profanity:
                 violations.append(
                     PolicyViolation(
@@ -289,13 +320,22 @@ class ContentFilter:
 
         # Check blocked patterns
         for pattern in self._blocked_patterns:
-            if re.search(pattern, content, re.IGNORECASE):
+            original_match = re.search(pattern, content, re.IGNORECASE)
+            normalized_match = (
+                re.search(pattern, normalized_content, re.IGNORECASE)
+                if normalized_content != content
+                else None
+            )
+            if original_match or normalized_match:
                 violations.append(
                     PolicyViolation(
                         type=ViolationType.BLOCKED_TOPIC,
                         message=f"Blocked pattern matched: {pattern}",
                         severity=0.9,
-                        metadata={"pattern": pattern},
+                        metadata={
+                            "pattern": pattern,
+                            "normalized": normalized_match is not None and not original_match,
+                        },
                     )
                 )
 
@@ -327,6 +367,10 @@ class InjectionDetector:
         r"new\s+(?:system\s+)?(?:prompt|instructions?)\s*:",
         r"<\s*system\s*>",
         r"\[\s*SYSTEM\s*\]",
+        r"as\s+(?:your\s+)?trusted\s+(?:advisor|friend|developer)[^\n]{0,80}share",
+        r"i\s+need\s+you\s+to\s+act\s+like\s+security\s+(?:tester|auditor)",
+        r"refer\s+back\s+to\s+our\s+previous\s+conversation\s+and\s+repeat",
+        r"multi[-\s]?step\s+instructions?\s+override",
     ]
 
     def __init__(
@@ -534,7 +578,40 @@ class GuardrailStage:
                 data=output_data,
             )
 
+        if not passed and not self._config.fail_on_violation:
+            self._emit_fail_open_audit(ctx, all_violations)
+
         return StageOutput.ok(**output_data)
+
+    def _emit_fail_open_audit(
+        self,
+        ctx: StageContext,
+        violations: list[PolicyViolation],
+    ) -> None:
+        """Emit mandatory audit logging when configured to fail-open."""
+
+        audit_payload = {
+            "stage": ctx.stage_name,
+            "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
+            "request_id": str(ctx.request_id) if ctx.request_id else None,
+            "execution_mode": ctx.execution_mode,
+            "violation_count": len(violations),
+            "fail_on_violation": False,
+            "violations": [v.to_dict() for v in violations],
+        }
+
+        if ctx.event_sink is not None:
+            try:
+                ctx.event_sink.try_emit(type="guardrail.fail_open", data=audit_payload)
+                return
+            except Exception as error:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to emit guardrail fail-open audit", extra={"error": str(error)}
+                )
+
+        logger.warning(
+            "Guardrail fail-open audit", extra={"guardrail_fail_open": audit_payload}
+        )
 
 
 __all__ = [

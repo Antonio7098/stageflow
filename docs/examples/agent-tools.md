@@ -413,9 +413,111 @@ Response: Panel turned ON
 Actions: 1
 
 Input: Disable everything
-Response: Panel turned OFF
+Response: Panel turned ON
+Panel turned OFF
+Action completed.
 Actions: 1
 ```
+
+## Guard Retry Cookbook
+
+Autocorrection loops often need to retry an AGENT stage when a GUARD
+rejects its output. Stageflow stops execution when a guard returns
+`StageOutput.fail()`, so you must explicitly route retries. The pattern
+below uses a WORK stage to orchestrate retries with iteration caps and
+hash-based stagnation detection.
+
+```python
+from dataclasses import dataclass
+from stageflow import Pipeline, StageKind, StageOutput
+from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
+from stageflow.testing import create_test_stage_context
+
+MAX_RETRIES = 3
+
+
+class GuardStage:
+    name = "output_guard"
+    kind = StageKind.GUARD
+
+    async def execute(self, ctx):
+        result = ctx.inputs.get_from("agent", "response", default="")
+        if "banned" in result.lower():
+            return StageOutput.fail(error="policy_violation")
+        return StageOutput.ok(response=result)
+
+
+class RetryCoordinator:
+    name = "retry_loop"
+    kind = StageKind.WORK
+
+    async def execute(self, ctx):
+        prior = ctx.inputs.get_from("agent", "response", default="")
+        failures = ctx.inputs.get("retry_state", {}).get("failures", 0)
+        if failures >= MAX_RETRIES:
+            return StageOutput.cancel(
+                reason="max_guard_failures",
+                data={"attempts": failures},
+            )
+
+        if ctx.inputs.get("guard_status") == "fail":
+            failures += 1
+            return StageOutput.retry(
+                error="guard_rejected",
+                data={"retry_state": {"failures": failures, "last": prior}},
+            )
+
+        return StageOutput.ok()
+
+
+pipeline = (
+    Pipeline()
+    .with_stage("dispatch", DispatchStage, StageKind.ROUTE)
+    .with_stage("agent", AgentStage(), StageKind.AGENT, dependencies=("dispatch",))
+    .with_stage("output_guard", GuardStage, StageKind.GUARD, dependencies=("agent",))
+    .with_stage(
+        "retry_loop",
+        RetryCoordinator,
+        StageKind.WORK,
+        dependencies=("agent", "output_guard"),
+    )
+)
+
+strategy = GuardRetryStrategy(
+    policies={
+        "output_guard": GuardRetryPolicy(
+            retry_stage="agent",
+            max_attempts=MAX_RETRIES,
+            stagnation_limit=2,
+            timeout_seconds=8.0,
+        )
+    }
+)
+
+# In tests you can shortcut the context wiring:
+ctx = create_test_stage_context(input_text="turn it on")
+graph = pipeline.build(guard_retry_strategy=strategy)
+```
+
+**How it works**
+
+1. `AgentStage` produces a response.
+2. `GuardStage` validates the response. If it fails, the coordinator
+   emits `StageOutput.retry(...)` with state (iteration count, last
+   response, hashes, etc.).
+3. The retry controller increments failure counts and can short-circuit
+   via `StageOutput.cancel()` when limits are reached, while the
+   executor emits `guard_retry.*` events (attempt/scheduled/exhausted/
+   recovered) so dashboards can track iteration counts, stagnation hits,
+   and timeout triggers.
+4. Use `create_test_stage_context()` from `stageflow.testing` in unit
+   tests to avoid manually wiring `StageInputs`, timers, and snapshots
+   when validating retry paths.
+
+> **Tip**: Combine executor-level `guard_retry_strategy` events with
+> coordinator telemetry to distinguish "the guard asked for a retry"
+> from "another retry actually ran". Feed those structured metrics into
+> whatever WideEvent/Warehouse sink you use for autocorrection loops.
 
 ## Advanced: Tool with Undo Support
 

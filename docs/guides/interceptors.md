@@ -112,12 +112,16 @@ Get the default set of interceptors:
 from stageflow import get_default_interceptors
 
 interceptors = get_default_interceptors()
-# Returns: [TimeoutInterceptor, CircuitBreakerInterceptor, 
+# Returns: [IdempotencyInterceptor, TimeoutInterceptor, CircuitBreakerInterceptor,
 #           TracingInterceptor, MetricsInterceptor, ChildTrackerMetricsInterceptor, LoggingInterceptor]
 
 # Include auth interceptors
 interceptors = get_default_interceptors(include_auth=True)
 # Adds: [OrganizationInterceptor, RegionInterceptor, RateLimitInterceptor, PolicyGatewayInterceptor]
+
+# Share a store across stages / pipelines
+shared_store = MyPersistentIdempotencyStore()
+interceptors = get_default_interceptors(idempotency_store=shared_store)
 ```
 
 ### Ordering Guarantees (Verified)
