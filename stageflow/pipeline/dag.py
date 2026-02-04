@@ -237,8 +237,17 @@ class StageGraph:
         ctx.record_stage_event(stage=spec.name, status="started")
 
         async def run_stage() -> StageResult:
-            stage_instance = spec.runner()  # type: ignore[operator]
-            raw_result = await stage_instance.execute(ctx)  # type: ignore[attr-defined]
+            # Handle both cases:
+            # 1. Runner is a class - instantiate and call execute()
+            # 2. Runner is an async function (from PipelineBuilder.build) - call directly
+            runner = spec.runner
+            if isinstance(runner, type):
+                # It's a class, instantiate it
+                stage_instance = runner()
+                raw_result = await stage_instance.execute(ctx)
+            else:
+                # It's an async function that takes ctx
+                raw_result = await runner(ctx)  # type: ignore[operator]
             ended_at = datetime.now(UTC)
             return self._normalize_result(spec.name, raw_result, started_at, ended_at)  # type: ignore[arg-type]
 
