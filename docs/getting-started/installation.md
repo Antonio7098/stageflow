@@ -17,7 +17,7 @@ pip install stageflow-core
 Clone the repository and install in development mode:
 
 ```bash
-git clone https://github.com/stageflow/stageflow.git
+git clone https://github.com/Antonio7098/stageflow.git
 cd stageflow
 pip install -e .
 ```
