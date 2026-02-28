@@ -17,7 +17,7 @@ pip install stageflow-core
 Clone the repository and install in development mode:
 
 ```bash
-git clone https://github.com/your-org/stageflow.git
+git clone https://github.com/stageflow/stageflow.git
 cd stageflow
 pip install -e .
 ```
@@ -27,11 +27,8 @@ pip install -e .
 Stageflow has optional dependencies for specific features:
 
 ```bash
-# For development and testing
+# For development, testing, and documentation
 pip install stageflow-core[dev]
-
-# For documentation generation
-pip install stageflow-core[docs]
 ```
 
 ## Verifying Installation
