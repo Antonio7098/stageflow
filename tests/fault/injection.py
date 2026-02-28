@@ -10,11 +10,11 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class FaultType(str, Enum):
+class FaultType(StrEnum):
     """Types of faults that can be injected."""
 
     TIMEOUT = "timeout"

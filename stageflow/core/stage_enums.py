@@ -1,9 +1,9 @@
 """Stage enums for categorization and status."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class StageKind(str, Enum):
+class StageKind(StrEnum):
     """Categorization of stage types for unified registry.
 
     All stages belong to exactly one kind which determines their
@@ -18,7 +18,7 @@ class StageKind(str, Enum):
     AGENT = "agent"  # Coach, Interviewer - main interactor
 
 
-class StageStatus(str, Enum):
+class StageStatus(StrEnum):
     """Possible outcomes from stage execution."""
 
     OK = "ok"  # Stage completed successfully

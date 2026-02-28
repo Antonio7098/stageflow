@@ -12,7 +12,6 @@ import pytest
 
 from stageflow import PipelineTimer, StageContext, StageKind, StageOutput
 from stageflow.context import ContextSnapshot, RunIdentity
-from stageflow.core.stage_context import create_stage_context
 from stageflow.stages import StageInputs
 
 
