@@ -290,8 +290,8 @@ from stageflow.stages.ports import CorePorts, LLMPorts, AudioPorts
 async def execute(self, ctx: StageContext) -> StageOutput:
     # Access specific port types
     ports = ctx.inputs.ports or CorePorts()
-    llm_ports: LLMPorts | None = getattr(ctx.inputs.ports, "llm", None) if ctx.inputs.ports else None
-    audio_ports: AudioPorts | None = getattr(ctx.inputs.ports, "audio", None) if ctx.inputs.ports else None
+    llm_ports: LLMPorts | None = ports if isinstance(ports, LLMPorts) else None
+    audio_ports: AudioPorts | None = ports if isinstance(ports, AudioPorts) else None
     
     # Database access (CorePorts)
     if ports.db:
@@ -573,17 +573,21 @@ Stages can produce artifacts (UI payloads, files, etc.):
 
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
-    # Add an artifact
-    ctx.add_artifact(
-        type="chart",
-        payload={
-            "chart_type": "bar",
-            "data": [1, 2, 3, 4, 5],
-            "title": "Results",
-        },
+    from stageflow.core import StageArtifact
+
+    return StageOutput.ok(
+        chart_generated=True,
+        artifacts=[
+            StageArtifact(
+                type="chart",
+                payload={
+                    "chart_type": "bar",
+                    "data": [1, 2, 3, 4, 5],
+                    "title": "Results",
+                },
+            )
+        ],
     )
-    
-    return StageOutput.ok(chart_generated=True)
 ```
 
 ## Best Practices

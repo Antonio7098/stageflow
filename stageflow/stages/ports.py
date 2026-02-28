@@ -131,6 +131,10 @@ def create_audio_ports(
     tts_provider: Any = None,
     stt_provider: Any = None,
     send_audio_chunk: Callable[[bytes, str, int, bool], Awaitable[None]] | None = None,
+    # Backward-compatible aliases
+    tts_client: Any = None,
+    stt_client: Any = None,
+    audio_callback: Callable[[bytes, str, int, bool], Awaitable[None]] | None = None,
     send_transcript: Callable[[Any, str, float, int], Awaitable[None]] | None = None,
     audio_data: bytes | None = None,
     audio_format: str | None = None,
@@ -140,9 +144,12 @@ def create_audio_ports(
     """Create AudioPorts for audio processing operations.
 
     Args:
-        tts_provider: TTS provider for text-to-speech synthesis
-        stt_provider: STT provider for speech-to-text transcription
-        send_audio_chunk: Callback for streaming audio chunks
+        tts_provider: TTS provider for text-to-speech synthesis.
+        stt_provider: STT provider for speech-to-text transcription.
+        send_audio_chunk: Callback for streaming audio chunks.
+        tts_client: Backward-compatible alias for tts_provider.
+        stt_client: Backward-compatible alias for stt_provider.
+        audio_callback: Backward-compatible alias for send_audio_chunk.
         send_transcript: Callback for sending STT transcript
         audio_data: Raw audio bytes
         audio_format: Audio format string
@@ -152,10 +159,16 @@ def create_audio_ports(
     Returns:
         AudioPorts instance
     """
+    resolved_tts = tts_provider if tts_provider is not None else tts_client
+    resolved_stt = stt_provider if stt_provider is not None else stt_client
+    resolved_send_audio = (
+        send_audio_chunk if send_audio_chunk is not None else audio_callback
+    )
+
     return AudioPorts(
-        tts_provider=tts_provider,
-        stt_provider=stt_provider,
-        send_audio_chunk=send_audio_chunk,
+        tts_provider=resolved_tts,
+        stt_provider=resolved_stt,
+        send_audio_chunk=resolved_send_audio,
         send_transcript=send_transcript,
         audio_data=audio_data,
         audio_format=audio_format,

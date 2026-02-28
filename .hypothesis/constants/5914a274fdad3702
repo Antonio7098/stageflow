@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/pipeline/interceptors.py
+# hypothesis_version: 6.150.0
+
+[1000.0, 100, 1000, 30000, 'BaseInterceptor', 'ChildRunTracker', 'ErrorAction', 'InterceptorContext', 'InterceptorError', 'InterceptorResult', 'LoggingInterceptor', 'MetricsInterceptor', 'TimeoutInterceptor', 'TracingInterceptor', '_timeout_ms', '_tracing.span_name', '_tracing.span_start', 'base_interceptor', 'circuit_breaker', 'closed', 'completed', 'component', 'duration_ms', 'error', 'failed', 'half_open', 'interceptor', 'interceptors', 'is_child_run', 'logging', 'metrics', 'open', 'pipeline_run_id', 'stage', 'stage_interceptor', 'stage_metrics', 'status', 'timeout', 'timeout_ms', 'topology', 'tracing']

@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/context/enrich.py
+# hypothesis_version: 6.150.0
+
+[0.0, 0.8, 1.0, 'ConflictDetector', 'ConflictResolution', 'ContextUtilization', 'TruncationEvent', 'TruncationTracker', 'VersionMetadata', 'age_seconds', 'available_tokens', 'avg_preserved_ratio', 'checksum', 'content_id', 'content_type', 'content_types', 'context.truncation', 'context_truncation', 'error', 'event', 'event_count', 'is_near_limit', 'is_stale', 'keep_new', 'keep_old', 'max_tokens', 'merge', 'metadata', 'original_tokens', 'preserved_ratio', 'reason', 'reserved_tokens', 'retrieved_at', 'source', 'strategies_used', 'strategy', 'tags', 'timestamp', 'tokens_removed', 'total_tokens_removed', 'truncated_tokens', 'ttl_seconds', 'used_tokens', 'utilization', 'version']

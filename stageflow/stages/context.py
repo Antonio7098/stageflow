@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from stageflow.core import StageArtifact as Artifact
+from stageflow.core import StageContext
 from stageflow.events import EventSink, get_event_sink
 
 if TYPE_CHECKING:
@@ -324,6 +325,7 @@ class PipelineContext:
 
 
 __all__ = [
+    "StageContext",
     "PipelineContext",
     "extract_service",
 ]

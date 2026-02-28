@@ -277,9 +277,10 @@ Execute with a `StageContext`:
 from stageflow import StageContext
 from stageflow.context import ContextSnapshot
 from stageflow.helpers import ChunkQueue
+from stageflow.testing import create_test_stage_context
 
 snapshot = ContextSnapshot(...)
-ctx = StageContext(snapshot=snapshot)
+ctx = create_test_stage_context(snapshot=snapshot)
 
 results = await graph.run(ctx)
 
@@ -333,14 +334,11 @@ names = pipeline_registry.list()  # ["chat_fast", "chat_accurate", "voice"]
 Pass configuration when building the context:
 
 ```python
-ctx = StageContext(
-    snapshot=snapshot,
-    config={
-        "timeout": 30000,
-        "model": "gpt-4",
-        "event_sink": my_event_sink,
-    },
+snapshot = ContextSnapshot(
+    ...,
+    metadata={"timeout": 30000, "model": "gpt-4"},
 )
+ctx = create_test_stage_context(snapshot=snapshot, event_sink=my_event_sink)
 ```
 
 ### Per-Stage Configuration

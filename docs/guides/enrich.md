@@ -14,9 +14,9 @@ LLMs often receive multiple revisions of the same document. Adopt temporal filte
 
 | Strategy | Description | Use When |
 |----------|-------------|----------|
-| `LATEST_DATE` | Select entries with the most recent `effective_at` timestamp. | Compliance, policy updates. |
-| `LATEST_VERSION` | Select entries with the highest semantic version (e.g., `v3.2.1`). | API or schema references. |
-| `ALL_VERSIONS` | Return every matching version plus `version_history` metadata. | Audits, litigation holds. |
+| `LATEST_DATE` (custom) | Select entries with the most recent `effective_at` timestamp. | Compliance, policy updates. |
+| `LATEST_VERSION` (custom) | Select entries with the highest semantic version (e.g., `v3.2.1`). | API or schema references. |
+| `ALL_VERSIONS` (custom) | Return every matching version plus `version_history` metadata. | Audits, litigation holds. |
 
 ### Implementation Steps
 
@@ -28,11 +28,19 @@ LLMs often receive multiple revisions of the same document. Adopt temporal filte
 ### Example Snippet
 
 ```python
-results = _filter_versions(docs, strategy)
+def filter_versions(docs, strategy):
+    if strategy == "LATEST_DATE":
+        return sorted(docs, key=lambda d: d.effective_at, reverse=True)[:1]
+    if strategy == "LATEST_VERSION":
+        return sorted(docs, key=lambda d: d.version, reverse=True)[:1]
+    return docs
+
+
+results = filter_versions(docs, strategy)
 if len({doc.version for doc in results}) > 1:
     ctx.event_sink.try_emit(
-        "enrich.version_conflict",
-        {"document_id": docs[0].document_id, "versions": [doc.version for doc in results]},
+        type="enrich.version_conflict",
+        data={"document_id": docs[0].document_id, "versions": [doc.version for doc in results]},
     )
 
 return StageOutput.ok(
@@ -55,12 +63,12 @@ return StageOutput.ok(
 
 ## Observability Checklist
 
-| Signal | When to Emit | Payload |
-|--------|--------------|---------|
-| `enrich.version_conflict` | Multiple versions remain after filtering. | `document_id`, `versions`, `resolution_strategy`. |
-| `enrich.multi_hop.degradation` | Hop confidence drop exceeds SLA. | `confidence_drop`, `hop_count`, `last_nonempty_hop`. |
-| `context.truncated` | Content removed to fit limits. | `bytes_dropped`, `reason`, `affected_keys`, `tokens_limit`. |
-| `context.distractor_detected` | High-similarity but irrelevant docs pruned. | `entity_id`, `hop`, `distractor_reason`. |
+| Signal | When to Emit | Payload | Status |
+|--------|--------------|---------|--------|
+| `enrich.version_conflict` | Multiple versions remain after filtering. | `document_id`, `versions`, `resolution_strategy`. | Pattern (custom event) |
+| `enrich.multi_hop.degradation` | Hop confidence drop exceeds SLA. | `confidence_drop`, `hop_count`, `last_nonempty_hop`. | Pattern (custom event) |
+| `context.truncation` | Content removed to fit limits. | `bytes_dropped`, `reason`, `affected_keys`, `tokens_limit`. | Implemented |
+| `context.distractor_detected` | High-similarity but irrelevant docs pruned. | `entity_id`, `hop`, `distractor_reason`. | Pattern (custom event) |
 
 ## Testing Recommendations
 

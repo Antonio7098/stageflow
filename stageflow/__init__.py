@@ -67,6 +67,7 @@ from stageflow.core import (
 
 # Events
 from stageflow.events import (
+    BackpressureAwareEventSink,
     EventSink,
     LoggingEventSink,
     NoOpEventSink,
@@ -88,6 +89,9 @@ from stageflow.observability import (
     CircuitBreakerOpenError,
     PipelineRunLogger,
     ProviderCallLogger,
+    WideEventEmitter,
+    emit_pipeline_wide_event,
+    emit_stage_wide_event,
     error_summary_to_stages_patch,
     error_summary_to_string,
     get_circuit_breaker,
@@ -180,9 +184,14 @@ from stageflow.stages.result import (
 
 # Testing utilities (optional)
 from stageflow.testing import (
+    create_test_pipeline_context,
     create_test_snapshot,
     create_test_stage_context,
 )
+
+# Backward-compat aliases for historical API names.
+LinearPipeline = Pipeline
+create_test_context = create_test_stage_context
 
 __all__ = [
     # Core stage types
@@ -234,6 +243,7 @@ __all__ = [
     "EventSink",
     "NoOpEventSink",
     "LoggingEventSink",
+    "BackpressureAwareEventSink",
     "get_event_sink",
     "set_event_sink",
     "clear_event_sink",
