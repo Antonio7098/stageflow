@@ -87,6 +87,7 @@ ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function calls in argument defaults
     "B905",   # zip without explicit strict
+    "UP042",  # use StrEnum - existing code pattern, not critical
 ]
 
 [tool.mypy]

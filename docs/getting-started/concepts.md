@@ -278,7 +278,7 @@ Every stage execution is logged, timed, and traceable. Events are emitted for mo
 - `ChunkQueue(event_emitter=...)` triggers streaming events for drops/throttling.
 - `StreamingBuffer(event_emitter=...)` notifies underruns and overflows.
 - `BufferedExporter(on_overflow=...)` alerts when analytics buffers near capacity.
-- `ToolRegistry.parse_and_resolve()` standardizes LLM tool-call observability.
+- `ToolRegistry.parse_and_resolve()` standardizes LLM tool-call observability (import from `stageflow.tools`).
 
 ### 5. Fail Fast, Recover Gracefully
 
