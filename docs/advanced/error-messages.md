@@ -40,7 +40,7 @@ Context:
 Fix:
 Add the missing stage to the pipeline or remove it from the dependency list.
 
-Docs: https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#missing-stage-dependencies
+Docs: https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#missing-stage-dependency
 ```
 
 ### Dependency Cycle
@@ -54,7 +54,7 @@ Context:
 Fix:
 Break the cycle by removing one of the dependencies in the loop.
 
-Docs: https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#dependency-cycles
+Docs: https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#dependency-cycle
 ```
 
 ### Empty Pipeline
@@ -68,7 +68,7 @@ Context:
 Fix:
 Add at least one stage before invoking Pipeline.build().
 
-Docs: https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#empty-pipelines
+Docs: https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#empty-pipeline
 ```
 
 ## Implementation Guidance

@@ -42,7 +42,7 @@ register_suggestion(
             "Remove at least one dependency edge to break the loop",
             "Re-run pipeline validation or the contracts CLI",
         ],
-        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#dependency-cycles",
+        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#dependency-cycle",
     )
 )
 
@@ -55,7 +55,7 @@ register_suggestion(
             "Ensure the referenced stage is added to the pipeline",
             "Or remove/rename the dependency if it is not needed",
         ],
-        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#missing-stage-dependencies",
+        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#missing-stage-dependency",
     )
 )
 
@@ -65,7 +65,7 @@ register_suggestion(
         title="Stage Depends on Itself",
         summary="A stage lists itself in its dependency tuple, which creates an impossible prerequisite.",
         fix_steps=["Remove the self-reference from the dependency list"],
-        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#self-dependencies",
+        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#example-errors",
     )
 )
 
@@ -78,7 +78,7 @@ register_suggestion(
             "Ensure composed pipelines define the stage with the same runner and dependency set",
             "Rename one of the stages if they represent different logic",
         ],
-        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#conflicting-stage-definitions",
+        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#example-errors",
     )
 )
 
@@ -91,7 +91,7 @@ register_suggestion(
             "Add dependencies so the stage participates in the pipeline",
             "Or remove the stage if it should not run",
         ],
-        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#isolated-stages",
+        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#example-errors",
     )
 )
 
@@ -101,6 +101,6 @@ register_suggestion(
         title="Empty Pipeline",
         summary="Attempted to build or execute a pipeline without any stages.",
         fix_steps=["Add at least one stage before invoking Pipeline.build()"],
-        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#empty-pipelines",
+        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#empty-pipeline",
     )
 )

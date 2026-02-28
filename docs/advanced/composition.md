@@ -120,7 +120,7 @@ def create_streaming_component(event_emitter):
     buffer = StreamingBuffer(event_emitter=event_emitter)
 
     exporter = BufferedExporter(
-        sink=my_sink,
+        exporter=my_sink,
         on_overflow=lambda dropped, size: event_emitter(
             "analytics.overflow",
             {"dropped": dropped, "buffer_size": size},
@@ -308,6 +308,7 @@ from stageflow import pipeline_registry
 
 def get_pipeline_for_request(request) -> Pipeline:
     # Select based on request attributes
+    if request.channel == "voice":
         return pipeline_registry.get("voice_pipeline")
     elif request.execution_mode == "practice":
         return pipeline_registry.get("practice_pipeline")
@@ -332,6 +333,7 @@ def create_adaptive_pipeline(ctx) -> Pipeline:
         pipeline = pipeline.with_stage("advanced", AdvancedStage, StageKind.TRANSFORM)
     
     return pipeline
+```
 
 ### Conditional Control Flow Tips
 
@@ -506,18 +508,18 @@ graph = pipeline.build()  # Raises CycleDetectedError with detailed guidance
 When composing pipelines, add tests that ensure telemetry emitters and analytics exporters remain wired end-to-end:
 
 ```python
-def test_streaming_component_wires_events():
+import asyncio
+
+async def test_streaming_component_wires_events():
     events = []
 
     def emitter(event_type, payload=None):
         events.append(event_type)
 
     queue, buffer, exporter = create_streaming_component(emitter)
-    queue.maxsize = 1
-    queue.put_nowait("chunk-a")
-    # This dropped chunk should emit telemetry
-    queue.put_nowait("chunk-b")
-    queue.close()
+    await queue.put("chunk-a")
+    await queue.put("chunk-b")
+    await queue.close()
 
     assert "stream.chunk_dropped" in events or "stream.producer_blocked" in events
 ```

@@ -30,7 +30,7 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     used = tally_tokens(snippets)
     utilization = used / TOKEN_LIMIT
 
-    ctx.event_sink.try_emit(
+    ctx.try_emit_event(
         "context.utilization",
         {"stage": ctx.stage_name, "tokens_used": used, "tokens_limit": TOKEN_LIMIT, "pct": utilization},
     )
@@ -58,7 +58,7 @@ Emit `context.truncated` whenever content is dropped:
 ```python
 removed = snippets[token_budget:]
 if removed:
-    ctx.event_sink.try_emit(
+    ctx.try_emit_event(
         "context.truncated",
         {
             "stage": ctx.stage_name,
@@ -94,7 +94,7 @@ Distractors are high-similarity but irrelevant snippets that push out critical e
 ```python
 for doc in snippets:
     if doc.similarity >= 0.75 and not doc.metadata.get("bridging_entity"):
-        ctx.event_sink.try_emit(
+        ctx.try_emit_event(
             "context.distractor_detected",
             {
                 "stage": ctx.stage_name,

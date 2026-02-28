@@ -398,8 +398,9 @@ class APICallStage:
         except RateLimitError as e:
             # Signal that this stage should be retried
             return StageOutput.retry(
-                reason=str(e),
-                retry_after_ms=e.retry_after * 1000,  # From API response
+                error=str(e),
+                data={"retry_after_ms": e.retry_after * 1000},
+                # From API response
             )
             
         except ValidationError as e:
@@ -414,7 +415,6 @@ Retry events provide visibility into failure patterns:
 | Event | Description | Fields |
 |-------|-------------|--------|
 | `stage.retry_scheduled` | Retry scheduled after failure | `stage`, `attempt`, `delay_ms`, `error` |
-| `stage.retry_succeeded` | Retry attempt succeeded | `stage`, `attempt`, `total_time_ms` |
 | `stage.retry_exhausted` | All retries failed | `stage`, `attempts`, `total_time_ms`, `error` |
 
 ### Metrics Dashboard
@@ -529,7 +529,7 @@ async def test_retry_on_transient_error():
     interceptor = RetryInterceptor(max_attempts=5)
     
     # Execute with retry
-    result = await run_with_retry(stage, interceptor)
+    result = await run_with_interceptors(stage, interceptor)
     
     assert result["success"]
     assert call_count == 3  # Failed twice, succeeded on third
@@ -552,7 +552,7 @@ async def test_no_retry_on_client_error():
     interceptor = RetryInterceptor(max_attempts=5)
     
     with pytest.raises(ValueError):
-        await run_with_retry(stage, interceptor)
+        await run_with_interceptors(stage, interceptor)
     
     assert call_count == 1  # No retries
 

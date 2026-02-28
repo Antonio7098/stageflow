@@ -96,7 +96,7 @@ class ToolDispatcher(Stage):
         results = []
         for call in tool_calls:
             # Create child pipeline for each tool call
-            child_ctx = ctx.pipeline_ctx.fork_child(
+            child_ctx = ctx.pipeline_ctx.fork(
                 child_run_id=uuid4(),
                 correlation_id=uuid4(),
                 topology=f"tool_{call.type}",
@@ -126,20 +126,22 @@ class ToolDispatcher(Stage):
         # Build child graph
         graph = pipeline.build()
         
-        # Create child context (simplified - actual implementation uses PipelineContext)
+        # Create child context (simplified example)
         child_snapshot = ContextSnapshot(
-            pipeline_run_id=child_run_id,
-            request_id=parent_ctx.snapshot.request_id,
-            session_id=parent_ctx.snapshot.session_id,
-            user_id=parent_ctx.snapshot.user_id,
-            org_id=parent_ctx.snapshot.org_id,
-            interaction_id=parent_ctx.snapshot.interaction_id,
+            run_id=RunIdentity(
+                pipeline_run_id=child_run_id,
+                request_id=parent_ctx.snapshot.request_id,
+                session_id=parent_ctx.snapshot.session_id,
+                user_id=parent_ctx.snapshot.user_id,
+                org_id=parent_ctx.snapshot.org_id,
+                interaction_id=parent_ctx.snapshot.interaction_id,
+            ),
             topology=f"tool_{tool_call.type}",
             execution_mode="tool_execution",
             input_text=str(tool_call.payload),
         )
-        
-        child_ctx = StageContext(snapshot=child_snapshot)
+
+        child_ctx = create_test_stage_context(snapshot=child_snapshot)
         
         # Run child pipeline
         try:
@@ -177,7 +179,7 @@ for call in unresolved:
     ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
 
 for call in resolved:
-    child_ctx = ctx.pipeline_ctx.fork_child(
+    child_ctx = ctx.pipeline_ctx.fork(
         child_run_id=uuid4(),
         correlation_id=call.call_id,
         topology=f"tool_{call.name}",
@@ -461,7 +463,7 @@ result = await executor.spawn_subpipeline(
     "validation_pipeline",  # Pipeline name from registry
     ctx,                    # Parent PipelineContext
     action.id,              # Correlation ID (typically action UUID)
-    topology_override="fast_kernel",        # Optional
+    topology="fast_kernel",        # Optional
     execution_mode_override="strict",       # Optional
 )
 
@@ -488,7 +490,7 @@ else:
 | `pipeline_name` | `str` | Name of the registered pipeline to run |
 | `ctx` | `PipelineContext` | Parent context (will be forked for child) |
 | `correlation_id` | `UUID` | Action ID that triggered spawn (for tracing) |
-| `topology_override` | `str \| None` | Optional different topology for child |
+| `topology` | `str \| None` | Optional different topology for child |
 | `execution_mode_override` | `str \| None` | Optional different execution mode |
 
 ### Returns
@@ -517,7 +519,7 @@ from stageflow.core import StageContext
 
 async def execute(self, ctx: StageContext) -> StageOutput:
     pipeline_ctx = ctx.as_pipeline_context(
-        topology_override="subpipeline_general",
+        topology="subpipeline_general",
         data={"invoked_by": ctx.stage_name},
     )
 

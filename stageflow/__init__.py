@@ -97,6 +97,7 @@ from stageflow.observability import (
     get_circuit_breaker,
     summarize_pipeline_error,
 )
+from stageflow.pipeline.builder import PipelineBuilder
 from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
@@ -210,6 +211,7 @@ __all__ = [
     "PipelineTimer",
     # Pipeline types
     "Pipeline",
+    "PipelineBuilder",
     "LinearPipeline",
     "UnifiedStageSpec",
     # DAG types

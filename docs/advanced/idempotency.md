@@ -44,7 +44,7 @@ interceptors = get_default_interceptors(idempotency_store=store)
 
 ### Atomic Duplicate Handling
 
-As of `stageflow-core v0.8.1`, the interceptor coordinates **per-key asyncio locks**
+As of `stageflow-core v0.9.0`, the interceptor coordinates **per-key asyncio locks**
 so only the first in-flight request executes the stage. Any concurrent duplicate:
 
 1. Waits on the per-key lock while the first request runs.

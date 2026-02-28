@@ -188,7 +188,7 @@ class MyValidator:
             "roles": ["user"]
         }
 
-auth = AuthInterceptor(validator=MyValidator())
+auth = AuthInterceptor(jwt_validator=MyValidator())
 ```
 
 ---
@@ -406,7 +406,7 @@ from stageflow import Pipeline, StageKind
 
 # Create auth components
 validator = MockJwtValidator()
-auth_interceptor = AuthInterceptor(validator)
+auth_interceptor = AuthInterceptor(jwt_validator=validator)
 org_interceptor = OrgEnforcementInterceptor()
 
 # Build pipeline with auth interceptors

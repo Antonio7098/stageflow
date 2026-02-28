@@ -51,7 +51,7 @@ class EntityGroundingGuard:
                 missing.append({"entity": entity, "reason": "low_confidence"})
 
         if missing:
-            ctx.event_sink.try_emit(
+            ctx.try_emit_event(
                 "knowledge.eg.failed",
                 {"missing_entities": missing, "required_confidence": self._required_confidence},
             )
@@ -119,7 +119,7 @@ class RelationPreservationGuard:
                 violations.append({"claim": claim, "reason": "relation_mismatch"})
 
         if violations:
-            ctx.event_sink.try_emit(
+            ctx.try_emit_event(
                 "knowledge.rp.violation",
                 {"violations": violations, "claim_count": len(llm_claims)},
             )
