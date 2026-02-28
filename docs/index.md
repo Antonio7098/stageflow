@@ -45,15 +45,12 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.9.1**
+> **New in Stageflow 0.9.2**
 > 
-> - **StageContext Integration**: Added record_stage_event() method for pipeline lifecycle tracking
-> - **Documentation Fixes**: Updated installation guide with correct ContextSnapshot API
-> - **Integration Tests**: Comprehensive tests for v0.9.0 feature integration
-> - **Failure Tolerance**: Continue-on-failure mode, conditional dependencies, and burst load backpressure for DAG resilience
-> - **Pipeline Builder Helpers**: Ergonomic utilities for constructing complex DAGs (linear chains, parallel stages, fan-out/fan-in, conditional branches)
-> - **ENRICH Context Utilities**: Token tracking, truncation event emission, version metadata, and conflict detection for context enrichment
-> - **Comprehensive Documentation**: 16 new guides covering retry patterns, saga patterns, checkpointing, sandboxing, multimodal fusion, timestamps, chunking, security, A/B testing, and routing patterns
+> - **Tier 2 Report Remediation**: Governance, authentication, and context guides now reflect current organizational risk controls, canonical GitHub URLs, and consistent tooling workflows.
+> - **Tools, Approvals & Pipelines**: Approval service enums, pipeline interceptors, and port helpers were reorganized to stay compatible with the latest lint rules and runtime signatures.
+> - **Documentation Refresh**: Tools, tools-approval, stage, and voice guides have been trimmed and rephrased so the published docs align with the running Stageflow release.
+> - **Context & Stageflow Helpers**: StageInputs, StagePorts, and interceptors received small tweaks so import order and helper exports cleanly match the canonical `Antonio7098/stageflow` codebase.
 
 ## Links
 

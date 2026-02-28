@@ -19,6 +19,53 @@
   },
   "entries": [
     {
+      "version": "v0.9.2",
+      "date": "2026-02-28",
+      "changes": [
+        {
+          "type": "fixed",
+          "area": "docs",
+          "description": "Aligned governance, authentication, context, and tools guides with the canonical Antonio7098/stageflow repo so Tier 2 remediation references, URLs, and tooling flows stay accurate.",
+          "commit": "988498e85f2f4e634bec7ad1a8480fb11ec26bec",
+          "files_affected": [
+            "docs/guides/authentication.md",
+            "docs/guides/context.md",
+            "docs/guides/enrich.md",
+            "docs/guides/governance.md",
+            "docs/guides/interceptors.md",
+            "docs/guides/pipelines.md",
+            "docs/guides/stages.md",
+            "docs/guides/timestamps.md",
+            "docs/guides/tools-approval.md",
+            "docs/guides/tools.md",
+            "docs/guides/voice-audio.md",
+            "docs/guides/websearch.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "stageflow core",
+          "description": "Reworked StageContext helpers, approval enums, pipeline interceptors, and stage ports so the runtime matches lint expectations and Tier 2 compliance guidance.",
+          "commit": "988498e85f2f4e634bec7ad1a8480fb11ec26bec",
+          "files_affected": [
+            "stageflow/__init__.py",
+            "stageflow/core/stage_context.py",
+            "stageflow/helpers/__init__.py",
+            "stageflow/pipeline/interceptors.py",
+            "stageflow/stages/context.py",
+            "stageflow/stages/inputs.py",
+            "stageflow/stages/ports.py",
+            "stageflow/tools/approval.py",
+            "stageflow/tools/registry.py",
+            "stageflow/tools/undo.py",
+            "stageflow/websearch/__init__.py"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.9.1",
       "date": "2026-01-24",
       "changes": [
