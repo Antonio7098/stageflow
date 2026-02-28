@@ -93,6 +93,15 @@ class ToolRegistry:
 
         return None
 
+    # Backward-compatible aliases
+    def get(self, action_type: str) -> Tool | None:
+        """Backward-compatible alias for get_tool()."""
+        return self.get_tool(action_type)
+
+    def get_by_action_type(self, action_type: str) -> Tool | None:
+        """Backward-compatible alias for get_tool()."""
+        return self.get_tool(action_type)
+
     def can_execute(self, action_type: str) -> bool:
         """Check if we have a tool for this action type."""
         return action_type in self._tools or action_type in self._factories
@@ -112,6 +121,18 @@ class ToolRegistry:
     def list_tools(self) -> list[Tool]:
         """List all registered tools."""
         return list(self._tools.values())
+
+    def list(self) -> list[Tool]:
+        """Backward-compatible alias for list_tools()."""
+        return self.list_tools()
+
+    def has(self, action_type: str) -> bool:
+        """Backward-compatible helper for membership checks."""
+        return self.can_execute(action_type)
+
+    def register_tool(self, tool: Tool) -> None:
+        """Backward-compatible alias for register()."""
+        self.register(tool)
 
     def __contains__(self, action_type: str) -> bool:
         return self.can_execute(action_type)

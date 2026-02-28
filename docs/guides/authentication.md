@@ -77,25 +77,27 @@ Validates JWT tokens and creates `AuthContext`:
 
 ```python
 from stageflow.auth import AuthInterceptor, JwtValidator
+from typing import Any
 
 class MyJwtValidator:
     """Custom JWT validator."""
     
-    async def validate(self, token: str) -> AuthContext:
+    async def validate(self, token: str) -> dict[str, Any]:
         # Validate token with your auth provider
         # (Clerk, Auth0, WorkOS, etc.)
         claims = await verify_jwt(token)
-        
-        return AuthContext(
-            user_id=UUID(claims["sub"]),
-            session_id=UUID(claims["session_id"]),
-            email=claims.get("email"),
-            org_id=UUID(claims["org_id"]) if claims.get("org_id") else None,
-            roles=tuple(claims.get("roles", [])),
-        )
+
+        # Return raw claims. AuthInterceptor converts claims -> AuthContext.
+        return {
+            "user_id": claims["sub"],
+            "session_id": claims["session_id"],
+            "email": claims.get("email"),
+            "org_id": claims.get("org_id"),
+            "roles": claims.get("roles", []),
+        }
 
 # Create interceptor with validator
-auth_interceptor = AuthInterceptor(validator=MyJwtValidator())
+auth_interceptor = AuthInterceptor(jwt_validator=MyJwtValidator())
 ```
 
 ### OrgEnforcementInterceptor
@@ -123,7 +125,7 @@ interceptors = get_default_interceptors(include_auth=True)
 from stageflow.auth import AuthInterceptor, OrgEnforcementInterceptor
 
 interceptors = [
-    AuthInterceptor(validator=my_validator),
+    AuthInterceptor(jwt_validator=my_validator),
     OrgEnforcementInterceptor(),
     *get_default_interceptors(),
 ]
@@ -136,11 +138,12 @@ interceptors = [
 Implement the `JwtValidator` protocol:
 
 ```python
-from stageflow.auth import JwtValidator, AuthContext
+from typing import Any, Protocol
+from stageflow.auth import JwtValidator
 
 class JwtValidator(Protocol):
-    async def validate(self, token: str) -> AuthContext:
-        """Validate a JWT and return AuthContext."""
+    async def validate(self, token: str) -> dict[str, Any]:
+        """Validate a JWT and return claims as a dict."""
         ...
 ```
 
@@ -149,39 +152,35 @@ class JwtValidator(Protocol):
 ```python
 from stageflow.auth import MockJwtValidator
 
-# For testing - always returns a valid AuthContext
-mock_validator = MockJwtValidator(
-    user_id=uuid4(),
-    org_id=uuid4(),
-    roles=("user",),
-)
+# For testing - validates mock token formats and returns claims
+mock_validator = MockJwtValidator()
 
-auth_interceptor = AuthInterceptor(validator=mock_validator)
+auth_interceptor = AuthInterceptor(jwt_validator=mock_validator)
 ```
 
 ### Example: Clerk Integration
 
 ```python
 import httpx
-from stageflow.auth import JwtValidator, AuthContext
+from typing import Any
 
 class ClerkJwtValidator:
     def __init__(self, clerk_secret_key: str):
         self.secret_key = clerk_secret_key
     
-    async def validate(self, token: str) -> AuthContext:
+    async def validate(self, token: str) -> dict[str, Any]:
         # Verify JWT signature and claims
         claims = await self._verify_token(token)
-        
-        return AuthContext(
-            user_id=UUID(claims["sub"]),
-            session_id=UUID(claims["sid"]),
-            email=claims.get("email"),
-            org_id=UUID(claims["org_id"]) if claims.get("org_id") else None,
-            roles=tuple(claims.get("roles", [])),
-        )
+
+        return {
+            "user_id": claims["sub"],
+            "session_id": claims["sid"],
+            "email": claims.get("email"),
+            "org_id": claims.get("org_id"),
+            "roles": claims.get("roles", []),
+        }
     
-    async def _verify_token(self, token: str) -> dict:
+    async def _verify_token(self, token: str) -> dict[str, Any]:
         # Use Clerk's SDK or verify manually
         ...
 ```
@@ -215,7 +214,7 @@ except CrossTenantAccessError as e:
 ### Handling Auth Failures
 
 ```python
-from stageflow import BaseInterceptor, InterceptorResult
+from stageflow import BaseInterceptor, InterceptorResult, ErrorAction
 
 class AuthErrorHandlerInterceptor(BaseInterceptor):
     name = "auth_error_handler"

@@ -110,6 +110,10 @@ class StageContext:
         else:
             logger.debug(f"Event (no sink): {type}", extra=enriched_data)
 
+    def emit_event(self, type: str, data: dict[str, Any]) -> None:
+        """Backward-compatible alias for try_emit_event()."""
+        self.try_emit_event(type=type, data=data)
+
     def record_stage_event(self, stage: str, status: str, **kwargs) -> None:
         """Record a stage execution event.
 

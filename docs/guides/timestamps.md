@@ -81,7 +81,7 @@ utc = normalize_to_utc(eastern)  # Converts to UTC
 ```python
 from datetime import datetime, timezone
 from stageflow.core import StageKind, StageOutput
-from stageflow.stages.context import StageContext
+from stageflow import StageContext
 from stageflow.helpers import parse_timestamp
 
 

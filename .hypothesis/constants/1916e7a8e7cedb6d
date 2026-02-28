@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/pipeline/failure_tolerance.py
+# hypothesis_version: 6.150.0
+
+[0.0, 0.3, 0.8, 0.95, -1000, 100, 1000, 5000, '.', ':', 'BackpressureConfig', 'BackpressureMonitor', 'Error', 'FailureCollector', 'FailureMode', 'FailureRecord', 'FailureSummary', '[', 'active_count', 'completed_stages', 'data', 'error', 'error_type', 'event', 'failed_stages', 'failure_recorded', 'failures', 'is_overloaded', 'load_shed', 'mode', 'p95_latency_ms', 'predicate', 'queued', 'queued_count', 'recoverable', 'shed_count', 'stage', 'success_rate', 'timestamp', 'total_stages', 'utilization']

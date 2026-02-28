@@ -152,6 +152,16 @@ class ApprovalService:
 
         return request
 
+    async def request(self, request: ApprovalRequest) -> ApprovalRequest:
+        """Backward-compatible alias that accepts an ApprovalRequest object."""
+        return await self.request_approval(
+            action_id=request.action_id,
+            tool_name=request.tool_name,
+            pipeline_run_id=request.pipeline_run_id,
+            approval_message=request.approval_message,
+            payload_summary=request.payload_summary,
+        )
+
     async def await_decision(
         self,
         request_id: UUID,
@@ -272,6 +282,19 @@ class ApprovalService:
         """Get an approval request by ID."""
         async with self._lock:
             return self._requests.get(request_id)
+
+    async def get_status(self, request_or_action_id: UUID) -> ApprovalStatus | None:
+        """Backward-compatible status lookup by request_id or action_id."""
+        async with self._lock:
+            request = self._requests.get(request_or_action_id)
+            if request is not None:
+                return request.status
+
+            # Fall back to action_id lookup.
+            for candidate in reversed(list(self._requests.values())):
+                if candidate.action_id == request_or_action_id:
+                    return candidate.status
+        return None
 
     async def get_pending_requests(
         self,

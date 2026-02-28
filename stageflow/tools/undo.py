@@ -42,17 +42,17 @@ class UndoStore:
 
     async def store(
         self,
-        action_id: UUID,
-        tool_name: str,
-        undo_data: dict[str, Any],
+        action_id: UUID | UndoMetadata,
+        tool_name: str | None = None,
+        undo_data: dict[str, Any] | None = None,
         ttl_seconds: float | None = None,
     ) -> UndoMetadata:
         """Store undo metadata for an action.
 
         Args:
-            action_id: The action identifier
-            tool_name: Name of the tool
-            undo_data: Tool-specific undo data
+            action_id: The action identifier, or an UndoMetadata object.
+            tool_name: Name of the tool (required unless action_id is UndoMetadata).
+            undo_data: Tool-specific undo data (required unless action_id is UndoMetadata).
             ttl_seconds: Time-to-live in seconds (None uses default)
 
         Returns:
@@ -60,15 +60,21 @@ class UndoStore:
         """
         ttl = ttl_seconds if ttl_seconds is not None else self.default_ttl_seconds
         expires_at = datetime.now(UTC) + timedelta(seconds=ttl)
-
-        metadata = UndoMetadata(
-            action_id=action_id,
-            tool_name=tool_name,
-            undo_data=undo_data,
-        )
+        if isinstance(action_id, UndoMetadata):
+            metadata = action_id
+        else:
+            if tool_name is None:
+                raise TypeError("tool_name is required when storing by action_id")
+            if undo_data is None:
+                raise TypeError("undo_data is required when storing by action_id")
+            metadata = UndoMetadata(
+                action_id=action_id,
+                tool_name=tool_name,
+                undo_data=undo_data,
+            )
 
         async with self._lock:
-            self._entries[action_id] = UndoEntry(
+            self._entries[metadata.action_id] = UndoEntry(
                 metadata=metadata,
                 expires_at=expires_at,
             )
@@ -109,6 +115,10 @@ class UndoStore:
                 del self._entries[action_id]
                 return True
             return False
+
+    async def remove(self, action_id: UUID) -> bool:
+        """Backward-compatible alias for delete()."""
+        return await self.delete(action_id)
 
     async def cleanup_expired(self) -> int:
         """Remove all expired entries.

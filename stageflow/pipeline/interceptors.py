@@ -391,18 +391,12 @@ def get_default_interceptors(
         interceptors.insert(1, IdempotencyInterceptor(store=idempotency_store))
 
     if include_auth:
-        # Add auth interceptors with appropriate priorities
-        from stageflow.auth.interceptors import (
-            OrganizationInterceptor,
-            PolicyGatewayInterceptor,
-            RateLimitInterceptor,
-            RegionInterceptor,
-        )
+        # Add currently supported auth interceptors.
+        from stageflow.auth.interceptors import AuthInterceptor, OrgEnforcementInterceptor
+
         interceptors.extend([
-            OrganizationInterceptor(),  # Priority 30
-            RegionInterceptor(),  # Priority 35
-            RateLimitInterceptor(),  # Priority 37
-            PolicyGatewayInterceptor(),  # Priority 39
+            AuthInterceptor(),  # Priority 1
+            OrgEnforcementInterceptor(),  # Priority 2
         ])
 
     return sorted(interceptors, key=lambda interceptor: interceptor.priority)

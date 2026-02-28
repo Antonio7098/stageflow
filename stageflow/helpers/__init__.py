@@ -16,6 +16,7 @@ This package provides reusable helpers for common pipeline patterns:
 from stageflow.helpers.analytics import (
     AnalyticsEvent,
     AnalyticsExporter,
+    AnalyticsSink,
     BufferedExporter,
     ConsoleExporter,
     JSONFileExporter,
@@ -25,6 +26,7 @@ from stageflow.helpers.guardrails import (
     GuardrailConfig,
     GuardrailResult,
     GuardrailStage,
+    InjectionDetector,
     PIIDetector,
     PolicyViolation,
 )
@@ -58,10 +60,12 @@ from stageflow.helpers.run_utils import (
 )
 from stageflow.helpers.streaming import (
     AudioChunk,
+    AudioFormat,
     BackpressureMonitor,
     ChunkQueue,
     StreamConfig,
     StreamingBuffer,
+    encode_audio_for_logging,
 )
 from stageflow.helpers.timestamps import (
     detect_unix_precision,
@@ -89,6 +93,7 @@ __all__ = [
     "GuardrailResult",
     "GuardrailStage",
     "PIIDetector",
+    "InjectionDetector",
     "ContentFilter",
     "PolicyViolation",
     # Streaming
@@ -96,10 +101,13 @@ __all__ = [
     "StreamingBuffer",
     "BackpressureMonitor",
     "AudioChunk",
+    "AudioFormat",
     "StreamConfig",
+    "encode_audio_for_logging",
     # Analytics
     "AnalyticsEvent",
     "AnalyticsExporter",
+    "AnalyticsSink",
     "JSONFileExporter",
     "ConsoleExporter",
     "BufferedExporter",

@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/pipeline/retry.py
+# hypothesis_version: 6.150.0
+
+[1000.0, 1000, 30000, 'BackoffStrategy', 'JitterStrategy', 'RateLimitError', 'Retry requested', 'RetryInterceptor', 'TransientError', 'attempt', 'attempts', 'backoff_strategy', 'constant', 'decorrelated', 'delay_ms', 'equal', 'error', 'error_type', 'event', 'event_sink', 'exponential', 'failed', 'full', 'last_error', 'linear', 'none', 'retry', 'retry_exhausted', 'retry_scheduled', 'stage', 'started_at']

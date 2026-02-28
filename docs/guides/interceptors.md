@@ -117,7 +117,7 @@ interceptors = get_default_interceptors()
 
 # Include auth interceptors
 interceptors = get_default_interceptors(include_auth=True)
-# Adds: [OrganizationInterceptor, RegionInterceptor, RateLimitInterceptor, PolicyGatewayInterceptor]
+# Adds: [AuthInterceptor, OrgEnforcementInterceptor]
 
 # Share a store across stages / pipelines
 shared_store = MyPersistentIdempotencyStore()
@@ -128,9 +128,9 @@ interceptors = get_default_interceptors(idempotency_store=shared_store)
 
 Interceptors are sorted by `priority` every time `run_with_interceptors()` executes a stage, so lower values always wrap higher ones regardless of construction order. When auth interceptors are enabled, the stack is:
 
-- `AuthInterceptor` (priority `1`) when explicitly supplied
-- `OrganizationInterceptor` (`30`), `RegionInterceptor` (`35`), `RateLimitInterceptor` (`37`), `PolicyGatewayInterceptor` (`39`)
-- Reliability/observability defaults (`Timeout` `5`, `CircuitBreaker` `10`, `Tracing` `20`, `Metrics` `40`, `ChildTrackerMetrics` `45`, `Logging` `50`)
+- `AuthInterceptor` (priority `1`) when `include_auth=True` or explicitly supplied
+- `OrgEnforcementInterceptor` (priority `2`) when `include_auth=True` or explicitly supplied
+- Reliability/observability defaults (`Idempotency` `4`, `Timeout` `5`, `CircuitBreaker` `10`, `Tracing` `20`, `Metrics` `40`, `ChildTrackerMetrics` `45`, `Logging` `50`)
 
 This matches the runtime behavior enforced in `run_with_interceptors()` and the unit tests that assert sorting semantics, so authentication always runs before timeouts or circuit breakers even if the input list is shuffled.@stageflow/pipeline/interceptors.py#356-538 @tests/framework/test_interceptors.py#567-604
 
@@ -162,7 +162,7 @@ from stageflow.auth import AuthInterceptor, JwtValidator
 
 # With custom validator
 validator = MyJwtValidator()  # Implements JwtValidator protocol
-auth = AuthInterceptor(validator=validator)
+auth = AuthInterceptor(jwt_validator=validator)
 
 # The interceptor:
 # 1. Extracts JWT from context
@@ -318,20 +318,12 @@ import hashlib
 import json
 from stageflow import BaseInterceptor, InterceptorResult
 from stageflow.stages.result import StageResult
-from dataclasses import dataclass
 
-@dataclass
 class CachingInterceptor(BaseInterceptor):
     """Cache stage results based on input."""
     
     name = "caching"
     priority = 25  # After tracing
-    cache_stages: set[str] | None = None
-    _cache: dict[str, StageResult] = None
-
-    def __post_init__(self):
-        self.cache_stages = self.cache_stages or set()
-        self._cache = {}
 
     
     def __init__(self, cache_stages: set[str] | None = None):

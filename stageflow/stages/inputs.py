@@ -111,6 +111,13 @@ class StageInputs:
     stage_name: str | None = None
     strict: bool = True
 
+    @property
+    def tool_registry(self):
+        """Access the global tool registry for tool-call resolution."""
+        from stageflow.tools import get_tool_registry
+
+        return get_tool_registry()
+
     def _validate_dependency(self, stage_name: str) -> None:
         """Validate that a stage is a declared dependency.
 

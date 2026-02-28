@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/tools/registry.py
+# hypothesis_version: 6.150.0
+
+['ResolvedToolCall', 'ToolRegistry', 'UnresolvedToolCall', 'arguments', 'clear_tool_registry', 'function', 'get_tool_registry', 'id', 'name', 'register_tool', 'tool', 'unknown']

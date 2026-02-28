@@ -19,14 +19,16 @@ Stageflow provides built-in support and helper utilities for all of these, plus 
 The `AuthContext` carries validated user identity through the pipeline:
 
 ```python
-from stageflow.auth import AuthContext, AuthInterceptor
+from uuid import uuid4
+from stageflow.auth import AuthContext
 
 # Create auth context from validated JWT
 auth = AuthContext(
-    user_id="user-123",
-    roles=["admin", "editor"],
-    permissions=["read", "write"],
-    token_claims=jwt_claims,
+    user_id=uuid4(),
+    session_id=uuid4(),
+    email="user@example.com",
+    org_id=uuid4(),
+    roles=("admin", "editor"),
 )
 
 # Add to pipeline context
@@ -41,19 +43,15 @@ snapshot = ContextSnapshot(
 Add authentication enforcement to all stages:
 
 ```python
-from stageflow.auth import AuthInterceptor
+from stageflow.auth import AuthInterceptor, MockJwtValidator
 
 # Create interceptor
 auth_interceptor = AuthInterceptor(
-    required_roles=["user"],  # At least one required
-    allow_anonymous=False,
+    jwt_validator=MockJwtValidator(),
 )
 
 # Add to pipeline
-graph = UnifiedStageGraph(
-    specs=specs,
-    interceptors=[auth_interceptor, *get_default_interceptors()],
-)
+interceptors = [auth_interceptor, *get_default_interceptors()]
 ```
 
 ### Testing with Mock Auth
@@ -82,13 +80,15 @@ claims = await auth.validate(token)
 Use `OrgContext` to enforce tenant isolation:
 
 ```python
+from uuid import uuid4
 from stageflow.auth import OrgContext, OrgEnforcementInterceptor
 
 # Create org context
 org = OrgContext(
-    org_id="org-123",
-    tenant_id="tenant-456",
-    environment="production",
+    org_id=uuid4(),
+    tenant_id=uuid4(),
+    plan_tier="pro",
+    features=("advanced_analytics",),
 )
 
 # Add to snapshot
@@ -106,10 +106,7 @@ Ensures stages only access data from their organization:
 from stageflow.auth import OrgEnforcementInterceptor
 
 # Create interceptor
-org_interceptor = OrgEnforcementInterceptor(
-    require_org_id=True,
-    validate_data_access=True,
-)
+org_interceptor = OrgEnforcementInterceptor()
 
 # All stages will have org context validated
 ```
@@ -186,14 +183,8 @@ guardrail = GuardrailStage(
 pipeline = (
     Pipeline()
     .with_stage("guard_input", guardrail, StageKind.GUARD)
-    .with_stage("llm", LLMStage, StageKind.TRANSFORM,
-                dependencies=("guard_input",))
-    .with_stage(
-        "tool_policy",
-        ToolPolicyStage(registry=tool_registry),
-        StageKind.GUARD,
-        dependencies=("llm",),
-    )
+    # Replace YourLLMStage with your app's concrete transform stage.
+    .with_stage("llm", YourLLMStage, StageKind.TRANSFORM, dependencies=("guard_input",))
 )
 ```
 
@@ -290,6 +281,7 @@ Use event sinks to capture audit events:
 
 ```python
 from stageflow.helpers import AnalyticsSink, JSONFileExporter, BufferedExporter
+from stageflow.events import set_event_sink
 
 # Create audit exporter with overflow callback
 exporter = BufferedExporter(
@@ -306,11 +298,8 @@ audit_sink = AnalyticsSink(
     include_patterns=["auth.", "guardrail.", "tool."],
 )
 
-# Use as event sink
-ctx = StageContext(
-    snapshot=snapshot,
-    config={"event_sink": audit_sink},
-)
+# Use as global event sink for pipeline execution
+set_event_sink(audit_sink)
 ```
 
 ### Audit Stage Pattern
@@ -324,7 +313,7 @@ class AuditStage:
     name = "audit"
     kind = StageKind.WORK
 
-    def __init__(self, audit_store: AuditStore):
+    def __init__(self, audit_store):
         self._store = audit_store
 
     async def execute(self, ctx: StageContext) -> StageOutput:
@@ -355,20 +344,18 @@ class AuditStage:
 ```python
 pipeline = (
     Pipeline()
-    # 1. Validate auth first
-    .with_stage("auth", AuthValidationStage, StageKind.GUARD)
+    # 1. Validate auth + tenant context
+    .with_stage("auth_guard", guardrail, StageKind.GUARD)
 
     # 2. Run guardrails on input
-    .with_stage("guard_input", InputGuardrailStage, StageKind.GUARD,
-                dependencies=("auth",))
+    .with_stage("guard_input", guardrail, StageKind.GUARD, dependencies=("auth_guard",))
 
     # 3. Main processing
-    .with_stage("process", ProcessStage, StageKind.TRANSFORM,
-                dependencies=("guard_input",))
+    # Replace YourBusinessStage with your app's concrete stage.
+    .with_stage("process", YourBusinessStage, StageKind.TRANSFORM, dependencies=("guard_input",))
 
     # 4. Run guardrails on output
-    .with_stage("guard_output", OutputGuardrailStage, StageKind.GUARD,
-                dependencies=("process",))
+    .with_stage("guard_output", guardrail, StageKind.GUARD, dependencies=("process",))
 
     # 5. Audit everything
     .with_stage("audit", AuditStage, StageKind.WORK,
@@ -381,10 +368,11 @@ pipeline = (
 Here's a complete multi-tenant pipeline with full governance:
 
 ```python
+from uuid import uuid4
 from stageflow import Pipeline, StageKind
-from stageflow.auth import AuthInterceptor, OrgEnforcementInterceptor
+from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.helpers import (
-    GuardrailStage, PIIDetector, ContentFilter, InjectionDetector,
+    GuardrailStage, GuardrailConfig, PIIDetector, ContentFilter, InjectionDetector,
     MemoryFetchStage, MemoryWriteStage, InMemoryStore,
     AnalyticsSink, JSONFileExporter, BufferedExporter, ChunkQueue, StreamingBuffer,
 )
@@ -409,13 +397,11 @@ pipeline = (
     Pipeline()
     .with_stage("fetch_memory", MemoryFetchStage(memory_store), StageKind.ENRICH)
     .with_stage("guard_input", input_guardrail, StageKind.GUARD)
-    .with_stage("llm", LLMStage, StageKind.TRANSFORM,
+    .with_stage("llm", YourLLMStage, StageKind.TRANSFORM,
                 dependencies=("fetch_memory", "guard_input"))
     .with_stage("guard_output", output_guardrail, StageKind.GUARD,
                 dependencies=("llm",))
     .with_stage("write_memory", MemoryWriteStage(memory_store), StageKind.WORK,
-                dependencies=("llm",))
-    .with_stage("tool_policy", ToolPolicyStage(tool_registry), StageKind.GUARD,
                 dependencies=("llm",))
 )
 
@@ -424,19 +410,21 @@ graph = pipeline.build()
 
 # Run with full context
 snapshot = ContextSnapshot(
-    pipeline_run_id=uuid4(),
-    user_id=uuid4(),
-    org_id=uuid4(),  # Multi-tenant
+    run_id=RunIdentity(
+        pipeline_run_id=uuid4(),
+        user_id=uuid4(),
+        org_id=uuid4(),  # Multi-tenant
+    ),
     input_text="User input here",
     extensions={
         "auth": {"user_id": "user-123", "roles": ["user"]},
-        "org": {"org_id": "org-456", "environment": "production"},
+        "org": {"org_id": "org-456", "plan_tier": "pro"},
     },
 )
 
 # Attach streaming telemetry hooks for auditability
-queue = ChunkQueue(event_emitter=audit_sink.emit)
-buffer = StreamingBuffer(event_emitter=audit_sink.emit)
+queue = ChunkQueue(event_emitter=lambda event, data: audit_sink.try_emit(type=event, data=data))
+buffer = StreamingBuffer(event_emitter=lambda event, data: audit_sink.try_emit(type=event, data=data))
 ```
 
 ## Best Practices

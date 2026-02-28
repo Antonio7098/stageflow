@@ -56,7 +56,7 @@ It is:
   - topology and execution_mode
   - shared `data` dict
   - artifacts and observability metadata
-  - event sink and streaming telemetry emitters
+  - event sink
   - subpipeline correlation (parent_run_id, parent_stage_id, correlation_id)
   
   live for the lifetime of the run.
@@ -80,10 +80,6 @@ ctx = PipelineContext(
     data={},               # shared mutable data across stages
     artifacts=[],          # produced StageArtifact objects
     event_sink=logging_sink,
-    streaming_emitters={
-        "chunk_queue": lambda event, attrs: event_sink.try_emit(type=event, data=attrs),
-        "buffer": lambda event, attrs: event_sink.try_emit(type=event, data=attrs),
-    },
 )
 ```
 
@@ -107,21 +103,25 @@ The `ContextSnapshot` is an **immutable**, **serializable** view of the world. I
 from uuid import uuid4
 from datetime import datetime, timezone
 from stageflow.context import (
+    Conversation,
     ContextSnapshot,
+    Enrichments,
     Message,
-    RoutingDecision,
+    RunIdentity,
     ProfileEnrichment,
     MemoryEnrichment,
 )
 
 snapshot = ContextSnapshot(
-    # Run Identity
-    pipeline_run_id=uuid4(),
-    request_id=uuid4(),
-    session_id=uuid4(),
-    user_id=uuid4(),
-    org_id=uuid4(),
-    interaction_id=uuid4(),
+    # Run identity bundle
+    run_id=RunIdentity(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=uuid4(),
+        org_id=uuid4(),
+        interaction_id=uuid4(),
+    ),
     
     # Configuration
     topology="chat_fast",
@@ -129,21 +129,25 @@ snapshot = ContextSnapshot(
     
     # Input
     input_text="Hello, how are you?",
-    messages=[
-        Message(role="user", content="Hi there", timestamp=datetime.now(timezone.utc)),
-        Message(role="assistant", content="Hello!", timestamp=datetime.now(timezone.utc)),
-    ],
-    
-    # Enrichments (optional, can be populated by stages)
-    profile=ProfileEnrichment(
-        user_id=uuid4(),
-        display_name="Alice",
-        preferences={"tone": "friendly"},
-        goals=["learn Python"],
+    conversation=Conversation(
+        messages=[
+            Message(role="user", content="Hi there", timestamp=datetime.now(timezone.utc)),
+            Message(role="assistant", content="Hello!", timestamp=datetime.now(timezone.utc)),
+        ],
     ),
-    memory=MemoryEnrichment(
-        recent_topics=["programming", "AI"],
-        key_facts=["prefers examples"],
+    
+    # Enrichments bundle (optional)
+    enrichments=Enrichments(
+        profile=ProfileEnrichment(
+            user_id=uuid4(),
+            display_name="Alice",
+            preferences={"tone": "friendly"},
+            goals=["learn Python"],
+        ),
+        memory=MemoryEnrichment(
+            recent_topics=["programming", "AI"],
+            key_facts=["prefers examples"],
+        ),
     ),
     
     # Extensions (application-specific)
@@ -276,13 +280,18 @@ async def execute(self, ctx: StageContext) -> StageOutput:
 
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
-    # Add UI artifacts
-    ctx.add_artifact(
-        type="chart",
-        payload={"data": [1, 2, 3], "title": "Results"},
+    from stageflow.core import StageArtifact
+
+    # Return UI artifacts in StageOutput
+    return StageOutput.ok(
+        artifact_added=True,
+        artifacts=[
+            StageArtifact(
+                type="chart",
+                payload={"data": [1, 2, 3], "title": "Results"},
+            )
+        ],
     )
-    
-    return StageOutput.ok(artifact_added=True)
 ```
 
 ## Data Flow Between Stages

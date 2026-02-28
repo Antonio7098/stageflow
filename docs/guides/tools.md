@@ -20,7 +20,8 @@ Tools are **capability units** that agents can invoke to perform actions. The to
 Implement the `Tool` protocol:
 
 ```python
-from stageflow.tools import Tool, ToolInput, ToolOutput
+from stageflow.tools import Tool
+from stageflow.tools.base import ToolInput, ToolOutput
 
 class GreetTool:
     """A simple greeting tool."""
@@ -50,7 +51,8 @@ class GreetTool:
 Extend `BaseTool` for a cleaner implementation:
 
 ```python
-from stageflow.tools import BaseTool, ToolInput, ToolOutput
+from stageflow.tools import BaseTool
+from stageflow.tools.base import ToolInput, ToolOutput
 
 class CalculatorTool(BaseTool):
     name = "calculator"
@@ -84,7 +86,8 @@ class CalculatorTool(BaseTool):
 ### Registering Tools
 
 ```python
-from stageflow.tools import get_tool_registry, register_tool
+from stageflow.tools import get_tool_registry, tool
+from stageflow.tools.base import ToolInput, ToolOutput
 
 # Get the global registry
 registry = get_tool_registry()
@@ -94,7 +97,7 @@ registry.register(GreetTool())
 registry.register(CalculatorTool())
 
 # Or use the decorator
-@register_tool
+@tool("SEARCH", name="search", description="Search for information")
 class SearchTool(BaseTool):
     name = "search"
     description = "Search for information"
@@ -130,6 +133,8 @@ if registry.has("calculator"):
 Connect LLM provider outputs to Stageflow tools without manual JSON parsing:
 
 ```python
+from stageflow.tools.base import ToolInput
+
 tool_calls = llm_response.tool_calls  # e.g., OpenAI function calls
 
 resolved, unresolved = registry.parse_and_resolve(tool_calls)
@@ -138,7 +143,8 @@ for call in unresolved:
     ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
 
 for call in resolved:
-    tool_input = ToolInput(action=call.arguments)
+    action = type("Action", (), {"type": call.name, "payload": call.arguments})()
+    tool_input = ToolInput(action=action)
     result = await call.tool.execute(tool_input, ctx={"call_id": call.call_id})
 ```
 
@@ -150,11 +156,11 @@ The helper understands OpenAI/Anthropic formats (and custom field names) and ret
 
 ```python
 from dataclasses import dataclass
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 @dataclass
 class Action:
-    id: uuid4
+    id: UUID
     type: str
     payload: dict
 
@@ -172,17 +178,15 @@ print(result.data)  # {"result": 8}
 
 ### Using ToolExecutor
 
-The `ToolExecutor` provides additional features:
+`ToolExecutor` is the legacy stage-oriented executor. It consumes a `Plan` and `PipelineContext`.
 
 ```python
 from stageflow.tools import ToolExecutor
 
-executor = ToolExecutor(registry=registry)
+executor = ToolExecutor()
 
-result = await executor.execute(action, ctx={
-    "pipeline_run_id": str(uuid4()),
-    "user_id": str(uuid4()),
-})
+result = await executor.execute(ctx=pipeline_ctx, plan=plan)
+print(result.actions_executed, result.actions_failed)
 ```
 
 ### Using AdvancedToolExecutor
@@ -190,21 +194,18 @@ result = await executor.execute(action, ctx={
 For full observability and advanced features:
 
 ```python
-from stageflow.tools import AdvancedToolExecutor, ToolExecutorConfig
+from stageflow.tools import AdvancedToolExecutor, ToolDefinition, ToolExecutorConfig
 
 config = ToolExecutorConfig(
     emit_events=True,
-    store_undo_data=True,
-    require_approval_for_risky=True,
+    approval_timeout_seconds=60.0,
+    undo_ttl_seconds=3600.0,
 )
 
-executor = AdvancedToolExecutor(
-    registry=registry,
-    config=config,
-    event_sink=my_event_sink,
-)
+executor = AdvancedToolExecutor(config=config)
+executor.register(ToolDefinition(...))
 
-result = await executor.execute(action, ctx)
+result = await executor.execute(action, stage_ctx)
 ```
 
 ## Tool Definitions
@@ -499,30 +500,24 @@ tool = ToolDefinition(
 ```python
 from stageflow.tools import (
     get_approval_service,
-    ApprovalRequest,
-    ApprovalStatus,
 )
 
 approval_service = get_approval_service()
 
 # Request approval
-request = ApprovalRequest(
+request = await approval_service.request_approval(
     action_id=action.id,
     tool_name="delete_account",
-    message="Delete account for user@example.com?",
-    payload=action.payload,
+    approval_message="Delete account for user@example.com?",
+    payload_summary=action.payload,
 )
-await approval_service.request(request)
 
-# Check status
-status = await approval_service.get_status(action.id)
-if status == ApprovalStatus.APPROVED:
+# Wait for a decision (usually recorded by UI/webhook)
+decision = await approval_service.await_decision(request.id)
+if decision.granted:
     result = await tool.handler(input)
-elif status == ApprovalStatus.DENIED:
+else:
     raise ToolApprovalDeniedError("User denied the action")
-elif status == ApprovalStatus.PENDING:
-    # Wait or timeout
-    ...
 ```
 
 ## Tool Events
@@ -747,11 +742,11 @@ Always validate tool input:
 ```python
 async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
     # Validate required fields
-    if "document_id" not in input.action.payload:
+    if "document_id" not in input.payload:
         return ToolOutput.fail("document_id is required")
     
     # Validate types
-    doc_id = input.action.payload["document_id"]
+    doc_id = input.payload["document_id"]
     if not isinstance(doc_id, str):
         return ToolOutput.fail("document_id must be a string")
     
@@ -763,9 +758,9 @@ async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
 Provide helpful error messages:
 
 ```python
-return ToolOutput.fail(
+return ToolOutput(
+    success=False,
     error="Document not found",
-    # Include context for debugging
     data={"document_id": doc_id, "searched_locations": ["db", "cache"]},
 )
 ```

@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/tools/undo.py
+# hypothesis_version: 6.150.0
+
+[3600.0, 'UndoEntry', 'UndoStore', 'clear_undo_store', 'get_undo_store', 'set_undo_store']

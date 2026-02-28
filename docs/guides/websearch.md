@@ -414,8 +414,8 @@ class WebFetchTool(BaseTool):
         self.client = WebSearchClient()
     
     async def execute(self, input: ToolInput, ctx: dict) -> ToolOutput:
-        url = input.action.payload.get("url")
-        selector = input.action.payload.get("selector")
+        url = input.payload.get("url")
+        selector = input.payload.get("selector")
         
         page = await self.client.fetch(url, selector=selector)
         

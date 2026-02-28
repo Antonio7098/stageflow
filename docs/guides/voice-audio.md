@@ -505,6 +505,6 @@ async def transcribe_with_retry(stt, audio, max_retries=3):
 
 ## Next Steps
 
-- [Streaming Guide](streaming.md) - Advanced streaming patterns
+- [Observability Guide](observability.md) - Streaming telemetry and event sinks
 - [Tools Guide](tools.md) - Voice-triggered tool execution
 - [Testing Guide](../advanced/testing.md) - Comprehensive testing strategies
