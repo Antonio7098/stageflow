@@ -54,9 +54,9 @@ websearch = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/stageflow/stageflow"
-Documentation = "https://github.com/stageflow/stageflow#readme"
-Repository = "https://github.com/stageflow/stageflow"
+Homepage = "https://github.com/Antonio7098/stageflow"
+Documentation = "https://github.com/Antonio7098/stageflow#readme"
+Repository = "https://github.com/Antonio7098/stageflow"
 
 [tool.hatch.build.targets.wheel]
 packages = ["stageflow"]
