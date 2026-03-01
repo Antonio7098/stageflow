@@ -19,6 +19,36 @@
   },
   "entries": [
     {
+      "version": "v0.9.3",
+      "date": "2026-02-28",
+      "changes": [
+        {
+          "type": "fixed",
+          "area": "docs",
+          "description": "Reconciled the tier-3 API reference and tier-4 advanced guides with the current runtime, added explicit notes for reference implementations, and corrected command/API snippets reported in the beta testing run.",
+          "commit": "TO_BE_FILLED",
+          "files_affected": [
+            "docs/api/*",
+            "docs/advanced/*",
+            "ops/beta-testing-fix-report-001.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "helpers",
+          "description": "Added backward compatible aliases and exports for streaming/backpressure helpers plus headline API documentation references.",
+          "commit": "TO_BE_FILLED",
+          "files_affected": [
+            "stageflow/helpers/analytics.py",
+            "stageflow/helpers/streaming.py",
+            "stageflow/helpers/__init__.py"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.9.2",
       "date": "2026-02-28",
       "changes": [

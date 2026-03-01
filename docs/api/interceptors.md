@@ -281,7 +281,7 @@ Validates JWT tokens and creates AuthContext.
 ```python
 from stageflow.auth import AuthInterceptor, MockJwtValidator
 
-auth = AuthInterceptor(validator=MockJwtValidator())
+auth = AuthInterceptor(jwt_validator=MockJwtValidator())
 ```
 
 ### OrgEnforcementInterceptor

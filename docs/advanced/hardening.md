@@ -95,7 +95,7 @@ assert rebuilt == current
 ```python
 print(metrics.delta_bytes)
 print(metrics.original_bytes)
-print(metrics.compression_ratio)
+print(metrics.ratio)
 ```
 
 ## Hardening Interceptors

@@ -1,5 +1,7 @@
 # Chunking Patterns
 
+> Note: `ChunkingStage` and `ChunkAssemblerStage` in this page are reference implementations, not built-in stageflow classes.
+
 Large payloads—documents, audio files, datasets—often exceed memory limits or API
 constraints. **Chunking** splits data into manageable pieces for parallel processing
 and reassembles results. This guide covers chunking strategies and implementation.
@@ -677,4 +679,4 @@ def test_semantic_chunking():
 
 - [Transform Chain](../examples/transform-chain.md) - Sequential transformations
 - [Multimodal Fusion](../examples/multimodal-fusion.md) - Processing multiple data types
-- [Streaming Patterns](./streaming.md) - Real-time data processing
+- [Streaming Patterns](../api/helpers.md) - Real-time data processing

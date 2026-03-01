@@ -110,15 +110,15 @@ summarize_output.register_contract(
 
 ```bash
 # Discover contracts in a module and list versions
-python -m stageflow.cli contracts list app/pipelines/summarize.py
+python scripts/contracts.py list app/pipelines/summarize.py
 
 # Diff two versions and fail CI on breaking changes
-python -m stageflow.cli contracts diff \
+python scripts/contracts.py diff \
   --module app/pipelines/summarize.py \
   --stage summarize --from summary/v1 --to summary/v2
 
 # Generate upgrade plan/runbook text for reviewers
-python -m stageflow.cli contracts plan-upgrade \
+python scripts/contracts.py plan-upgrade \
   --module app/pipelines/summarize.py \
   --stage summarize --from summary/v1 --to summary/v2
 ```
@@ -917,7 +917,8 @@ async def test_chunk_queue_emits_drop_and_throttle_events():
     queue = ChunkQueue(maxsize=1, event_emitter=emitter)
     await queue.put("a")
     # This put causes backpressure or drop
-    await queue.put("b", block=False) if hasattr(queue, "put") else None
+    ok = await queue.put("b")
+    assert ok in (True, False)
     await queue.close()
 
     assert any(e[0] == "stream.chunk_dropped" for e in events) or any(e[0] == "stream.producer_blocked" for e in events)
@@ -954,7 +955,7 @@ def test_buffered_exporter_overflow_callback(monkeypatch):
         calls.append((dropped, size))
 
     exporter = BufferedExporter(
-        sink=None,  # use no-op/monkeypatched sink
+        exporter=None,  # use no-op/monkeypatched sink
         on_overflow=on_overflow,
         high_water_mark=0.01,
     )
