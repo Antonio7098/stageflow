@@ -318,7 +318,7 @@ class BufferedExporter:
             on_overflow: Optional callback when events are dropped due to overflow.
             high_water_mark: Buffer fill ratio (0-1) to trigger high water warning.
         """
-        resolved_exporter = exporter or sink
+        resolved_exporter = exporter if exporter is not None else sink
         if resolved_exporter is None:
             raise TypeError("BufferedExporter requires 'exporter' (or legacy alias 'sink').")
         self._exporter = resolved_exporter
