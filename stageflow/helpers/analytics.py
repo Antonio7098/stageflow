@@ -296,10 +296,12 @@ class BufferedExporter:
 
     def __init__(
         self,
-        exporter: AnalyticsExporter,
+        exporter: AnalyticsExporter | None = None,
         *,
+        sink: AnalyticsExporter | None = None,
         batch_size: int = 100,
         flush_interval_seconds: float = 10.0,
+        flush_interval: float | None = None,
         max_buffer_size: int = 10000,
         on_overflow: OverflowCallback | None = None,
         high_water_mark: float = 0.8,
@@ -308,15 +310,22 @@ class BufferedExporter:
 
         Args:
             exporter: Underlying exporter to write to.
+            sink: Backward-compatible alias for exporter.
             batch_size: Number of events to batch before writing.
             flush_interval_seconds: Maximum time before flush.
+            flush_interval: Backward-compatible alias for flush_interval_seconds.
             max_buffer_size: Maximum events to buffer (drops oldest if exceeded).
             on_overflow: Optional callback when events are dropped due to overflow.
             high_water_mark: Buffer fill ratio (0-1) to trigger high water warning.
         """
-        self._exporter = exporter
+        resolved_exporter = exporter if exporter is not None else sink
+        if resolved_exporter is None:
+            raise TypeError("BufferedExporter requires 'exporter' (or legacy alias 'sink').")
+        self._exporter = resolved_exporter
         self._batch_size = batch_size
-        self._flush_interval = flush_interval_seconds
+        self._flush_interval = (
+            flush_interval if flush_interval is not None else flush_interval_seconds
+        )
         self._max_buffer = max_buffer_size
         self._buffer: list[AnalyticsEvent] = []
         self._lock = asyncio.Lock()

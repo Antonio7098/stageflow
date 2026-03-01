@@ -1,5 +1,7 @@
 # Tool Sandboxing & Security
 
+> Note: The sandbox executors and policies shown here are reference implementations. They are examples to adapt, not built-in stageflow runtime components.
+
 Agent tools execute arbitrary code and interact with external systems. **Sandboxing**
 isolates tool execution to prevent unauthorized access, resource exhaustion, and
 security breaches. This guide covers isolation strategies for production deployments.

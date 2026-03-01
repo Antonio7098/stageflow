@@ -239,7 +239,7 @@ class StreamingTelemetryInterceptor(BaseInterceptor):
         buffer = StreamingBuffer(event_emitter=ctx.try_emit_event)
 
         exporter = BufferedExporter(
-            sink=self._sink,
+            exporter=self._sink,
             on_overflow=lambda dropped, size: ctx.try_emit_event(
                 "analytics.overflow",
                 {"stage": stage_name, "dropped": dropped, "buffer_size": size},

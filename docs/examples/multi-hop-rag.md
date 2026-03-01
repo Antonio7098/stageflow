@@ -80,15 +80,15 @@ class MultiHopRetrievalStage:
             for doc in filtered:
                 bridge_entity = doc.metadata.get("bridging_entity")
                 if bridge_entity and bridge_entity not in visited_ids:
-                    frontier.append((bridge_entity, hop + 1))
+                    frontier.append(({"id": bridge_entity}, hop + 1))
 
             visited_ids.add(entity["id"])
 
         degradation = _compute_degradation(hop_results)
         if degradation["confidence_drop"] >= 0.15:
             ctx.event_sink.try_emit(
-                "enrich.multi_hop.degradation",
-                {
+                type="enrich.multi_hop.degradation",
+                data={
                     "confidence_drop": degradation["confidence_drop"],
                     "hop_count": degradation["hop_count"],
                     "last_nonempty_hop": degradation["last_nonempty_hop"],

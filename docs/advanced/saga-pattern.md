@@ -1,4 +1,6 @@
-# Saga Pattern for Distributed Transactions
+# Saga Pattern
+
+> Note: Saga state machine classes and event names in this page are reference implementations. Stageflow does not ship a built-in saga runtime. for Distributed Transactions
 
 The **Saga pattern** enables long-running, multi-step workflows where each step can be
 compensated (rolled back) if a later step fails. Stageflow's stage-based architecture

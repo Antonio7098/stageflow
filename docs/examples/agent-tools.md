@@ -244,8 +244,9 @@ import re
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot
+from stageflow import Pipeline, PipelineTimer, StageContext, StageKind, StageOutput
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 from stageflow.tools import BaseTool, ToolInput, ToolOutput, get_tool_registry
 
 
@@ -368,18 +369,25 @@ async def main():
     
     for input_text in test_inputs:
         snapshot = ContextSnapshot(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
+            run_id=RunIdentity(
+                pipeline_run_id=uuid4(),
+                request_id=uuid4(),
+                session_id=uuid4(),
+                user_id=uuid4(),
+                org_id=None,
+                interaction_id=uuid4(),
+            ),
             topology="agent_demo",
             execution_mode="default",
             input_text=input_text,
         )
         
-        ctx = StageContext(snapshot=snapshot)
+        ctx = StageContext(
+            snapshot=snapshot,
+            inputs=StageInputs(snapshot=snapshot),
+            stage_name="agent_demo_entry",
+            timer=PipelineTimer(),
+        )
         results = await graph.run(ctx)
         
         agent_output = results["agent"]

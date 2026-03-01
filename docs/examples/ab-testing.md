@@ -153,8 +153,8 @@ class ABTestRouterStage:
         
         # Emit experiment assignment event
         ctx.event_sink.try_emit(
-            "experiment.assignment",
-            {
+            type="experiment.assignment",
+            data={
                 "experiment_id": self.experiment.experiment_id,
                 "variant": variant,
                 "user_id": user_id,
@@ -172,7 +172,7 @@ class ABTestRouterStage:
 ## Building Experiment Pipelines
 
 ```python
-from stageflow.pipeline import Pipeline
+from stageflow import Pipeline, StageKind
 
 
 def build_llm_experiment_pipeline() -> Pipeline:
@@ -189,38 +189,43 @@ def build_llm_experiment_pipeline() -> Pipeline:
     )
     
     return (
-        Pipeline("llm_experiment")
+        Pipeline(name="llm_experiment")
         # Route based on experiment
-        .with_stage(ABTestRouterStage(experiment))
+        .with_stage("ab_test_router", ABTestRouterStage(experiment), StageKind.ROUTE)
         
         # Variant A: GPT-4
         .with_stage(
+            "gpt4_generation",
             GPT4GenerationStage(),
-            name="gpt4_generation",
-            depends_on=["ab_test_router"],
-            when=lambda ctx: ctx.data.get("variant") == "gpt4",
+            StageKind.TRANSFORM,
+            dependencies=("ab_test_router",),
+            conditional=True,
         )
         
         # Variant B: Claude
         .with_stage(
+            "claude_generation",
             ClaudeGenerationStage(),
-            name="claude_generation",
-            depends_on=["ab_test_router"],
-            when=lambda ctx: ctx.data.get("variant") == "claude",
+            StageKind.TRANSFORM,
+            dependencies=("ab_test_router",),
+            conditional=True,
         )
         
         # Control: existing model
         .with_stage(
+            "control_generation",
             LegacyGenerationStage(),
-            name="control_generation",
-            depends_on=["ab_test_router"],
-            when=lambda ctx: ctx.data.get("variant") == "control",
+            StageKind.TRANSFORM,
+            dependencies=("ab_test_router",),
+            conditional=True,
         )
         
         # Merge results
         .with_stage(
+            "experiment_collector",
             ExperimentResultCollectorStage(),
-            depends_on=["gpt4_generation", "claude_generation", "control_generation"],
+            StageKind.WORK,
+            dependencies=("gpt4_generation", "claude_generation", "control_generation"),
         )
     )
 ```
@@ -412,8 +417,8 @@ class ExperimentResultCollectorStage:
         
         # Emit tracking event
         ctx.event_sink.try_emit(
-            "experiment.result",
-            {
+            type="experiment.result",
+            data={
                 "experiment_id": experiment_id,
                 "variant": variant,
                 "success": success,
@@ -543,4 +548,4 @@ def test_statistical_significance():
 
 - [Routing Confidence](../advanced/routing-confidence.md) - Threshold tuning
 - [Loop Detection](../advanced/routing-loops.md) - Prevent routing loops
-- [Observability](./observability.md) - Experiment metrics
+- [Observability](../guides/observability.md) - Experiment metrics

@@ -1,5 +1,7 @@
 # Routing Confidence & Threshold Tuning
 
+> Note: This page mixes production patterns with design/reference implementations that may not be built-in stageflow classes.
+
 Confidence-based routing directs requests based on model certainty. This guide covers
 threshold calibration, drift detection, and production tuning patterns.
 

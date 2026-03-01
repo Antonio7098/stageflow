@@ -61,7 +61,7 @@ class StrictGuardStage(GuardrailStage):
         
         # Always audit guard decisions
         ctx.event_sink.try_emit(
-            "guardrail.decision",
+            "guardrail.violations_detected",
             {
                 "stage": self.name,
                 "passed": result.status != "failed",
@@ -593,7 +593,7 @@ async def test_parallel_guards_fail_fast():
 
 | Event | Description | Fields |
 |-------|-------------|--------|
-| `guardrail.decision` | Guard made a decision | `stage`, `passed`, `violations`, `mode` |
+| `guardrail.violations_detected` | Guard made a decision | `stage`, `passed`, `violations`, `mode` |
 | `guardrail.fail_open` | Guard failed open (requires review) | `guard`, `error`, `user_id` |
 | `guardrail.injection_detected` | Injection attempt detected | `violations`, `content_preview` |
 | `guardrail.cache_hit` | Guard result served from cache | `guard`, `key` |

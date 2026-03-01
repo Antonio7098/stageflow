@@ -1,5 +1,7 @@
 # Routing Loop Detection & Prevention
 
+> Note: Several classes in this page are design/reference implementations. They are not all built into stageflow today.
+
 Routing loops occur when stages create circular dependencies—request A routes to B,
 which routes back to A. This guide covers detection strategies, prevention patterns,
 and configuration for loop-safe pipelines.
@@ -382,7 +384,11 @@ def build_loop_safe_pipeline() -> Pipeline:
     
     return (
         Pipeline("loop_safe")
-        .with_interceptor(LoopPreventionInterceptor(
+        # with_interceptor is not part of Pipeline API
+        # Use run_with_interceptors(...) at execution time instead
+        # # with_interceptor is not part of Pipeline API
+        # Use run_with_interceptors(...) at execution time instead
+        # .with_interceptor(LoopPreventionInterceptor(
             max_iterations=50,
             max_path_length=20,
             detect_semantic_loops=True,

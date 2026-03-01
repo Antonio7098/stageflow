@@ -309,30 +309,37 @@ Response: I received your message: 'I want to buy a subscription'. How can I hel
 
 ```python
 from datetime import datetime, timezone
+from uuid import uuid4
+
+from stageflow.context import ContextSnapshot, Conversation, Message, RunIdentity
 
 # Create snapshot with message history
 snapshot = ContextSnapshot(
-    pipeline_run_id=uuid4(),
-    request_id=uuid4(),
-    session_id=uuid4(),
-    user_id=uuid4(),
-    org_id=None,
-    interaction_id=uuid4(),
+    run_id=RunIdentity(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=uuid4(),
+        org_id=None,
+        interaction_id=uuid4(),
+    ),
     topology="chat",
     execution_mode="default",
     input_text="Can you explain more?",
-    messages=[
-        Message(
-            role="user",
-            content="What is Python?",
-            timestamp=datetime.now(timezone.utc),
-        ),
-        Message(
-            role="assistant",
-            content="Python is a programming language known for its simplicity.",
-            timestamp=datetime.now(timezone.utc),
-        ),
-    ],
+    conversation=Conversation(
+        messages=[
+            Message(
+                role="user",
+                content="What is Python?",
+                timestamp=datetime.now(timezone.utc),
+            ),
+            Message(
+                role="assistant",
+                content="Python is a programming language known for its simplicity.",
+                timestamp=datetime.now(timezone.utc),
+            ),
+        ],
+    ),
 )
 ```
 

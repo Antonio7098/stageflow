@@ -216,6 +216,40 @@ class TestBufferedExporter:
 
         assert base.event_count == 3
 
+    @pytest.mark.asyncio
+    async def test_accepts_falsey_exporter_instance(self):
+        """Should keep provided exporter even if it is falsey."""
+
+        class FalseyExporter:
+            def __init__(self):
+                self.events = []
+
+            def __bool__(self):
+                return False
+
+            async def export(self, _event):
+                self.events.append(_event)
+
+            async def export_batch(self, events):
+                self.events.extend(events)
+
+            async def flush(self):
+                pass
+
+            async def close(self):
+                pass
+
+        class SinkExporter(FalseyExporter):
+            pass
+
+        exporter = FalseyExporter()
+        buffered = BufferedExporter(exporter=exporter, sink=SinkExporter())
+
+        await buffered.export(AnalyticsEvent(event_type="falsey.exporter"))
+        await buffered.close()
+
+        assert len(exporter.events) == 1
+
 
 class TestCompositeExporter:
     """Tests for CompositeExporter."""

@@ -184,13 +184,20 @@ class BackpressureMonitor:
         *,
         high_water_mark: int = 80,
         low_water_mark: int = 20,
+        threshold: float | None = None,
     ) -> None:
         """Initialize monitor.
 
         Args:
             high_water_mark: Queue fill % to trigger throttling.
             low_water_mark: Queue fill % to stop throttling.
+            threshold: Backward-compatible alias for high water ratio (0-1).
         """
+        if threshold is not None:
+            clamped = max(0.0, min(1.0, threshold))
+            high_water_mark = int(clamped * 100)
+            # Keep hysteresis by setting low watermark at half.
+            low_water_mark = min(low_water_mark, int(high_water_mark * 0.5))
         self._high_water = high_water_mark
         self._low_water = low_water_mark
         self._stats = BackpressureStats()
@@ -294,6 +301,7 @@ class ChunkQueue(Generic[T]):
         """Emit a telemetry event if emitter is configured."""
         if self._event_emitter is not None:
             import contextlib
+
             with contextlib.suppress(Exception):
                 self._event_emitter(event_type, data)
 
@@ -316,11 +324,14 @@ class ChunkQueue(Generic[T]):
             try:
                 self._queue.get_nowait()
                 self._monitor.record_drop()
-                self._emit_event("stream.chunk_dropped", {
-                    "queue_size": self._queue.qsize(),
-                    "max_size": self._max_size,
-                    "reason": "overflow",
-                })
+                self._emit_event(
+                    "stream.chunk_dropped",
+                    {
+                        "queue_size": self._queue.qsize(),
+                        "max_size": self._max_size,
+                        "reason": "overflow",
+                    },
+                )
             except asyncio.QueueEmpty:
                 pass
 
@@ -333,36 +344,48 @@ class ChunkQueue(Generic[T]):
             elapsed_ms = (datetime.now(UTC) - start).total_seconds() * 1000
             if elapsed_ms > 1:  # Was blocked
                 self._monitor.record_blocked(elapsed_ms)
-                self._emit_event("stream.producer_blocked", {
-                    "blocked_ms": elapsed_ms,
-                    "queue_size": self._queue.qsize(),
-                })
+                self._emit_event(
+                    "stream.producer_blocked",
+                    {
+                        "blocked_ms": elapsed_ms,
+                        "queue_size": self._queue.qsize(),
+                    },
+                )
 
             self._monitor.record_put(self._queue.qsize(), self._max_size)
 
             # Emit throttle state changes
             if self._monitor.should_throttle() and not self._throttle_active:
                 self._throttle_active = True
-                self._emit_event("stream.throttle_started", {
-                    "fill_percentage": self._monitor.fill_percentage,
-                    "queue_size": self._queue.qsize(),
-                })
+                self._emit_event(
+                    "stream.throttle_started",
+                    {
+                        "fill_percentage": self._monitor.fill_percentage,
+                        "queue_size": self._queue.qsize(),
+                    },
+                )
             elif not self._monitor.should_throttle() and self._throttle_active:
                 self._throttle_active = False
-                self._emit_event("stream.throttle_ended", {
-                    "fill_percentage": self._monitor.fill_percentage,
-                    "queue_size": self._queue.qsize(),
-                })
+                self._emit_event(
+                    "stream.throttle_ended",
+                    {
+                        "fill_percentage": self._monitor.fill_percentage,
+                        "queue_size": self._queue.qsize(),
+                    },
+                )
 
             return True
 
         except asyncio.QueueFull:
             self._monitor.record_drop()
-            self._emit_event("stream.chunk_dropped", {
-                "queue_size": self._queue.qsize(),
-                "max_size": self._max_size,
-                "reason": "queue_full",
-            })
+            self._emit_event(
+                "stream.chunk_dropped",
+                {
+                    "queue_size": self._queue.qsize(),
+                    "max_size": self._max_size,
+                    "reason": "queue_full",
+                },
+            )
             return False
 
     async def get(self) -> T | None:
@@ -399,15 +422,19 @@ class ChunkQueue(Generic[T]):
         """Close the queue."""
         self._closed = True
         # Emit final stats
-        self._emit_event("stream.queue_closed", {
-            "total_items": self._monitor.stats.total_items,
-            "dropped_items": self._monitor.stats.dropped_items,
-            "blocked_puts": self._monitor.stats.blocked_puts,
-            "max_queue_size": self._monitor.stats.max_queue_size,
-            "total_blocked_ms": self._monitor.stats.total_blocked_ms,
-        })
+        self._emit_event(
+            "stream.queue_closed",
+            {
+                "total_items": self._monitor.stats.total_items,
+                "dropped_items": self._monitor.stats.dropped_items,
+                "blocked_puts": self._monitor.stats.blocked_puts,
+                "max_queue_size": self._monitor.stats.max_queue_size,
+                "total_blocked_ms": self._monitor.stats.total_blocked_ms,
+            },
+        )
         # Try to signal end without blocking or dropping items
         import contextlib
+
         with contextlib.suppress(asyncio.QueueFull):
             self._queue.put_nowait(None)
 
@@ -430,6 +457,92 @@ class ChunkQueue(Generic[T]):
         if item is None:
             raise StopAsyncIteration
         return item
+
+
+class RealtimeStageBus:
+    """Named channel bus for real-time stage-to-stage streaming.
+
+    Provides lightweight named channels backed by ChunkQueue so producer and
+    consumer stages can exchange chunks concurrently (e.g., LLM -> TTS).
+    """
+
+    def __init__(
+        self,
+        *,
+        default_max_size: int = 100,
+        default_drop_on_overflow: bool = False,
+        event_emitter: EventEmitter | None = None,
+    ) -> None:
+        self._default_max_size = default_max_size
+        self._default_drop_on_overflow = default_drop_on_overflow
+        self._event_emitter = event_emitter
+        self._channels: dict[str, ChunkQueue[Any]] = {}
+        self._lock = asyncio.Lock()
+
+    async def channel(
+        self,
+        name: str,
+        *,
+        max_size: int | None = None,
+        drop_on_overflow: bool | None = None,
+    ) -> ChunkQueue[Any]:
+        """Get or create a named channel queue."""
+        if not name:
+            raise ValueError("RealtimeStageBus channel name cannot be empty")
+
+        async with self._lock:
+            queue = self._channels.get(name)
+            if queue is not None:
+                return queue
+
+            queue = ChunkQueue[Any](
+                max_size=max_size if max_size is not None else self._default_max_size,
+                drop_on_overflow=(
+                    drop_on_overflow
+                    if drop_on_overflow is not None
+                    else self._default_drop_on_overflow
+                ),
+                event_emitter=self._event_emitter,
+            )
+            self._channels[name] = queue
+            return queue
+
+    async def publish(self, channel: str, item: Any) -> bool:
+        """Publish one item to a channel."""
+        queue = await self.channel(channel)
+        return await queue.put(item)
+
+    async def close_channel(self, channel: str) -> None:
+        """Close one named channel."""
+        async with self._lock:
+            queue = self._channels.get(channel)
+        if queue is not None:
+            await queue.close()
+
+    async def close_all(self) -> None:
+        """Close all channels currently registered in the bus."""
+        async with self._lock:
+            queues = list(self._channels.values())
+        await asyncio.gather(*(queue.close() for queue in queues))
+
+    async def subscribe(self, channel: str) -> AsyncIterator[Any]:
+        """Yield items from a named channel until closed."""
+        queue = await self.channel(channel)
+        async for item in queue:
+            yield item
+
+    async def stats(self) -> dict[str, dict[str, Any]]:
+        """Snapshot basic metrics for all channels."""
+        async with self._lock:
+            snapshot = dict(self._channels)
+        return {
+            name: {
+                "size": len(queue),
+                "closed": queue.is_closed,
+                "backpressure": queue.monitor.stats.to_dict(),
+            }
+            for name, queue in snapshot.items()
+        }
 
 
 class StreamingBuffer:
@@ -506,6 +619,7 @@ class StreamingBuffer:
         """Emit a telemetry event if emitter is configured."""
         if self._event_emitter is not None:
             import contextlib
+
             with contextlib.suppress(Exception):
                 self._event_emitter(event_type, data)
 
@@ -532,11 +646,14 @@ class StreamingBuffer:
 
         if dropped > 0:
             self._total_dropped += dropped
-            self._emit_event("stream.buffer_overflow", {
-                "bytes_dropped": dropped,
-                "buffer_duration_ms": self.duration_ms,
-                "max_duration_ms": self._max_ms,
-            })
+            self._emit_event(
+                "stream.buffer_overflow",
+                {
+                    "bytes_dropped": dropped,
+                    "buffer_duration_ms": self.duration_ms,
+                    "max_duration_ms": self._max_ms,
+                },
+            )
 
         self._buffer.extend(chunk.data)
         self._total_received += len(chunk.data)
@@ -561,16 +678,22 @@ class StreamingBuffer:
         if bytes_to_read < bytes_requested:
             if not self._underrun_active:
                 self._underrun_active = True
-                self._emit_event("stream.buffer_underrun", {
-                    "bytes_requested": bytes_requested,
-                    "bytes_available": bytes_to_read,
-                    "buffer_duration_ms": self.duration_ms,
-                })
+                self._emit_event(
+                    "stream.buffer_underrun",
+                    {
+                        "bytes_requested": bytes_requested,
+                        "bytes_available": bytes_to_read,
+                        "buffer_duration_ms": self.duration_ms,
+                    },
+                )
         elif self._underrun_active:
             self._underrun_active = False
-            self._emit_event("stream.buffer_recovered", {
-                "buffer_duration_ms": self.duration_ms,
-            })
+            self._emit_event(
+                "stream.buffer_recovered",
+                {
+                    "buffer_duration_ms": self.duration_ms,
+                },
+            )
 
         data = bytes(self._buffer[:bytes_to_read])
         self._buffer = self._buffer[bytes_to_read:]
@@ -637,6 +760,61 @@ def calculate_audio_duration_ms(
     return (samples / sample_rate) * 1000
 
 
+def create_realtime_stage_context(
+    snapshot,
+    *,
+    bus=None,
+    bus_max_size: int = 100,
+    bus_drop_on_overflow: bool = False,
+):
+    """Create a StageContext with realtime bus wired for streaming stages.
+
+    This is a convenience helper that:
+    1. Creates a RealtimeStageBus (if not provided)
+    2. Wires it through CorePorts
+    3. Creates StageInputs with the ports
+    4. Returns the StageContext and bus
+
+    Args:
+        snapshot: The context snapshot
+        bus: Optional existing bus (one will be created if not provided)
+        bus_max_size: Default max queue size for new bus
+        bus_drop_on_overflow: Default drop behavior for new bus
+
+    Returns:
+        Tuple of (StageContext, RealtimeStageBus)
+
+    Example:
+        >>> bus, ctx = create_realtime_stage_context(snapshot)
+        >>> # In LLM stage:
+        >>> await ctx.inputs.ports.realtime_bus.publish("llm_to_tts", token)
+        >>> # In TTS stage:
+        >>> async for token in ctx.inputs.ports.realtime_bus.subscribe("llm_to_tts"):
+        >>>     ...
+    """
+    from stageflow.context import ContextSnapshot
+    from stageflow.stages.context import StageContext
+    from stageflow.stages.inputs import create_stage_inputs
+    from stageflow.stages.ports import create_core_ports
+    from stageflow import PipelineTimer
+
+    if bus is None:
+        bus = RealtimeStageBus(
+            default_max_size=bus_max_size,
+            default_drop_on_overflow=bus_drop_on_overflow,
+        )
+
+    ports = create_core_ports(realtime_bus=bus)
+    inputs = create_stage_inputs(snapshot, ports=ports, strict=False)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=inputs,
+        stage_name="pipeline_entry",
+        timer=PipelineTimer(),
+    )
+    return ctx, bus
+
+
 __all__ = [
     "AudioChunk",
     "AudioFormat",
@@ -644,8 +822,10 @@ __all__ = [
     "BackpressureStats",
     "ChunkQueue",
     "EventEmitter",
+    "RealtimeStageBus",
     "StreamConfig",
     "StreamingBuffer",
     "calculate_audio_duration_ms",
+    "create_realtime_stage_context",
     "encode_audio_for_logging",
 ]

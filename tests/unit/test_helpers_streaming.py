@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -11,6 +12,7 @@ from stageflow.helpers.streaming import (
     AudioFormat,
     BackpressureMonitor,
     ChunkQueue,
+    RealtimeStageBus,
     StreamingBuffer,
     calculate_audio_duration_ms,
     encode_audio_for_logging,
@@ -385,6 +387,56 @@ class TestStreamingBuffer:
         buffer.clear()
 
         assert buffer.duration_ms == 0
+
+
+class TestRealtimeStageBus:
+    """Tests for RealtimeStageBus helper."""
+
+    @pytest.mark.asyncio
+    async def test_channel_reuse(self):
+        """Should return the same queue for repeated channel lookups."""
+        bus = RealtimeStageBus()
+        q1 = await bus.channel("llm_to_tts")
+        q2 = await bus.channel("llm_to_tts")
+        assert q1 is q2
+
+    @pytest.mark.asyncio
+    async def test_publish_and_subscribe(self):
+        """Should stream published items to subscribers in order."""
+        bus = RealtimeStageBus()
+
+        received: list[str] = []
+
+        async def reader() -> None:
+            async for item in bus.subscribe("llm_to_tts"):
+                received.append(item)
+
+        task = asyncio.create_task(reader())
+        await bus.publish("llm_to_tts", "hello")
+        await bus.publish("llm_to_tts", "world")
+        await bus.close_channel("llm_to_tts")
+        await task
+
+        assert received == ["hello", "world"]
+
+    @pytest.mark.asyncio
+    async def test_close_all_closes_registered_channels(self):
+        """Should close all existing channels."""
+        bus = RealtimeStageBus()
+        q1 = await bus.channel("a")
+        q2 = await bus.channel("b")
+        await bus.close_all()
+        assert q1.is_closed is True
+        assert q2.is_closed is True
+
+    @pytest.mark.asyncio
+    async def test_stats_reports_channels(self):
+        """Should expose per-channel metrics."""
+        bus = RealtimeStageBus()
+        await bus.publish("llm_to_tts", "chunk")
+        stats = await bus.stats()
+        assert "llm_to_tts" in stats
+        assert stats["llm_to_tts"]["size"] == 1
 
 
 class TestStreamingBufferTelemetry:

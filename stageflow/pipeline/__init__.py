@@ -9,7 +9,12 @@ from stageflow.pipeline.builder_helpers import (
     with_linear_chain,
     with_parallel_stages,
 )
-from stageflow.pipeline.dag import StageExecutionError, StageGraph, StageSpec
+from stageflow.pipeline.dag import (
+    StageExecutionError,
+    StageGraph,
+    StageSpec,
+    UnifiedStageExecutionError,
+)
 from stageflow.pipeline.failure_tolerance import (
     BackpressureConfig,
     BackpressureMonitor,
@@ -76,6 +81,7 @@ __all__ = [
     "StageRunner",
     "StageSpec",
     "StageExecutionError",
+    "UnifiedStageExecutionError",
     "UnifiedStageSpec",
     "GuardRetryPolicy",
     "GuardRetryStrategy",
