@@ -83,7 +83,6 @@ class MemoryEnrichStage:
 ```python
 class SummarizeStage:
     """Summarize combined profile + memory data."""
-    """Summarize combined profile + memory data."""
 
     name = "summarize"
     kind = StageKind.TRANSFORM
@@ -180,8 +179,9 @@ import asyncio
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot
+from stageflow import Pipeline, PipelineTimer, StageContext, StageKind, StageOutput
+from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow.stages import StageInputs
 
 
 # Mock services
@@ -294,17 +294,24 @@ async def main():
     graph = pipeline.build()
     
     snapshot = ContextSnapshot(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
+        run_id=RunIdentity(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+        ),
         topology="parallel",
         execution_mode="default",
     )
     
-    ctx = StageContext(snapshot=snapshot)
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="parallel_entry",
+        timer=PipelineTimer(),
+    )
     
     # Time the execution
     start = time.time()

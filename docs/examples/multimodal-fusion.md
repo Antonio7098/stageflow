@@ -41,8 +41,7 @@ from dataclasses import dataclass
 from typing import Any
 from datetime import datetime, timezone
 
-from stageflow.core import StageKind, StageOutput
-from stageflow.stages.context import StageContext
+from stageflow import StageContext, StageKind, StageOutput
 
 
 @dataclass
@@ -200,7 +199,7 @@ class MultimodalFusionStage:
         if not modality_results:
             return StageOutput.fail(
                 error="No modality results to fuse",
-                error_metadata={"modality_error": True},
+                data={"modality_error": True},
             )
         
         # Fuse embeddings
@@ -211,8 +210,8 @@ class MultimodalFusionStage:
         
         # Emit fusion event
         ctx.event_sink.try_emit(
-            "multimodal.fusion_completed",
-            {
+            type="multimodal.fusion_completed",
+            data={
                 "modalities": [r.modality for r in modality_results],
                 "fusion_strategy": self.fusion_strategy,
                 "embedding_dim": len(fused_embedding) if fused_embedding else 0,
@@ -293,25 +292,30 @@ class MultimodalFusionStage:
 Process modalities in parallel for better performance:
 
 ```python
-from stageflow.pipeline import Pipeline, UnifiedStageGraph
+from stageflow.pipeline import Pipeline
+from stageflow.pipeline.dag import UnifiedStageGraph
 
 
 def build_multimodal_pipeline() -> Pipeline:
     """Build a pipeline that processes modalities in parallel."""
     
     return (
-        Pipeline("multimodal_processing")
-        .with_stage(AudioProcessorStage())
-        .with_stage(TextProcessorStage())
-        .with_stage(ImageProcessorStage())
+        Pipeline(name="multimodal_processing")
+        .with_stage("audio_processor", AudioProcessorStage(), StageKind.TRANSFORM)
+        .with_stage("text_processor", TextProcessorStage(), StageKind.TRANSFORM)
+        .with_stage("image_processor", ImageProcessorStage(), StageKind.TRANSFORM)
         # Fusion depends on all three processors
         .with_stage(
+            "multimodal_fusion",
             MultimodalFusionStage(fusion_strategy="weighted"),
-            depends_on=["audio_processor", "text_processor", "image_processor"],
+            StageKind.TRANSFORM,
+            dependencies=("audio_processor", "text_processor", "image_processor"),
         )
         .with_stage(
+            "llm_generation",
             LLMGenerationStage(),
-            depends_on=["multimodal_fusion"],
+            StageKind.TRANSFORM,
+            dependencies=("multimodal_fusion",),
         )
     )
 ```
@@ -351,7 +355,7 @@ class RobustFusionStage:
         if len(results) < self.min_modalities:
             return StageOutput.fail(
                 error=f"Insufficient modalities: {len(results)} < {self.min_modalities}",
-                error_metadata={
+                data={
                     "modality_count": len(results),
                     "failures": failures,
                 },
@@ -360,8 +364,8 @@ class RobustFusionStage:
         # Log partial failures
         if failures:
             ctx.event_sink.try_emit(
-                "multimodal.partial_failure",
-                {
+                type="multimodal.partial_failure",
+                data={
                     "successful_modalities": [r.modality for r in results],
                     "failed_modalities": failures,
                 },
@@ -470,8 +474,8 @@ class StreamingMultimodalStage:
     kind = StageKind.TRANSFORM
     
     def __init__(self, buffer_size: int = 10) -> None:
-        self.audio_buffer = StreamingBuffer(max_chunks=buffer_size)
-        self.video_buffer = StreamingBuffer(max_chunks=buffer_size)
+        self.audio_buffer = StreamingBuffer(target_duration_ms=200, max_duration_ms=1000)
+        self.video_buffer = StreamingBuffer(target_duration_ms=200, max_duration_ms=1000)
         self.backpressure = BackpressureMonitor(
             high_watermark=0.8,
             low_watermark=0.3,
@@ -484,8 +488,8 @@ class StreamingMultimodalStage:
             # Check backpressure
             if self.backpressure.should_pause():
                 ctx.event_sink.try_emit(
-                    "multimodal.backpressure",
-                    {"buffer_utilization": self.backpressure.utilization},
+                    type="multimodal.backpressure",
+                    data={"buffer_utilization": self.backpressure.utilization},
                 )
                 await self.backpressure.wait_for_capacity()
             

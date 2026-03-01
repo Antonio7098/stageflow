@@ -168,10 +168,11 @@ Message: Echoed: Hello, Stageflow!
 ### With Configuration
 
 ```python
-ctx = StageContext(
-    snapshot=snapshot,
-    config={
-        "timeout": 5000,  # 5 second timeout
+# Attach custom settings to snapshot metadata for stage access.
+snapshot = ContextSnapshot(
+    run_id=RunIdentity(pipeline_run_id=uuid4()),
+    metadata={
+        "timeout_ms": 5000,
         "custom_setting": "value",
     },
 )
@@ -198,11 +199,11 @@ await queue.close()
 ### Error Handling
 
 ```python
-from stageflow.pipeline.dag import StageExecutionError
+from stageflow.pipeline.dag import UnifiedStageExecutionError
 
 try:
     results = await graph.run(ctx)
-except StageExecutionError as e:
+except UnifiedStageExecutionError as e:
     print(f"Stage '{e.stage}' failed: {e.original}")
 ```
 
