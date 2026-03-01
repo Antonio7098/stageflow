@@ -36,7 +36,7 @@ snapshot = ContextSnapshot(
     ),
     topology=ctx.topology,
     execution_mode=ctx.execution_mode,
-    data=ctx.data.copy(),  # Shallow copy of mutable data
+    metadata=ctx.data.copy(),  # Shallow copy of mutable data
 )
 ```
 

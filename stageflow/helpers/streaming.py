@@ -184,13 +184,20 @@ class BackpressureMonitor:
         *,
         high_water_mark: int = 80,
         low_water_mark: int = 20,
+        threshold: float | None = None,
     ) -> None:
         """Initialize monitor.
 
         Args:
             high_water_mark: Queue fill % to trigger throttling.
             low_water_mark: Queue fill % to stop throttling.
+            threshold: Backward-compatible alias for high water ratio (0-1).
         """
+        if threshold is not None:
+            clamped = max(0.0, min(1.0, threshold))
+            high_water_mark = int(clamped * 100)
+            # Keep hysteresis by setting low watermark at half.
+            low_water_mark = min(low_water_mark, int(high_water_mark * 0.5))
         self._high_water = high_water_mark
         self._low_water = low_water_mark
         self._stats = BackpressureStats()

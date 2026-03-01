@@ -45,7 +45,7 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.9.2**
+> **New in Stageflow 0.9.3**
 > 
 > - **Tier 2 Report Remediation**: Governance, authentication, and context guides now reflect current organizational risk controls, canonical GitHub URLs, and consistent tooling workflows.
 > - **Tools, Approvals & Pipelines**: Approval service enums, pipeline interceptors, and port helpers were reorganized to stay compatible with the latest lint rules and runtime signatures.

@@ -379,7 +379,13 @@ class RouterStage:
     
     async def execute(self, ctx: StageContext) -> StageOutput:
         text = ctx.snapshot.input_text or ""
-        route = "support" if "help" in text.lower() else "general"
+        lower_text = text.lower()
+        if "help" in lower_text or "support" in lower_text:
+            route = "support"
+        elif "buy" in lower_text or "price" in lower_text:
+            route = "sales"
+        else:
+            route = "general"
         return StageOutput.ok(route=route)
 
 
