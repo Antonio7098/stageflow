@@ -792,11 +792,10 @@ def create_realtime_stage_context(
         >>> async for token in ctx.inputs.ports.realtime_bus.subscribe("llm_to_tts"):
         >>>     ...
     """
-    from stageflow.context import ContextSnapshot
+    from stageflow import PipelineTimer
     from stageflow.stages.context import StageContext
     from stageflow.stages.inputs import create_stage_inputs
     from stageflow.stages.ports import create_core_ports
-    from stageflow import PipelineTimer
 
     if bus is None:
         bus = RealtimeStageBus(
