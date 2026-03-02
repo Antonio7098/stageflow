@@ -499,7 +499,7 @@ Return appropriate errors to clients:
 
 ```python
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except AuthenticationError as e:
     return {"error": "authentication_required", "message": str(e)}
 except CrossTenantAccessError as e:

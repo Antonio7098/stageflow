@@ -417,7 +417,7 @@ pipeline = (
 
 # Run graph (auth policies are typically wired via default/custom graph interceptors)
 graph = pipeline.build()
-results = await graph.run(ctx)
+results = await graph.run(pipeline_ctx)
 ```
 
 ### Manual Auth Context Creation

@@ -60,7 +60,7 @@ A simplified view of the important fields:
 ```python
 from stageflow.stages.context import PipelineContext
 
-ctx = PipelineContext(
+pipeline_ctx = PipelineContext(
     pipeline_run_id=...,   # run identity
     request_id=...,
     session_id=...,
@@ -82,12 +82,12 @@ ctx = PipelineContext(
 
 ```python
 graph = pipeline.build()
-results = await graph.run(ctx)  # pass PipelineContext directly
+results = await graph.run(pipeline_ctx)
 ```
 
 ### How Derived Context Types Work
 
-- `ContextSnapshot` is derived from `PipelineContext` via `ctx.to_snapshot()`.
+- `ContextSnapshot` is derived from `PipelineContext` via `pipeline_ctx.to_snapshot()`.
 - `StageContext` is derived internally per stage from snapshot + validated inputs.
 - Interceptors in legacy StageGraph flows still receive `PipelineContext` directly and can:
   - Read IDs, topology, execution_mode, and shared `data`

@@ -132,7 +132,8 @@ Call `build()` to create an executable `StageGraph`:
 
 ```python
 graph = pipeline.build()
-results = await graph.run(ctx)
+pipeline_ctx = PipelineContext(input_text="hello")
+results = await graph.run(pipeline_ctx)
 ```
 
 ## Context

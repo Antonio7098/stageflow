@@ -19,8 +19,7 @@ Both stages can run at the same time. The producer closes the channel when done.
 import asyncio
 from uuid import uuid4
 
-from stageflow import Pipeline, PipelineTimer, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow import Pipeline, PipelineContext, PipelineTimer, StageContext, StageKind, StageOutput
 from stageflow.helpers import RealtimeStageBus
 from stageflow.stages.inputs import create_stage_inputs
 from stageflow.stages.ports import create_core_ports
@@ -77,24 +76,24 @@ async def run_demo() -> None:
     )
     graph = pipeline.build()
 
-    snapshot = ContextSnapshot(
-        run_id=RunIdentity(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=uuid4(),
-            interaction_id=uuid4(),
-        ),
+    pipeline_ctx = PipelineContext(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=uuid4(),
+        org_id=uuid4(),
+        interaction_id=uuid4(),
         topology="realtime_llm_tts",
         execution_mode="demo",
         input_text="stream this text in real time",
     )
 
+    # For advanced port wiring, derive a stage context from PipelineContext.
+    snapshot = pipeline_ctx.to_snapshot()
     bus = RealtimeStageBus(default_max_size=128)
     ports = create_core_ports(realtime_bus=bus)
     inputs = create_stage_inputs(snapshot, ports=ports)
-    ctx = StageContext(
+    root_stage_ctx = StageContext(
         snapshot=snapshot,
         inputs=inputs,
         stage_name="pipeline_entry",
@@ -102,7 +101,7 @@ async def run_demo() -> None:
     )
 
     # Execute through the Stageflow graph.
-    results = await graph.run(ctx)
+    results = await graph.run(root_stage_ctx)
     print("LLM status:", results["llm_stream"].status)
     print("TTS chunks:", results["tts_stream"].data["audio_chunks"])
 

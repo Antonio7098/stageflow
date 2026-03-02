@@ -154,9 +154,8 @@ def create_chat_pipeline(llm_client=None) -> Pipeline:
 import asyncio
 from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
-from stageflow.context import ContextSnapshot, Message, RunIdentity
-from stageflow.stages import StageInputs
+from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
+from stageflow.context import Message
 
 
 class MockLLMClient:
@@ -257,27 +256,12 @@ async def main():
     ]
     
     for input_text in test_inputs:
-        snapshot = ContextSnapshot(
-            run_id=RunIdentity(
-                pipeline_run_id=uuid4(),
-                request_id=uuid4(),
-                session_id=uuid4(),
-                user_id=uuid4(),
-                org_id=None,
-                interaction_id=uuid4(),
-            ),
+        pipeline_ctx = PipelineContext(
             topology="chat",
             execution_mode="default",
             input_text=input_text,
         )
-        
-        ctx = StageContext(
-            snapshot=snapshot,
-            inputs=StageInputs(snapshot=snapshot),
-            stage_name="chat_entry",
-            timer=PipelineTimer(),
-        )
-        results = await graph.run(ctx)
+        results = await graph.run(pipeline_ctx)
         
         print(f"Input: {input_text}")
         print(f"Route: {results['router'].data['route']}")

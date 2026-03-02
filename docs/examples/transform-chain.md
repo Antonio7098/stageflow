@@ -156,11 +156,8 @@ def create_transform_pipeline() -> Pipeline:
 
 ```python
 import asyncio
-from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
-from stageflow.context import ContextSnapshot, RunIdentity
-from stageflow.stages import StageInputs
+from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 
 
 class UppercaseStage:
@@ -232,32 +229,17 @@ async def main():
     # Build and create context
     graph = pipeline.build()
     
-    snapshot = ContextSnapshot(
-        run_id=RunIdentity(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
-        ),
+    pipeline_ctx = PipelineContext(
         topology="transform_chain",
         execution_mode="default",
         input_text="Hello, this is a test of the transform chain!",
     )
     
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=StageInputs(snapshot=snapshot),
-        stage_name="pipeline_entry",
-        timer=PipelineTimer(),
-    )
-    
     # Run
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
     
     # Show transformation at each step
-    print("Input:", snapshot.input_text)
+    print("Input:", pipeline_ctx.input_text)
     print()
     print("After uppercase:", results["uppercase"].data["text"])
     print("After reverse:", results["reverse"].data["text"])

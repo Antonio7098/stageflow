@@ -7,7 +7,7 @@
 Stageflow provides a **DAG-based execution substrate** for building complex data processing and AI agent pipelines. It separates the concerns of *orchestration* (how stages run) from *business logic* (what stages do), enabling you to build maintainable, testable, and observable systems.
 
 ```python
-from stageflow import Pipeline, StageKind, StageOutput
+from stageflow import Pipeline, PipelineContext, StageKind, StageOutput
 
 class GreetStage:
     name = "greet"
@@ -20,7 +20,8 @@ class GreetStage:
 # Build and run the pipeline
 pipeline = Pipeline().with_stage("greet", GreetStage, StageKind.TRANSFORM)
 graph = pipeline.build()
-results = await graph.run(ctx)
+pipeline_ctx = PipelineContext(input_text="Stageflow")
+results = await graph.run(pipeline_ctx)
 ```
 
 ## Key Features
