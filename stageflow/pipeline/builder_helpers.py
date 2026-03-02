@@ -1,150 +1,18 @@
 """Pipeline builder helpers for ergonomic DAG construction.
 
 Provides utilities for building deep/wide DAGs with minimal boilerplate,
-including duplex systems, linear chain generation, and parallel stage factories.
+including linear chain generation and parallel stage factories.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from stageflow.pipeline.builder import PipelineBuilder
 from stageflow.pipeline.spec import StageRunner
 
 T = TypeVar("T")
-DuplexStage = tuple[str, StageRunner]
-
-
-@dataclass(frozen=True, slots=True)
-class DuplexLaneSpec:
-    """Directional lane specification for a duplex system."""
-
-    stages: tuple[DuplexStage, ...]
-    depends_on: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if not self.stages:
-            raise ValueError("DuplexLaneSpec requires at least one stage")
-
-
-@dataclass(frozen=True, slots=True)
-class DuplexSystemSpec:
-    """Bidirectional topology specification with optional convergence stage."""
-
-    forward: DuplexLaneSpec
-    reverse: DuplexLaneSpec
-    join_stage: DuplexStage | None = None
-    join_depends_on: tuple[str, ...] = ()
-
-
-def _dedupe_names(names: tuple[str, ...]) -> tuple[str, ...]:
-    """Preserve ordering while removing duplicate names."""
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for name in names:
-        if name not in seen:
-            seen.add(name)
-            ordered.append(name)
-    return tuple(ordered)
-
-
-def _append_lane(
-    builder: PipelineBuilder,
-    lane: DuplexLaneSpec,
-) -> tuple[PipelineBuilder, str]:
-    """Append a directional lane and return updated builder + lane tail stage."""
-    result = builder
-    previous_name: str | None = None
-
-    for index, (stage_name, stage_runner) in enumerate(lane.stages):
-        dependencies = lane.depends_on if index == 0 else (previous_name,) if previous_name else ()
-        result = result.with_stage(
-            name=stage_name,
-            runner=stage_runner,
-            dependencies=dependencies,
-        )
-        previous_name = stage_name
-
-    if previous_name is None:
-        raise ValueError("Duplex lane must contain at least one stage")
-
-    return result, previous_name
-
-
-def with_duplex_system(
-    builder: PipelineBuilder,
-    system: DuplexSystemSpec,
-) -> PipelineBuilder:
-    """Add a duplex (bidirectional) topology to a pipeline.
-
-    A duplex system has two independent directional lanes:
-    - `forward`: linear chain from source A to destination B
-    - `reverse`: linear chain from source B back to source A
-
-    Optionally, a `join_stage` can converge both lane tails.
-
-    Example:
-        ```python
-        system = DuplexSystemSpec(
-            forward=DuplexLaneSpec(
-                stages=(
-                    ("uplink_decode", DecodeStage()),
-                    ("uplink_transform", TransformStage()),
-                ),
-                depends_on=("ingress_a",),
-            ),
-            reverse=DuplexLaneSpec(
-                stages=(
-                    ("downlink_decode", DecodeStage()),
-                    ("downlink_transform", TransformStage()),
-                ),
-                depends_on=("ingress_b",),
-            ),
-            join_stage=("sync", SyncStage()),
-        )
-        pipeline = with_duplex_system(PipelineBuilder("duplex"), system)
-        ```
-    """
-    all_stage_names = [
-        stage_name
-        for lane in (system.forward, system.reverse)
-        for stage_name, _ in lane.stages
-    ]
-    if system.join_stage:
-        all_stage_names.append(system.join_stage[0])
-
-    introduced_names = set(all_stage_names)
-    seen_names: set[str] = set()
-    duplicates: set[str] = set()
-    for stage_name in all_stage_names:
-        if stage_name in seen_names:
-            duplicates.add(stage_name)
-        else:
-            seen_names.add(stage_name)
-    if duplicates:
-        duplicate_list = ", ".join(sorted(duplicates))
-        raise ValueError(f"Duplex system contains duplicate stage names: {duplicate_list}")
-
-    collisions = introduced_names.intersection(builder.stages)
-    if collisions:
-        collision_list = ", ".join(sorted(collisions))
-        raise ValueError(f"Duplex system stage names already exist in builder: {collision_list}")
-
-    result, forward_tail = _append_lane(builder, system.forward)
-    result, reverse_tail = _append_lane(result, system.reverse)
-
-    if system.join_stage:
-        join_name, join_runner = system.join_stage
-        join_dependencies = _dedupe_names((forward_tail, reverse_tail, *system.join_depends_on))
-        result = result.with_stage(
-            name=join_name,
-            runner=join_runner,
-            dependencies=join_dependencies,
-        )
-
-    return result
 
 
 def with_linear_chain(
@@ -511,41 +379,6 @@ class FluentPipelineBuilder:
 
         return self
 
-    def duplex(
-        self,
-        *,
-        forward: tuple[DuplexStage, ...] | list[DuplexStage],
-        reverse: tuple[DuplexStage, ...] | list[DuplexStage],
-        forward_depends_on: tuple[str, ...] | None = None,
-        reverse_depends_on: tuple[str, ...] | None = None,
-        join_stage: DuplexStage | None = None,
-        join_depends_on: tuple[str, ...] | None = None,
-    ) -> FluentPipelineBuilder:
-        """Add a duplex (bidirectional) system.
-
-        If `forward_depends_on`/`reverse_depends_on` are omitted, both lanes
-        depend on the current fluent tail stage when available.
-        """
-        auto_dep = (self._last_stage,) if self._last_stage else ()
-        forward_deps = forward_depends_on if forward_depends_on is not None else auto_dep
-        reverse_deps = reverse_depends_on if reverse_depends_on is not None else auto_dep
-
-        system = DuplexSystemSpec(
-            forward=DuplexLaneSpec(
-                stages=tuple(forward),
-                depends_on=forward_deps,
-            ),
-            reverse=DuplexLaneSpec(
-                stages=tuple(reverse),
-                depends_on=reverse_deps,
-            ),
-            join_stage=join_stage,
-            join_depends_on=tuple(join_depends_on or ()),
-        )
-        self._builder = with_duplex_system(self._builder, system)
-        self._last_stage = join_stage[0] if join_stage else None
-        return self
-
     def build(self, **kwargs: Any) -> Any:
         """Build the pipeline graph."""
         return self._builder.build(**kwargs)
@@ -557,11 +390,8 @@ class FluentPipelineBuilder:
 
 
 __all__ = [
-    "DuplexLaneSpec",
-    "DuplexSystemSpec",
     "FluentPipelineBuilder",
     "with_conditional_branch",
-    "with_duplex_system",
     "with_fan_out_fan_in",
     "with_linear_chain",
     "with_parallel_stages",
