@@ -134,6 +134,80 @@ pipeline = (
 )
 ```
 
+### Duplex Pattern (Bidirectional Systems)
+
+Use duplex topology helpers when you need two directional lanes (A -> B and B -> A)
+plus an optional synchronization stage.
+
+```
+[ingress_a] -> [uplink_decode] -> [uplink_apply] --\
+                                                    -> [state_sync]
+[ingress_b] -> [downlink_decode] -> [downlink_apply] -/
+```
+
+```python
+from stageflow.pipeline import (
+    DuplexLaneSpec,
+    DuplexSystemSpec,
+    PipelineBuilder,
+    with_duplex_system,
+)
+
+builder = (
+    PipelineBuilder("duplex_chat")
+    .with_stage("ingress_a", IngressAStage())
+    .with_stage("ingress_b", IngressBStage())
+)
+
+system = DuplexSystemSpec(
+    forward=DuplexLaneSpec(
+        stages=(
+            ("uplink_decode", UplinkDecodeStage()),
+            ("uplink_apply", UplinkApplyStage()),
+        ),
+        depends_on=("ingress_a",),
+    ),
+    reverse=DuplexLaneSpec(
+        stages=(
+            ("downlink_decode", DownlinkDecodeStage()),
+            ("downlink_apply", DownlinkApplyStage()),
+        ),
+        depends_on=("ingress_b",),
+    ),
+    join_stage=("state_sync", StateSyncStage()),
+)
+
+pipeline = with_duplex_system(builder, system)
+```
+
+#### Fluent Duplex Example
+
+For concise topology creation:
+
+```python
+from stageflow.pipeline import FluentPipelineBuilder
+
+pipeline = (
+    FluentPipelineBuilder("duplex_realtime")
+    .stage("ingress", IngressStage())
+    .duplex(
+        forward=(
+            ("uplink_parse", UplinkParseStage()),
+            ("uplink_send", UplinkSendStage()),
+        ),
+        reverse=(
+            ("downlink_parse", DownlinkParseStage()),
+            ("downlink_send", DownlinkSendStage()),
+        ),
+        join_stage=("sync_metrics", SyncMetricsStage()),
+    )
+    .build()
+)
+```
+
+If `forward_depends_on` and `reverse_depends_on` are omitted, both lanes use
+the previous fluent stage (`ingress` in this example) as their first dependency.
+
 ### Complex DAG
 
 Real pipelines often combine multiple patterns:

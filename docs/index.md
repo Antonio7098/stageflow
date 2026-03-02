@@ -45,8 +45,14 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
+> **New in Stageflow 0.9.4**
+>
+> - **Duplex Pipeline Systems**: Added `DuplexLaneSpec`, `DuplexSystemSpec`, `with_duplex_system()` helper, and `FluentPipelineBuilder.duplex()` for low-boilerplate bidirectional pipeline construction (A→B and B→A lanes with optional sync stage).
+> - **Expanded Builder Helpers**: Fluent builder now supports duplex topologies alongside linear chains, parallel stages, and fan-out/fan-in patterns.
+> - **Documentation**: New duplex-systems guide covering structured and fluent builder usage, dependency behavior, validation, and testing patterns.
+
 > **New in Stageflow 0.9.3**
-> 
+>
 > - **Tier 2 Report Remediation**: Governance, authentication, and context guides now reflect current organizational risk controls, canonical GitHub URLs, and consistent tooling workflows.
 > - **Tools, Approvals & Pipelines**: Approval service enums, pipeline interceptors, and port helpers were reorganized to stay compatible with the latest lint rules and runtime signatures.
 > - **Documentation Refresh**: Tools, tools-approval, stage, and voice guides have been trimmed and rephrased so the published docs align with the running Stageflow release.
@@ -57,6 +63,7 @@ The docs are organized into the following sections:
 - [GitHub Repository](https://github.com/yourorg/stageflow)
 - [Issue Tracker](https://github.com/yourorg/stageflow/issues)
 - [**Composing Pipelines**](guides/pipelines.md) — Build complex DAGs from simple stages
+- [**Duplex Systems**](guides/duplex-systems.md) — Build bidirectional A->B / B->A pipeline topologies
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
 - [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
@@ -70,6 +77,7 @@ The docs are organized into the following sections:
 ### Guides
 - [**Building Stages**](guides/stages.md) — Create custom stages for your pipelines
 - [**Composing Pipelines**](guides/pipelines.md) — Build complex DAGs from simple stages
+- [**Duplex Systems**](guides/duplex-systems.md) — Dedicated guide for bidirectional lane construction and sync stages
 - [**Dependency Declaration**](guides/dependencies.md) — Declare and manage stage dependencies
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
