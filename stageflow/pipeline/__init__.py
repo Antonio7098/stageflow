@@ -3,8 +3,11 @@
 from stageflow.core import Stage
 from stageflow.pipeline.builder import PipelineBuilder
 from stageflow.pipeline.builder_helpers import (
+    DuplexLaneSpec,
+    DuplexSystemSpec,
     FluentPipelineBuilder,
     with_conditional_branch,
+    with_duplex_system,
     with_fan_out_fan_in,
     with_linear_chain,
     with_parallel_stages,
@@ -118,9 +121,12 @@ __all__ = [
     "RateLimitError",
     "ServiceUnavailableError",
     # Builder helpers (v0.9.0)
+    "DuplexLaneSpec",
+    "DuplexSystemSpec",
     "FluentPipelineBuilder",
     "with_linear_chain",
     "with_parallel_stages",
     "with_fan_out_fan_in",
     "with_conditional_branch",
+    "with_duplex_system",
 ]

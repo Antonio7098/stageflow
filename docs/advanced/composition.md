@@ -132,6 +132,53 @@ def create_streaming_component(event_emitter):
 
 You can pass `ctx.try_emit_event` from any stage to wire telemetry for every subcomponent regardless of where it executes in the composed pipeline.
 
+### Duplex Components (Bidirectional Flows)
+
+When building chat, voice, or transport systems with uplink/downlink behavior,
+model each direction as its own lane and compose them as a unit.
+
+```python
+from stageflow.pipeline import (
+    DuplexLaneSpec,
+    DuplexSystemSpec,
+    PipelineBuilder,
+    with_duplex_system,
+)
+
+def create_duplex_transport_component(
+    *,
+    with_sync: bool = True,
+) -> PipelineBuilder:
+    builder = (
+        PipelineBuilder("duplex_transport")
+        .with_stage("ingress_a", IngressAStage())
+        .with_stage("ingress_b", IngressBStage())
+    )
+    system = DuplexSystemSpec(
+        forward=DuplexLaneSpec(
+            stages=(
+                ("uplink_decode", UplinkDecodeStage()),
+                ("uplink_transform", UplinkTransformStage()),
+                ("uplink_emit", UplinkEmitStage()),
+            ),
+            depends_on=("ingress_a",),
+        ),
+        reverse=DuplexLaneSpec(
+            stages=(
+                ("downlink_decode", DownlinkDecodeStage()),
+                ("downlink_transform", DownlinkTransformStage()),
+                ("downlink_emit", DownlinkEmitStage()),
+            ),
+            depends_on=("ingress_b",),
+        ),
+        join_stage=("duplex_sync", DuplexSyncStage()) if with_sync else None,
+    )
+    return with_duplex_system(builder, system)
+```
+
+This approach keeps each direction explicit, preserves DAG parallelism between
+lanes, and provides one place (`join_stage`) to coordinate shared state.
+
 ## Pipeline Variants
 
 ### Feature Flags
