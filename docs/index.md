@@ -67,6 +67,7 @@ The docs are organized into the following sections:
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
 - [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
+- [**Real-Time Streaming**](guides/realtime-streaming.md) — Stream chunks directly between running stages (LLM -> TTS)
 - [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
 
 ## Getting Started
@@ -82,6 +83,7 @@ The docs are organized into the following sections:
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
 - [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
+- [**Real-Time Streaming**](guides/realtime-streaming.md) — Stage-to-stage streaming patterns using RealtimeStageBus
 - [**Tools & Approval Workflows**](guides/tools-approval.md) — Implement HITL approval flows for tools
 - [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
 - [**Authentication**](guides/authentication.md) — Secure your pipelines with auth interceptors
@@ -93,6 +95,7 @@ The docs are organized into the following sections:
 - [**Simple Pipeline**](examples/simple.md) — Single-stage echo pipeline
 - [**Transform Chain**](examples/transform-chain.md) — Sequential data transformations
 - [**Parallel Enrichment**](examples/parallel.md) — Fan-out/fan-in patterns
+- [**Real-Time LLM->TTS Streaming**](examples/realtime-llm-tts.md) — Concurrent stage-to-stage chunk handoff with RealtimeStageBus
 - [**Chat Pipeline**](examples/chat.md) — LLM-powered conversational pipeline
 - [**Full Pipeline**](examples/full.md) — Complete pipeline with all features
 - [**Agent with Tools**](examples/agent-tools.md) — Agent stage with tool execution

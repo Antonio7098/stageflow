@@ -31,6 +31,7 @@ class CorePorts:
     send_status: Callable[[str, str, dict[str, Any] | None], Awaitable[None]] | None = None
     call_logger: Any = None
     retry_fn: Any = None
+    realtime_bus: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,7 @@ def create_core_ports(
     send_status: Callable[[str, str, dict[str, Any] | None], Awaitable[None]] | None = None,
     call_logger: Any = None,
     retry_fn: Any = None,
+    realtime_bus: Any = None,
 ) -> CorePorts:
     """Create CorePorts with essential capabilities.
 
@@ -84,6 +86,7 @@ def create_core_ports(
         send_status: Callback for status updates
         call_logger: Logger for tracking provider API calls
         retry_fn: Retry function for failed operations
+        realtime_bus: Optional named channel bus for real-time stage-to-stage handoff
 
     Returns:
         CorePorts instance
@@ -95,6 +98,7 @@ def create_core_ports(
         send_status=send_status,
         call_logger=call_logger,
         retry_fn=retry_fn,
+        realtime_bus=realtime_bus,
     )
 
 

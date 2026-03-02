@@ -64,6 +64,7 @@ class TestCorePorts:
         assert ports.send_status is None
         assert ports.call_logger is None
         assert ports.retry_fn is None
+        assert ports.realtime_bus is None
 
     def test_with_values(self):
         """Test CorePorts with values."""
@@ -75,9 +76,11 @@ class TestCorePorts:
         ports = CorePorts(
             db=db_mock,
             send_status=status_cb,
+            realtime_bus="bus",
         )
         assert ports.db is db_mock
         assert ports.send_status is status_cb
+        assert ports.realtime_bus == "bus"
 
     def test_frozen_immutable(self):
         """Test CorePorts is frozen/immutable."""
@@ -194,10 +197,12 @@ class TestPortFactories:
         ports = create_core_ports(
             db=db_mock,
             send_status=status_cb,
+            realtime_bus="bus",
         )
         assert isinstance(ports, CorePorts)
         assert ports.db is db_mock
         assert ports.send_status is status_cb
+        assert ports.realtime_bus == "bus"
 
     def test_create_llm_ports(self):
         """Test create_llm_ports factory."""
