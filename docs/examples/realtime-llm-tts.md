@@ -68,7 +68,12 @@ async def run_demo() -> None:
     pipeline = (
         Pipeline(name="realtime_llm_tts")
         .with_stage("llm_stream", LLMStreamStage, StageKind.TRANSFORM)
-        .with_stage("tts_stream", TTSStreamStage, StageKind.TRANSFORM)
+        .with_stage(
+            "tts_stream",
+            TTSStreamStage,
+            StageKind.TRANSFORM,
+            dependencies=("llm_stream",),
+        )
     )
     graph = pipeline.build()
 
@@ -88,7 +93,7 @@ async def run_demo() -> None:
 
     bus = RealtimeStageBus(default_max_size=128)
     ports = create_core_ports(realtime_bus=bus)
-    inputs = create_stage_inputs(snapshot, ports=ports, strict=False)
+    inputs = create_stage_inputs(snapshot, ports=ports)
     ctx = StageContext(
         snapshot=snapshot,
         inputs=inputs,
@@ -96,15 +101,10 @@ async def run_demo() -> None:
         timer=PipelineTimer(),
     )
 
-    # Launch both stage runners concurrently to demonstrate real-time handoff.
-    llm = LLMStreamStage()
-    tts = TTSStreamStage()
-    llm_task = asyncio.create_task(llm.execute(ctx))
-    tts_task = asyncio.create_task(tts.execute(ctx))
-    llm_out, tts_out = await asyncio.gather(llm_task, tts_task)
-
-    print("LLM status:", llm_out.status)
-    print("TTS chunks:", tts_out.data["audio_chunks"])
+    # Execute through the Stageflow graph.
+    results = await graph.run(ctx)
+    print("LLM status:", results["llm_stream"].status)
+    print("TTS chunks:", results["tts_stream"].data["audio_chunks"])
 
     # Optional: close any remaining channels if you created multiple channels.
     await bus.close_all()

@@ -20,10 +20,12 @@ from stageflow.helpers import (
     # Streaming
     BackpressureMonitor,
     ChunkQueue,
+    RealtimeStageBus,
     StreamingBuffer,
     AudioChunk,
     AudioFormat,
     StreamConfig,
+    create_realtime_stage_context,
     # Analytics
     AnalyticsEvent,
     AnalyticsExporter,
@@ -41,6 +43,36 @@ BackpressureMonitor(*, high_water_mark: int = 80, low_water_mark: int = 20)
 
 - `high_water_mark` / `low_water_mark` are percentage thresholds.
 - Use `record_put(queue_size, max_size)` and `should_throttle()`.
+
+## RealtimeStageBus
+
+```python
+RealtimeStageBus(
+    *,
+    default_max_size: int = 100,
+    default_drop_on_overflow: bool = False,
+    event_emitter: Callable[[str, dict[str, Any]], None] | None = None,
+)
+```
+
+- Named channel bus for concurrent stage-to-stage streaming.
+- Producer: `await bus.publish("llm_to_tts", token)`.
+- Consumer: `async for token in bus.subscribe("llm_to_tts")`.
+- Close channels explicitly with `await bus.close_channel("llm_to_tts")`.
+
+## create_realtime_stage_context
+
+```python
+create_realtime_stage_context(
+    snapshot,
+    *,
+    bus=None,
+    bus_max_size: int = 100,
+    bus_drop_on_overflow: bool = False,
+) -> tuple[StageContext, RealtimeStageBus]
+```
+
+- Convenience helper to create a `StageContext` with `realtime_bus` pre-wired in ports.
 
 ## BufferedExporter
 
