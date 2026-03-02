@@ -56,42 +56,6 @@
             "docs/index.md"
           ],
           "issues": []
-        },
-        {
-          "type": "added",
-          "area": "helpers.streaming",
-          "description": "Added RealtimeStageBus for named real-time channels between concurrently running stages (for example, LLM token streaming directly into TTS).",
-          "commit": "pending",
-          "files_affected": [
-            "stageflow/helpers/streaming.py",
-            "stageflow/helpers/__init__.py",
-            "stageflow/stages/ports.py"
-          ],
-          "issues": []
-        },
-        {
-          "type": "added",
-          "area": "docs.streaming",
-          "description": "Published dedicated real-time streaming guide with end-to-end LLM-to-TTS examples and linked it from docs index/API helpers reference.",
-          "commit": "pending",
-          "files_affected": [
-            "docs/guides/realtime-streaming.md",
-            "docs/index.md",
-            "docs/api/helpers.md",
-            "docs/examples/realtime-llm-tts.md"
-          ],
-          "issues": []
-        },
-        {
-          "type": "added",
-          "area": "tests",
-          "description": "Added coverage for RealtimeStageBus channel creation, publish/subscribe flow, close semantics, stats, and CorePorts realtime_bus wiring.",
-          "commit": "pending",
-          "files_affected": [
-            "tests/unit/test_helpers_streaming.py",
-            "tests/unit/test_ports_inputs.py"
-          ],
-          "issues": []
         }
       ]
     },
@@ -222,9 +186,7 @@
             "stageflow/pipeline/__init__.py",
             "tests/pipeline/test_retry_interceptor.py"
           ],
-          "issues": [
-            "WORK-003"
-          ]
+          "issues": ["WORK-003"]
         },
         {
           "type": "added",
@@ -236,11 +198,7 @@
             "stageflow/pipeline/__init__.py",
             "tests/pipeline/test_failure_tolerance.py"
           ],
-          "issues": [
-            "DAG-004",
-            "DAG-005",
-            "DAG-006"
-          ]
+          "issues": ["DAG-004", "DAG-005", "DAG-006"]
         },
         {
           "type": "added",
@@ -252,9 +210,7 @@
             "stageflow/pipeline/__init__.py",
             "tests/pipeline/test_builder_helpers.py"
           ],
-          "issues": [
-            "DAG-007"
-          ]
+          "issues": ["DAG-007"]
         },
         {
           "type": "added",
@@ -266,143 +222,95 @@
             "stageflow/context/__init__.py",
             "tests/context/test_enrich.py"
           ],
-          "issues": [
-            "ENRICH-002",
-            "ENRICH-003",
-            "ENRICH-004"
-          ]
+          "issues": ["ENRICH-002", "ENRICH-003", "ENRICH-004"]
         },
         {
           "type": "added",
           "area": "docs.saga_pattern",
           "description": "Saga Pattern guide for distributed transactions with compensation handlers, state machines, and rollback strategies.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/saga-pattern.md"
-          ],
-          "issues": [
-            "WORK-DX-001"
-          ]
+          "files_affected": ["docs/advanced/saga-pattern.md"],
+          "issues": ["WORK-DX-001"]
         },
         {
           "type": "added",
           "area": "docs.retry_backoff",
           "description": "Retry & Backoff Patterns guide covering exponential/linear backoff, jitter strategies, and RetryInterceptor usage.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/retry-backoff.md"
-          ],
-          "issues": [
-            "WORK-DX-002"
-          ]
+          "files_affected": ["docs/advanced/retry-backoff.md"],
+          "issues": ["WORK-DX-002"]
         },
         {
           "type": "added",
           "area": "docs.checkpointing",
           "description": "Checkpoint & Restore Patterns guide for long-running pipeline state persistence and recovery.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/checkpointing.md"
-          ],
-          "issues": [
-            "WORK-DX-003"
-          ]
+          "files_affected": ["docs/advanced/checkpointing.md"],
+          "issues": ["WORK-DX-003"]
         },
         {
           "type": "added",
           "area": "docs.tool_sandboxing",
           "description": "Tool Sandboxing & Security guide covering Docker/process isolation, network policies, resource quotas, and capability restrictions.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/tool-sandboxing.md"
-          ],
-          "issues": [
-            "WORK-DX-004"
-          ]
+          "files_affected": ["docs/advanced/tool-sandboxing.md"],
+          "issues": ["WORK-DX-004"]
         },
         {
           "type": "added",
           "area": "docs.multimodal_fusion",
           "description": "Multimodal Fusion Cookbook for combining audio, text, and image modalities with parallel processing and cross-modal attention patterns.",
           "commit": "pending",
-          "files_affected": [
-            "docs/examples/multimodal-fusion.md"
-          ],
-          "issues": [
-            "TRANSFORM-DX-001"
-          ]
+          "files_affected": ["docs/examples/multimodal-fusion.md"],
+          "issues": ["TRANSFORM-DX-001"]
         },
         {
           "type": "added",
           "area": "docs.timestamps",
           "description": "Timestamp Handling Guide covering parsing, normalization, timezone handling, and best practices for temporal data.",
           "commit": "pending",
-          "files_affected": [
-            "docs/guides/timestamps.md"
-          ],
-          "issues": [
-            "TRANSFORM-DX-002"
-          ]
+          "files_affected": ["docs/guides/timestamps.md"],
+          "issues": ["TRANSFORM-DX-002"]
         },
         {
           "type": "added",
           "area": "docs.chunking",
           "description": "Chunking Patterns guide for fixed-size, semantic, and recursive chunking with parallel processing and assembly.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/chunking.md"
-          ],
-          "issues": [
-            "TRANSFORM-DX-003"
-          ]
+          "files_affected": ["docs/advanced/chunking.md"],
+          "issues": ["TRANSFORM-DX-003"]
         },
         {
           "type": "added",
           "area": "docs.guard_security",
           "description": "GUARD Stage Security Best Practices covering defense-in-depth, fail-closed defaults, injection detection, and multi-language content filtering.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/guard-security.md"
-          ],
-          "issues": [
-            "GUARD-DX-001"
-          ]
+          "files_affected": ["docs/advanced/guard-security.md"],
+          "issues": ["GUARD-DX-001"]
         },
         {
           "type": "added",
           "area": "docs.ab_testing",
           "description": "A/B Testing Patterns guide with consistent bucketing, experiment tracking, statistical significance, and Thompson Sampling.",
           "commit": "pending",
-          "files_affected": [
-            "docs/examples/ab-testing.md"
-          ],
-          "issues": [
-            "ROUTE-DX-001"
-          ]
+          "files_affected": ["docs/examples/ab-testing.md"],
+          "issues": ["ROUTE-DX-001"]
         },
         {
           "type": "added",
           "area": "docs.routing_loops",
           "description": "Routing Loop Detection & Prevention guide covering direct, indirect, and semantic loop detection strategies.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/routing-loops.md"
-          ],
-          "issues": [
-            "ROUTE-DX-002"
-          ]
+          "files_affected": ["docs/advanced/routing-loops.md"],
+          "issues": ["ROUTE-DX-002"]
         },
         {
           "type": "added",
           "area": "docs.routing_confidence",
           "description": "Routing Confidence & Threshold Tuning guide with calibration, drift detection, and staged rollout patterns.",
           "commit": "pending",
-          "files_affected": [
-            "docs/advanced/routing-confidence.md"
-          ],
-          "issues": [
-            "ROUTE-DX-003"
-          ]
+          "files_affected": ["docs/advanced/routing-confidence.md"],
+          "issues": ["ROUTE-DX-003"]
         }
       ]
     },
@@ -704,7 +612,7 @@
         {
           "type": "changed",
           "area": "docs",
-          "description": "Documented the StageContext \u2192 PipelineContext conversion helper across README, docs/index, and the advanced subpipeline guide.",
+          "description": "Documented the StageContext → PipelineContext conversion helper across README, docs/index, and the advanced subpipeline guide.",
           "commit": "pending",
           "files_affected": [
             "README.md",

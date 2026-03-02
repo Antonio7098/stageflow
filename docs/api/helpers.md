@@ -20,7 +20,6 @@ from stageflow.helpers import (
     # Streaming
     BackpressureMonitor,
     ChunkQueue,
-    RealtimeStageBus,
     StreamingBuffer,
     AudioChunk,
     AudioFormat,
@@ -42,21 +41,6 @@ BackpressureMonitor(*, high_water_mark: int = 80, low_water_mark: int = 20)
 
 - `high_water_mark` / `low_water_mark` are percentage thresholds.
 - Use `record_put(queue_size, max_size)` and `should_throttle()`.
-
-## RealtimeStageBus
-
-```python
-RealtimeStageBus(
-    *,
-    default_max_size: int = 100,
-    default_drop_on_overflow: bool = False,
-    event_emitter: Callable[[str, dict[str, Any]], None] | None = None,
-)
-```
-
-- Named channel bus for real-time stage-to-stage chunk handoff.
-- Use `await bus.publish("llm_to_tts", token)` to produce.
-- Use `async for chunk in bus.subscribe("llm_to_tts")` to consume.
 
 ## BufferedExporter
 
