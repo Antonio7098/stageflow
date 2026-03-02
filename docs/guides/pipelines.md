@@ -345,21 +345,29 @@ This validates:
 
 ### Run the Graph
 
-Execute with a `StageContext`:
+Execute with a `PipelineContext`:
 
 ```python
-from stageflow import StageContext
-from stageflow.context import ContextSnapshot
+from uuid import uuid4
+from stageflow import PipelineContext
 from stageflow.helpers import ChunkQueue
-from stageflow.testing import create_test_stage_context
 
-snapshot = ContextSnapshot(...)
-ctx = create_test_stage_context(snapshot=snapshot)
+pipeline_ctx = PipelineContext(
+    pipeline_run_id=uuid4(),
+    request_id=uuid4(),
+    session_id=uuid4(),
+    user_id=uuid4(),
+    org_id=None,
+    interaction_id=uuid4(),
+    input_text="Hello",
+    topology="pipeline",
+    execution_mode="practice",
+)
 
-results = await graph.run(ctx)
+results = await graph.run(pipeline_ctx)
 
 # Emit basic streaming telemetry while running
-queue = ChunkQueue(event_emitter=ctx.emit_event)
+queue = ChunkQueue(event_emitter=pipeline_ctx.try_emit_event)
 await queue.put("warmup")
 await queue.close()
 ```

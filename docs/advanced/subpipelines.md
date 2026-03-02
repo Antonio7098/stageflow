@@ -92,13 +92,17 @@ class ToolDispatcher(Stage):
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         tool_calls = ctx.inputs.get("tool_calls", [])
+        pipeline_ctx = ctx.as_pipeline_context()
         
         results = []
         for call in tool_calls:
             # Create child pipeline for each tool call
-            child_ctx = ctx.pipeline_ctx.fork(
-                child_run_id=uuid4(),
-                correlation_id=uuid4(),
+            child_run_id = uuid4()
+            correlation_id = uuid4()
+            child_ctx = pipeline_ctx.fork(
+                child_run_id=child_run_id,
+                parent_stage_id=self.name,
+                correlation_id=correlation_id,
                 topology=f"tool_{call.type}",
                 execution_mode="tool_execution",
             )
@@ -179,8 +183,10 @@ for call in unresolved:
     ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
 
 for call in resolved:
-    child_ctx = ctx.pipeline_ctx.fork(
+    pipeline_ctx = ctx.as_pipeline_context()
+    child_ctx = pipeline_ctx.fork(
         child_run_id=uuid4(),
+        parent_stage_id=self.name,
         correlation_id=call.call_id,
         topology=f"tool_{call.name}",
         execution_mode="tool_execution",
@@ -340,7 +346,7 @@ Parent cancellation should cascade to children:
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
     # Check for cancellation before spawning children
-    if ctx.pipeline_ctx.canceled:
+    if ctx.as_pipeline_context().canceled:
         return StageOutput.cancel(reason="Parent cancelled")
     
     # Track child tasks for cancellation
@@ -519,9 +525,9 @@ from stageflow.core import StageContext
 
 async def execute(self, ctx: StageContext) -> StageOutput:
     pipeline_ctx = ctx.as_pipeline_context(
-        topology="subpipeline_general",
         data={"invoked_by": ctx.stage_name},
     )
+    pipeline_ctx.topology = "subpipeline_general"
 
     result = await self.executor.spawn_subpipeline(
         pipeline_name="general_chat",

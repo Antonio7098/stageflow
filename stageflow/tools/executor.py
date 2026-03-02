@@ -215,11 +215,7 @@ class ToolExecutor:
                 logger.error(f"Validation failed: {result.error}")
             ```
         """
-        from stageflow.context import ContextSnapshot
-        from stageflow.context.identity import RunIdentity
-        from stageflow.core import PipelineTimer, StageContext
         from stageflow.pipeline.subpipeline import MaxDepthExceededError
-        from stageflow.stages.inputs import create_stage_inputs
 
         start_time = time.perf_counter()
         parent_run_id = ctx.pipeline_run_id
@@ -268,37 +264,8 @@ class ToolExecutor:
             This runner creates a StageContext from the child PipelineContext
             and executes the pre-built graph. Returns stage outputs as dict.
             """
-            # Create a minimal ContextSnapshot from child context for StageContext
-            child_snapshot = ContextSnapshot(
-                run_id=RunIdentity(
-                    pipeline_run_id=child_ctx.pipeline_run_id,
-                    request_id=child_ctx.request_id,
-                    session_id=child_ctx.session_id,
-                    user_id=child_ctx.user_id,
-                    org_id=child_ctx.org_id,
-                    interaction_id=child_ctx.interaction_id,
-                ),
-                topology=child_ctx.topology,
-                execution_mode=child_ctx.execution_mode,
-            )
-
-            # Create stage inputs for the root
-            root_inputs = create_stage_inputs(
-                snapshot=child_snapshot,
-                prior_outputs={},
-                ports=None,
-                declared_deps=(),
-                stage_name="__subpipeline_root__",
-            )
-
-            # Create StageContext for graph execution
-            stage_ctx = StageContext(
-                snapshot=child_snapshot,
-                inputs=root_inputs,
-                stage_name="__subpipeline_root__",
-                timer=PipelineTimer(),
-                event_sink=child_ctx.event_sink,
-            )
+            # Derive immutable execution wrapper from canonical PipelineContext.
+            stage_ctx = child_ctx.derive_root_stage_context(stage_name="__subpipeline_root__")
 
             # Execute the graph
             results = await graph.run(stage_ctx)

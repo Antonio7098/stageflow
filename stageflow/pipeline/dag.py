@@ -406,14 +406,15 @@ class UnifiedStageGraph:
     def _duration_ms(self, started_at: datetime, ended_at: datetime) -> int:
         return int((ended_at - started_at).total_seconds() * 1000)
 
-    async def run(self, ctx: StageContext) -> dict[str, StageOutput]:
+    async def run(self, ctx: StageContext | PipelineContext) -> dict[str, StageOutput]:
         """Execute the DAG with the given context.
 
         Uses structured cancellation to ensure proper resource cleanup
         when the pipeline is cancelled or encounters an error.
 
         Args:
-            ctx: StageContext containing the snapshot and config
+            ctx: Root context for execution. Preferred entry is PipelineContext;
+                StageContext remains supported for backwards compatibility.
 
         Returns:
             Dict mapping stage name to StageOutput
@@ -427,11 +428,17 @@ class UnifiedStageGraph:
             },
         )
 
+        stage_ctx = (
+            ctx.derive_root_stage_context()
+            if isinstance(ctx, PipelineContext)
+            else ctx
+        )
+
         # Initialize cleanup registry and cancellation token for this execution
         self._cleanup_registry = CleanupRegistry()
         self._cancel_token = CancellationToken()
 
-        shared_timer = ctx.timer or PipelineTimer()
+        shared_timer = stage_ctx.timer or PipelineTimer()
 
         completed: dict[str, StageOutput] = {}
         guard_retry_state: dict[str, GuardRetryRuntimeState] = {}
@@ -445,7 +452,7 @@ class UnifiedStageGraph:
 
         def emit_guard_retry_event(event: str, **payload: Any) -> None:
             try:
-                ctx.try_emit_event(type=f"guard_retry.{event}", data=payload)
+                stage_ctx.try_emit_event(type=f"guard_retry.{event}", data=payload)
             except AttributeError:
                 logger.debug(
                     "Guard retry event skipped (no context emitter)",
@@ -473,7 +480,7 @@ class UnifiedStageGraph:
 
         def schedule_stage(name: str) -> None:
             task = asyncio.create_task(
-                self._execute_node(name, ctx, completed, shared_timer)
+                self._execute_node(name, stage_ctx, completed, shared_timer)
             )
             active_tasks.add(task)
 

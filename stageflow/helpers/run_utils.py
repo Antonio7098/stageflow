@@ -37,11 +37,11 @@ from uuid import UUID, uuid4
 
 from stageflow.context import ContextSnapshot
 from stageflow.context.identity import RunIdentity
-from stageflow.core import PipelineTimer, StageContext
 from stageflow.events import set_event_sink
 from stageflow.helpers.memory_tracker import MemoryTracker
 from stageflow.helpers.uuid_utils import UuidCollisionMonitor
 from stageflow.pipeline.dag import UnifiedPipelineCancelled, UnifiedStageGraph
+from stageflow.stages.context import PipelineContext
 
 
 def setup_logging(
@@ -447,6 +447,7 @@ class PipelineRunner:
         *,
         input_text: str | None = None,
         execution_mode: str = "practice",
+        pipeline_ctx: PipelineContext | None = None,
         snapshot: ContextSnapshot | None = None,
         _config: dict[str, Any] | None = None,
         **snapshot_kwargs: Any,
@@ -457,6 +458,7 @@ class PipelineRunner:
             pipeline: Pipeline to run (Pipeline instance or UnifiedStageGraph).
             input_text: User input text.
             execution_mode: Pipeline execution mode.
+            pipeline_ctx: Canonical PipelineContext entrypoint.
             snapshot: Pre-built snapshot (if None, creates one).
             config: Additional stage context config.
             **snapshot_kwargs: Additional snapshot creation args.
@@ -474,17 +476,33 @@ class PipelineRunner:
         )
         set_event_sink(event_sink)
 
-        # Create or use snapshot
-        if snapshot is None:
-            snapshot = self.create_snapshot(
-                input_text=input_text,
-                execution_mode=execution_mode,
-                **snapshot_kwargs,
+        if pipeline_ctx is not None and snapshot is not None:
+            raise ValueError("Pass either pipeline_ctx or snapshot, not both")
+
+        # Canonical context entrypoint for execution.
+        if pipeline_ctx is None:
+            # Backwards-compatible snapshot entrypoint.
+            if snapshot is None:
+                snapshot = self.create_snapshot(
+                    input_text=input_text,
+                    execution_mode=execution_mode,
+                    **snapshot_kwargs,
+                )
+            pipeline_ctx = PipelineContext.from_snapshot(
+                snapshot,
+                event_sink=event_sink,
             )
+        else:
+            # Ensure runner event capture hooks into this execution.
+            pipeline_ctx.event_sink = event_sink
+            if input_text is not None and pipeline_ctx.input_text is None:
+                pipeline_ctx.input_text = input_text
+            if pipeline_ctx.execution_mode is None:
+                pipeline_ctx.execution_mode = execution_mode
 
         # Wire UUID monitor if enabled
         if self._uuid_monitor:
-            self._uuid_monitor.observe(snapshot.pipeline_run_id)
+            self._uuid_monitor.observe(pipeline_ctx.pipeline_run_id)
 
         # Wire memory tracker if enabled
         if self._memory_tracker:
@@ -523,38 +541,24 @@ class PipelineRunner:
             current_interceptors = list(graph._interceptors)
             graph._interceptors = hardening + current_interceptors
 
-        from stageflow.stages.inputs import create_stage_inputs
-
-        root_inputs = create_stage_inputs(
-            snapshot=snapshot,
-            prior_outputs={},
-            ports=None,
-            declared_deps=(),
-            stage_name="__pipeline_root__",
-        )
-
-        stage_ctx = StageContext(
-            snapshot=snapshot,
-            inputs=root_inputs,
-            stage_name="__pipeline_root__",
-            timer=PipelineTimer(),
-            event_sink=event_sink,
-        )
-
         # Print header
         if self._verbose:
             print("\n" + "=" * 60)
-            print(f"RUNNING PIPELINE: {snapshot.topology}")
+            print(f"RUNNING PIPELINE: {pipeline_ctx.topology}")
             print("=" * 60)
-            if input_text:
-                display_text = input_text[:60] + "..." if len(input_text) > 60 else input_text
+            if pipeline_ctx.input_text:
+                display_text = (
+                    pipeline_ctx.input_text[:60] + "..."
+                    if len(pipeline_ctx.input_text) > 60
+                    else pipeline_ctx.input_text
+                )
                 print(f"Input: {display_text}")
-            print(f"Mode: {execution_mode}")
+            print(f"Mode: {pipeline_ctx.execution_mode}")
             print("-" * 60)
 
-        # Run pipeline - graph.run() takes snapshot and event_sink
+        # Run pipeline from canonical PipelineContext.
         try:
-            results = await graph.run(stage_ctx)
+            results = await graph.run(pipeline_ctx)
             duration_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
 
             if self._memory_tracker:
@@ -565,7 +569,7 @@ class PipelineRunner:
                 stages={name: output.data for name, output in results.items()},
                 duration_ms=duration_ms,
                 events=event_sink.events if self._capture_events else [],
-                pipeline_run_id=snapshot.pipeline_run_id,
+                pipeline_run_id=pipeline_ctx.pipeline_run_id,
             )
 
         except UnifiedPipelineCancelled as e:
@@ -581,7 +585,7 @@ class PipelineRunner:
                 cancelled=True,
                 cancel_reason=e.reason,
                 events=event_sink.events if self._capture_events else [],
-                pipeline_run_id=snapshot.pipeline_run_id,
+                pipeline_run_id=pipeline_ctx.pipeline_run_id,
             )
 
         except Exception as e:
@@ -596,7 +600,7 @@ class PipelineRunner:
                 error=str(e),
                 error_type=type(e).__name__,
                 events=event_sink.events if self._capture_events else [],
-                pipeline_run_id=snapshot.pipeline_run_id,
+                pipeline_run_id=pipeline_ctx.pipeline_run_id,
             )
 
     def print_result(self, result: RunResult, *, show_data: bool = True) -> None:

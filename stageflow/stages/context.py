@@ -17,6 +17,9 @@ from stageflow.events import EventSink, get_event_sink
 
 if TYPE_CHECKING:
     from stageflow.context import ContextSnapshot
+    from stageflow.context.conversation import Conversation
+    from stageflow.context.enrichments import Enrichments
+    from stageflow.context.extensions import ExtensionBundle
     from stageflow.context.output_bag import OutputBag
     from stageflow.core import StageContext
     from stageflow.stages.ports import AudioPorts, CorePorts, LLMPorts
@@ -68,6 +71,14 @@ class PipelineContext:
     configuration: dict[str, Any] = field(default_factory=dict)
     # execution_mode: high-level execution mode label (e.g. "practice", "roleplay", "doc_edit")
     execution_mode: str | None = None
+    # Snapshot payload fields (canonical user-supplied context data).
+    input_text: str | None = None
+    input_audio_duration_ms: int | None = None
+    conversation: Conversation | None = None
+    enrichments: Enrichments | None = None
+    extensions: ExtensionBundle | dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     service: str = "pipeline"
     event_sink: EventSink = field(default_factory=get_event_sink)
     data: dict[str, Any] = field(default_factory=dict)
@@ -137,6 +148,9 @@ class PipelineContext:
             "interaction_id": str(self.interaction_id) if self.interaction_id else None,
             "topology": self.topology,
             "execution_mode": self.execution_mode,
+            "input_text": self.input_text,
+            "input_audio_duration_ms": self.input_audio_duration_ms,
+            "metadata": self.metadata.copy(),
             "service": self.service,
             "data": self.data,
             "canceled": self.canceled,
@@ -150,6 +164,80 @@ class PipelineContext:
         if self.correlation_id:
             result["correlation_id"] = str(self.correlation_id)
         return result
+
+    def to_snapshot(self) -> ContextSnapshot:
+        """Derive immutable snapshot view from the canonical PipelineContext."""
+        from stageflow.context import ContextSnapshot
+        from stageflow.context.identity import RunIdentity
+
+        run_id = RunIdentity(
+            pipeline_run_id=self.pipeline_run_id,
+            request_id=self.request_id,
+            session_id=self.session_id,
+            user_id=self.user_id,
+            org_id=self.org_id,
+            interaction_id=self.interaction_id,
+            created_at=self.created_at,
+        )
+        return ContextSnapshot(
+            run_id=run_id,
+            enrichments=self.enrichments,
+            conversation=self.conversation,
+            extensions=self.extensions,
+            input_text=self.input_text,
+            input_audio_duration_ms=self.input_audio_duration_ms,
+            topology=self.topology,
+            execution_mode=self.execution_mode,
+            created_at=self.created_at,
+            metadata=self.metadata.copy(),
+        )
+
+    @property
+    def snapshot(self) -> ContextSnapshot:
+        """Compatibility accessor for components that consume ContextSnapshot."""
+        return self.to_snapshot()
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: ContextSnapshot,
+        *,
+        configuration: dict[str, Any] | None = None,
+        service: str = "pipeline",
+        event_sink: EventSink | None = None,
+        data: dict[str, Any] | None = None,
+        db: Any = None,
+        canceled: bool = False,
+        artifacts: list[Artifact] | None = None,
+    ) -> PipelineContext:
+        """Construct PipelineContext from immutable snapshot data."""
+        kwargs: dict[str, Any] = {}
+        if event_sink is not None:
+            kwargs["event_sink"] = event_sink
+        return cls(
+            pipeline_run_id=snapshot.pipeline_run_id,
+            request_id=snapshot.request_id,
+            session_id=snapshot.session_id,
+            user_id=snapshot.user_id,
+            org_id=snapshot.org_id,
+            interaction_id=snapshot.interaction_id,
+            topology=snapshot.topology,
+            configuration=configuration.copy() if configuration else {},
+            execution_mode=snapshot.execution_mode,
+            input_text=snapshot.input_text,
+            input_audio_duration_ms=snapshot.input_audio_duration_ms,
+            conversation=snapshot.conversation,
+            enrichments=snapshot.enrichments,
+            extensions=snapshot.extensions,
+            metadata=snapshot.metadata.copy(),
+            created_at=snapshot.created_at,
+            service=service,
+            data=data.copy() if data else {},
+            db=db,
+            canceled=canceled,
+            artifacts=list(artifacts or []),
+            **kwargs,
+        )
 
     @classmethod
     def now(cls) -> datetime:
@@ -215,6 +303,13 @@ class PipelineContext:
             topology=topology or self.topology,
             configuration=self.configuration.copy(),
             execution_mode=execution_mode or self.execution_mode,
+            input_text=self.input_text,
+            input_audio_duration_ms=self.input_audio_duration_ms,
+            conversation=self.conversation,
+            enrichments=self.enrichments,
+            extensions=self.extensions,
+            metadata=self.metadata.copy(),
+            created_at=self.created_at,
             service=self.service,
             event_sink=self.event_sink,
             data={},  # Fresh data dict for child
@@ -263,8 +358,8 @@ class PipelineContext:
     def derive_for_stage(
         self,
         stage_name: str,
-        snapshot: ContextSnapshot,
         output_bag: OutputBag,
+        snapshot: ContextSnapshot | None = None,
         *,
         declared_deps: frozenset[str] | set[str] | list[str] | None = None,
         ports: CorePorts | LLMPorts | AudioPorts | None = None,
@@ -292,6 +387,9 @@ class PipelineContext:
         from stageflow.core.timer import PipelineTimer
         from stageflow.stages.inputs import StageInputs
 
+        if snapshot is None:
+            snapshot = self.to_snapshot()
+
         # Convert deps to frozenset if provided
         deps: frozenset[str]
         if declared_deps is None:
@@ -318,6 +416,27 @@ class PipelineContext:
         return StageContext(
             snapshot=snapshot,
             inputs=inputs,
+            stage_name=stage_name,
+            timer=PipelineTimer(),
+            event_sink=self.event_sink,
+        )
+
+    def derive_root_stage_context(self, *, stage_name: str = "__pipeline_root__") -> StageContext:
+        """Create the root StageContext derived from this PipelineContext."""
+        from stageflow.core import PipelineTimer, StageContext
+        from stageflow.stages.inputs import create_stage_inputs
+
+        snapshot = self.to_snapshot()
+        root_inputs = create_stage_inputs(
+            snapshot=snapshot,
+            prior_outputs={},
+            ports=None,
+            declared_deps=(),
+            stage_name=stage_name,
+        )
+        return StageContext(
+            snapshot=snapshot,
+            inputs=root_inputs,
             stage_name=stage_name,
             timer=PipelineTimer(),
             event_sink=self.event_sink,
