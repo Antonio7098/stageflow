@@ -14,7 +14,7 @@ A DAG-based pipeline orchestration framework for building observable, composable
 
 ## Installation
 
-Latest release: v0.9.4
+Latest release: v0.9.5
 
 ```bash
 pip install stageflow-core

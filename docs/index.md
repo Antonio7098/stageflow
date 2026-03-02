@@ -45,7 +45,7 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.9.4**
+> **New in Stageflow 0.9.5**
 >
 > - **Duplex Pipeline Systems**: Added `DuplexLaneSpec`, `DuplexSystemSpec`, `with_duplex_system()` helper, and `FluentPipelineBuilder.duplex()` for low-boilerplate bidirectional pipeline construction (A→B and B→A lanes with optional sync stage).
 > - **Expanded Builder Helpers**: Fluent builder now supports duplex topologies alongside linear chains, parallel stages, and fan-out/fan-in patterns.
