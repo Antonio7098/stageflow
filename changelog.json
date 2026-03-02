@@ -19,6 +19,55 @@
   },
   "entries": [
     {
+      "version": "v0.9.5",
+      "date": "2026-03-02",
+      "changes": [
+        {
+          "type": "changed",
+          "area": "context",
+          "description": "Promoted PipelineContext to the canonical caller-facing pipeline input and added explicit derivation APIs (to_snapshot, from_snapshot, derive_root_stage_context) so ContextSnapshot/StageContext are derived runtime views.",
+          "commit": "a93ca51",
+          "files_affected": [
+            "stageflow/stages/context.py",
+            "stageflow/core/stage_context.py",
+            "stageflow/pipeline/dag.py",
+            "stageflow/helpers/run_utils.py",
+            "stageflow/tools/executor.py",
+            "stageflow/context/context_snapshot.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "fixed",
+          "area": "context.extensions",
+          "description": "Hardened ContextSnapshot extension serialization/deserialization to support dict-based extensions without runtime attribute errors.",
+          "commit": "a93ca51",
+          "files_affected": [
+            "stageflow/context/context_snapshot.py",
+            "tests/unit/test_snapshot.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "docs",
+          "description": "Updated API/getting-started/guides/advanced docs to consistently present PipelineContext as the primary user entrypoint and corrected stale snippets/signatures in auth and subpipeline examples.",
+          "commit": "a93ca51",
+          "files_affected": [
+            "docs/api/context.md",
+            "docs/guides/context.md",
+            "docs/getting-started/quickstart.md",
+            "docs/getting-started/concepts.md",
+            "docs/guides/pipelines.md",
+            "docs/advanced/subpipelines.md",
+            "docs/api/auth.md",
+            "docs/index.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.9.4",
       "date": "2026-03-02",
       "changes": [
