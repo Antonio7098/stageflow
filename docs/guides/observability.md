@@ -719,7 +719,7 @@ from stageflow.observability import (
 )
 
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except Exception as e:
     summary = summarize_pipeline_error(e)
     # {
@@ -785,7 +785,7 @@ set_event_sink(LoggingEventSink())
 ### 3. Inspect Stage Results
 
 ```python
-results = await graph.run(ctx)
+results = await graph.run(pipeline_ctx)
 
 for name, output in results.items():
     print(f"Stage: {name}")

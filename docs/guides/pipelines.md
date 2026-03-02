@@ -377,7 +377,7 @@ await queue.close()
 Results are a dict mapping stage name to `StageOutput`:
 
 ```python
-results = await graph.run(ctx)
+results = await graph.run(pipeline_ctx)
 
 # Access specific stage output
 llm_output = results["llm"]
@@ -416,11 +416,10 @@ names = pipeline_registry.list()  # ["chat_fast", "chat_accurate", "voice"]
 Pass configuration when building the context:
 
 ```python
-snapshot = ContextSnapshot(
+pipeline_ctx = PipelineContext(
     ...,
     metadata={"timeout": 30000, "model": "gpt-4"},
 )
-ctx = create_test_stage_context(snapshot=snapshot, event_sink=my_event_sink)
 ```
 
 ### Per-Stage Configuration
@@ -445,7 +444,7 @@ When a stage fails, the pipeline stops and raises `StageExecutionError`:
 from stageflow import StageExecutionError
 
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except StageExecutionError as e:
     print(f"Stage '{e.stage}' failed: {e.original}")
 ```
@@ -458,7 +457,7 @@ When a stage returns `StageOutput.cancel()`, the pipeline stops gracefully:
 from stageflow.pipeline.dag import UnifiedPipelineCancelled
 
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except UnifiedPipelineCancelled as e:
     print(f"Pipeline cancelled by '{e.stage}': {e.reason}")
     # Access partial results

@@ -244,7 +244,7 @@ Raised when a stage fails:
 from stageflow import StageExecutionError
 
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except StageExecutionError as e:
     print(f"Stage '{e.stage}' failed: {e.original}")
     print(f"Recoverable: {e.recoverable}")
@@ -258,7 +258,7 @@ Raised when a stage cancels the pipeline (not an error):
 from stageflow.pipeline.dag import UnifiedPipelineCancelled
 
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except UnifiedPipelineCancelled as e:
     print(f"Cancelled by '{e.stage}': {e.reason}")
     partial_results = e.results  # Results from completed stages
@@ -272,7 +272,7 @@ except UnifiedPipelineCancelled as e:
 from stageflow.observability import summarize_pipeline_error
 
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except Exception as e:
     summary = summarize_pipeline_error(e)
     # {

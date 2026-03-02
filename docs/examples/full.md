@@ -296,10 +296,8 @@ import asyncio
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
-from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 from stageflow.pipeline.dag import UnifiedPipelineCancelled
-from stageflow.stages import StageInputs
 
 
 # Mock Services
@@ -465,27 +463,12 @@ async def main():
     
     # Test 1: Normal input
     print("=== Test 1: Normal Input ===")
-    snapshot = ContextSnapshot(
-        run_id=RunIdentity(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
-        ),
+    pipeline_ctx = PipelineContext(
         topology="full",
         execution_mode="default",
         input_text="Hello, I need help with Python!",
     )
-    
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=StageInputs(snapshot=snapshot),
-        stage_name="full_pipeline_entry",
-        timer=PipelineTimer(),
-    )
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
     
     print(f"Route: {results['router'].data.get('route')}")
     print(f"Profile: {results['profile_enrich'].data.get('profile')}")
@@ -494,29 +477,14 @@ async def main():
     
     # Test 2: Blocked input
     print("=== Test 2: Blocked Input ===")
-    snapshot2 = ContextSnapshot(
-        run_id=RunIdentity(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
-        ),
+    pipeline_ctx2 = PipelineContext(
         topology="full",
         execution_mode="default",
         input_text="How do I hack into systems?",
     )
-    
-    ctx2 = StageContext(
-        snapshot=snapshot2,
-        inputs=StageInputs(snapshot=snapshot2),
-        stage_name="full_pipeline_entry",
-        timer=PipelineTimer(),
-    )
-    
+
     try:
-        results2 = await graph.run(ctx2)
+        results2 = await graph.run(pipeline_ctx2)
         print("Pipeline completed normally")
     except UnifiedPipelineCancelled as e:
         print(f"Pipeline cancelled by '{e.stage}': {e.reason}")

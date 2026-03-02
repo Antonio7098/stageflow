@@ -85,11 +85,8 @@ def create_simple_pipeline() -> Pipeline:
 
 ```python
 import asyncio
-from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
-from stageflow.context import ContextSnapshot, RunIdentity
-from stageflow.stages import StageInputs
+from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 
 
 class EchoStage:
@@ -111,30 +108,15 @@ async def main():
     # Build the executable graph
     graph = pipeline.build()
     
-    # Create the context with input
-    snapshot = ContextSnapshot(
-        run_id=RunIdentity(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
-        ),
+    # Create the pipeline entry context
+    pipeline_ctx = PipelineContext(
         topology="simple",
         execution_mode="default",
         input_text="Hello, Stageflow!",
     )
     
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=StageInputs(snapshot=snapshot),
-        stage_name="pipeline_entry",
-        timer=PipelineTimer(),
-    )
-    
     # Run the pipeline
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
     
     # Access results
     echo_output = results["echo"]
@@ -159,8 +141,8 @@ Message: Echoed: Hello, Stageflow!
 
 1. **Pipeline Creation**: We create a pipeline with one stage
 2. **Graph Building**: `pipeline.build()` creates an executable `StageGraph`
-3. **Context Creation**: We create a `ContextSnapshot` with our input
-4. **Execution**: `graph.run(ctx)` executes all stages
+3. **Context Creation**: We create a `PipelineContext` with our input
+4. **Execution**: `graph.run(pipeline_ctx)` executes all stages
 5. **Results**: We get a dict mapping stage names to `StageOutput`
 
 ## Variations
@@ -168,9 +150,8 @@ Message: Echoed: Hello, Stageflow!
 ### With Configuration
 
 ```python
-# Attach custom settings to snapshot metadata for stage access.
-snapshot = ContextSnapshot(
-    run_id=RunIdentity(pipeline_run_id=uuid4()),
+# Attach custom settings to PipelineContext metadata for stage access.
+pipeline_ctx = PipelineContext(
     metadata={
         "timeout_ms": 5000,
         "custom_setting": "value",
@@ -188,7 +169,7 @@ from stageflow.helpers import ChunkQueue
 set_event_sink(LoggingEventSink())
 
 # Now all stage events will be logged
-results = await graph.run(ctx)
+results = await graph.run(pipeline_ctx)
 
 # Emit queue telemetry even in simple pipelines (tracks drops/throttle)
 queue = ChunkQueue(event_emitter=lambda event, attrs: print(event, attrs))
@@ -202,7 +183,7 @@ await queue.close()
 from stageflow.pipeline.dag import UnifiedStageExecutionError
 
 try:
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 except UnifiedStageExecutionError as e:
     print(f"Stage '{e.stage}' failed: {e.original}")
 ```

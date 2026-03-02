@@ -177,11 +177,9 @@ def create_parallel_pipeline() -> Pipeline:
 ```python
 import asyncio
 from dataclasses import dataclass
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from stageflow import Pipeline, PipelineTimer, StageContext, StageKind, StageOutput
-from stageflow.context import ContextSnapshot, RunIdentity
-from stageflow.stages import StageInputs
+from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 
 
 # Mock services
@@ -293,29 +291,14 @@ async def main():
     
     graph = pipeline.build()
     
-    snapshot = ContextSnapshot(
-        run_id=RunIdentity(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
-        ),
+    pipeline_ctx = PipelineContext(
         topology="parallel",
         execution_mode="default",
     )
     
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=StageInputs(snapshot=snapshot),
-        stage_name="parallel_entry",
-        timer=PipelineTimer(),
-    )
-    
     # Time the execution
     start = time.time()
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
     elapsed = time.time() - start
     
     # Results

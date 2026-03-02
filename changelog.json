@@ -64,6 +64,31 @@
             "docs/index.md"
           ],
           "issues": []
+        },
+        {
+          "type": "fixed",
+          "area": "docs.context_consistency",
+          "description": "Swept remaining docs references to manual pipeline-entry ContextSnapshot/StageContext wiring and aligned user-facing examples with canonical PipelineContext-first execution.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/getting-started/installation.md",
+            "docs/getting-started/concepts.md",
+            "docs/index.md",
+            "docs/examples/simple.md",
+            "docs/examples/transform-chain.md",
+            "docs/examples/parallel.md",
+            "docs/examples/chat.md",
+            "docs/examples/agent-tools.md",
+            "docs/examples/full.md",
+            "docs/examples/realtime-llm-tts.md",
+            "docs/guides/context.md",
+            "docs/guides/pipelines.md",
+            "docs/guides/observability.md",
+            "docs/guides/authentication.md",
+            "docs/advanced/errors.md",
+            "docs/api/auth.md"
+          ],
+          "issues": []
         }
       ]
     },
