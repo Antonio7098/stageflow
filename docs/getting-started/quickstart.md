@@ -66,60 +66,68 @@ pipeline = (
 )
 ```
 
-### Step 3: Create the Context
+### Step 3: Run It (Recommended)
 
-The `ContextSnapshot` carries input data and metadata through the pipeline:
-
-```python
-from uuid import uuid4
-from stageflow.context import ContextSnapshot, RunIdentity
-
-snapshot = ContextSnapshot(
-    run_id=RunIdentity(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
-    ),
-    topology="quickstart",
-    execution_mode="default",
-    input_text="hello world",  # Our input
-)
-```
-
-### Step 4: Run the Pipeline
-
-Build the graph and execute:
+For most projects, use `PipelineRunner`. It creates the snapshot and root
+`StageContext` for you.
 
 ```python
 import asyncio
-from stageflow import StageContext, PipelineTimer
-from stageflow.stages import StageInputs
+from stageflow.helpers import PipelineRunner
 
 async def main():
-    # Build executable graph
-    graph = pipeline.build()
-    
-    # Create execution context (StageInputs + StageContext)
-    inputs = StageInputs(snapshot=snapshot)
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=inputs,
-        stage_name="pipeline",
-        timer=PipelineTimer(),
+    runner = PipelineRunner(verbose=False)
+    result = await runner.run(
+        pipeline,
+        input_text="hello world",
+        topology="quickstart",
+        execution_mode="default",
     )
-    
-    # Run the pipeline
-    results = await graph.run(ctx)
-    
-    # Access results
-    print(results["uppercase"].data)  # {'text': 'HELLO WORLD'}
-    print(results["exclaim"].data)    # {'text': 'HELLO WORLD!!!', 'excited': True}
+
+    # Access results by stage name
+    print(result.stages["uppercase"])  # {'text': 'HELLO WORLD'}
+    print(result.stages["exclaim"])    # {'text': 'HELLO WORLD!!!', 'excited': True}
 
 asyncio.run(main())
 ```
+
+### Step 4: Manual Context Wiring (Advanced)
+
+Use manual wiring only when you need full control over IDs, metadata, or
+custom event sinks.
+
+```python
+import asyncio
+
+from stageflow import PipelineTimer, StageContext
+from stageflow.context import ContextSnapshot
+from stageflow.stages import StageInputs
+
+async def main():
+    snapshot = ContextSnapshot(
+        input_text="hello world",
+        topology="quickstart",
+        execution_mode="default",
+    )
+
+    graph = pipeline.build()
+    ctx = StageContext(
+        snapshot=snapshot,
+        inputs=StageInputs(snapshot=snapshot),
+        stage_name="pipeline",
+        timer=PipelineTimer(),
+    )
+    results = await graph.run(ctx)
+
+asyncio.run(main())
+```
+
+### About `PipelineContext`
+
+`StageContext` is what stage `execute()` methods should use. `PipelineContext`
+is an orchestration context used by interceptors, tools, and subpipeline
+operations. Keep quickstarts on `StageContext` and introduce `PipelineContext`
+later in advanced guides.
 
 > **Testing tip**: When you only need to run a single stage in isolation,
 > use `stageflow.testing.create_test_stage_context()` instead of
@@ -169,12 +177,10 @@ Here's the full working code:
 
 ```python
 import asyncio
-from uuid import uuid4
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput, PipelineTimer
-from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow import Pipeline, StageContext, StageKind, StageOutput
 from stageflow.helpers import LLMResponse
-from stageflow.stages import StageInputs
+from stageflow.helpers import PipelineRunner
 
 
 class UppercaseStage:
@@ -221,43 +227,19 @@ async def main():
             dependencies=("uppercase",),
         )
     )
-    
-    # Create context
-    snapshot = ContextSnapshot(
-        run_id=RunIdentity(
-            pipeline_run_id=uuid4(),
-            request_id=uuid4(),
-            session_id=uuid4(),
-            user_id=uuid4(),
-            org_id=None,
-            interaction_id=uuid4(),
-        ),
+
+    runner = PipelineRunner(verbose=False)
+    result = await runner.run(
+        pipeline,
+        input_text="hello world",
         topology="quickstart",
         execution_mode="default",
-        input_text="hello world",
     )
-    
-    # Run
-    graph = pipeline.build()
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=StageInputs(snapshot=snapshot),
-        stage_name="pipeline",
-        timer=PipelineTimer(),
-    )
-    results = await graph.run(ctx)
-    
+
     # Output
     print(f"Input: hello world")
-    print(f"After uppercase: {results['uppercase'].data['text']}")
-    print(f"After exclaim: {results['exclaim'].data['text']}")
-
-    # Drop-in telemetry: listen to streaming helpers
-    from stageflow.helpers import ChunkQueue
-
-    queue = ChunkQueue(event_emitter=lambda event, data: print(f"{event}: {data}"))
-    await queue.put("demo")
-    await queue.close()
+    print(f"After uppercase: {result.stages['uppercase']['text']}")
+    print(f"After exclaim: {result.stages['exclaim']['text']}")
 
 
 if __name__ == "__main__":
