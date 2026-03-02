@@ -161,24 +161,13 @@ class StageContext:
 
         from stageflow.stages.context import PipelineContext
 
-        kwargs: dict[str, Any] = {}
-        if self.event_sink is not None:
-            kwargs["event_sink"] = self.event_sink
-
-        return PipelineContext(
-            pipeline_run_id=self.snapshot.pipeline_run_id,
-            request_id=self.snapshot.request_id,
-            session_id=self.snapshot.session_id,
-            user_id=self.snapshot.user_id,
-            org_id=self.snapshot.org_id,
-            interaction_id=self.snapshot.interaction_id,
-            topology=self.snapshot.topology,
+        return PipelineContext.from_snapshot(
+            self.snapshot,
             configuration=configuration.copy() if configuration else {},
-            execution_mode=self.snapshot.execution_mode,
             service=service or "pipeline",
             data=(data.copy() if data else {}),
             db=db,
-            **kwargs,
+            event_sink=self.event_sink,
         )
 
     @classmethod

@@ -99,35 +99,32 @@ custom event sinks.
 ```python
 import asyncio
 
-from stageflow import PipelineTimer, StageContext
-from stageflow.context import ContextSnapshot
-from stageflow.stages import StageInputs
+from uuid import uuid4
+from stageflow import PipelineContext
 
 async def main():
-    snapshot = ContextSnapshot(
+    pipeline_ctx = PipelineContext(
+        pipeline_run_id=uuid4(),
+        request_id=uuid4(),
+        session_id=uuid4(),
+        user_id=uuid4(),
+        org_id=None,
+        interaction_id=uuid4(),
         input_text="hello world",
         topology="quickstart",
         execution_mode="default",
     )
 
     graph = pipeline.build()
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=StageInputs(snapshot=snapshot),
-        stage_name="pipeline",
-        timer=PipelineTimer(),
-    )
-    results = await graph.run(ctx)
+    results = await graph.run(pipeline_ctx)
 
 asyncio.run(main())
 ```
 
 ### About `PipelineContext`
 
-`StageContext` is what stage `execute()` methods should use. `PipelineContext`
-is an orchestration context used by interceptors, tools, and subpipeline
-operations. Keep quickstarts on `StageContext` and introduce `PipelineContext`
-later in advanced guides.
+`PipelineContext` is the caller-facing context you pass to `graph.run(...)`.
+`StageContext` is derived internally and is what stage `execute()` methods receive.
 
 > **Testing tip**: When you only need to run a single stage in isolation,
 > use `stageflow.testing.create_test_stage_context()` instead of

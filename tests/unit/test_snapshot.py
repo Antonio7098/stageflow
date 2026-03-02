@@ -721,6 +721,24 @@ class TestContextSnapshotSerialization:
         assert restored.topology == full_snapshot.topology
         assert restored.execution_mode == full_snapshot.execution_mode
 
+    def test_to_dict_with_dict_extensions(self, full_snapshot):
+        """Test dict-based extensions serialize without crashing."""
+        snapshot = full_snapshot.with_extensions({"skills": {"active": ["python"]}})
+
+        data = snapshot.to_dict()
+
+        assert data["extensions"] == {"skills": {"active": ["python"]}}
+        assert data["extensions_type"] == "dict"
+
+    def test_from_dict_with_dict_extensions(self, full_snapshot):
+        """Test dict-based extensions deserialize when type registry is absent."""
+        snapshot = full_snapshot.with_extensions({"skills": {"active": ["python"]}})
+        data = snapshot.to_dict()
+
+        restored = ContextSnapshot.from_dict(data)
+
+        assert restored.extensions == {"skills": {"active": ["python"]}}
+
     def test_from_dict_handles_messages(self, full_snapshot):
         """Test from_dict handles messages."""
         data = full_snapshot.to_dict()

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
+from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 from stageflow.helpers.run_utils import (
     ObservableEventSink,
     PipelineRunner,
@@ -231,6 +231,45 @@ class TestPipelineRunner:
         # Verify snapshot has the custom ID
         assert snapshot.user_id == custom_user_id
         assert snapshot.input_text == "Custom input"
+
+    @pytest.mark.asyncio
+    async def test_runs_with_pipeline_context(self):
+        """Should accept PipelineContext as canonical run input."""
+        runner = PipelineRunner(verbose=False, capture_events=False)
+        pipeline = Pipeline().with_stage("test", MockStage, StageKind.TRANSFORM)
+
+        pipeline_ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="test_topology",
+            execution_mode="practice",
+            input_text="Hello from pipeline context",
+        )
+
+        result = await runner.run(pipeline, pipeline_ctx=pipeline_ctx)
+
+        assert result.success is True
+        assert result.pipeline_run_id == pipeline_ctx.pipeline_run_id
+        assert result.get_stage_data("test", "message") == "success"
+
+    @pytest.mark.asyncio
+    async def test_rejects_snapshot_and_pipeline_context_together(self):
+        """Should fail fast when both context entrypoints are provided."""
+        runner = PipelineRunner(verbose=False, capture_events=False)
+        pipeline = Pipeline().with_stage("test", MockStage, StageKind.TRANSFORM)
+        snapshot = runner.create_snapshot(input_text="from snapshot")
+        pipeline_ctx = PipelineContext.from_snapshot(snapshot)
+
+        with pytest.raises(ValueError, match="either pipeline_ctx or snapshot"):
+            await runner.run(
+                pipeline,
+                snapshot=snapshot,
+                pipeline_ctx=pipeline_ctx,
+            )
 
 
 class TestSetupLogging:

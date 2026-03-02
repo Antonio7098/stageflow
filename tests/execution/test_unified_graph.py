@@ -31,6 +31,7 @@ from stageflow.pipeline.dag import (
     UnifiedStageSpec,
 )
 from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
+from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs
 
 # === Test Fixtures ===
@@ -62,6 +63,12 @@ def create_context(snapshot: ContextSnapshot | None = None) -> StageContext:
         stage_name="test_stage",
         timer=PipelineTimer(),
     )
+
+
+def create_pipeline_context(snapshot: ContextSnapshot | None = None) -> PipelineContext:
+    """Create a test PipelineContext."""
+    snap = snapshot or create_snapshot()
+    return PipelineContext.from_snapshot(snap)
 
 
 # === Test UnifiedStageSpec ===
@@ -201,6 +208,23 @@ class TestUnifiedStageGraphExecution:
         ctx = create_context()
 
         results = await graph.run(ctx)
+
+        assert "test" in results
+        assert results["test"].status == StageStatus.OK
+        assert results["test"].data == {"result": "success"}
+
+    @pytest.mark.asyncio
+    async def test_run_single_stage_with_pipeline_context(self):
+        """Should derive StageContext internally when given PipelineContext."""
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"result": "success"})
+
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)]
+        )
+        pipeline_ctx = create_pipeline_context()
+
+        results = await graph.run(pipeline_ctx)
 
         assert "test" in results
         assert results["test"].status == StageStatus.OK

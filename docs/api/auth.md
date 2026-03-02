@@ -415,10 +415,9 @@ pipeline = (
     .with_stage("protected_stage", MyStage(), StageKind.TRANSFORM)
 )
 
-# Run with interceptors
-interceptors = [auth_interceptor, org_interceptor]
+# Run graph (auth policies are typically wired via default/custom graph interceptors)
 graph = pipeline.build()
-results = await graph.run(ctx, interceptors=interceptors)
+results = await graph.run(ctx)
 ```
 
 ### Manual Auth Context Creation

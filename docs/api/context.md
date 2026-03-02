@@ -1,5 +1,43 @@
 # Context API Reference
 
+## PipelineContext (Canonical User Context)
+
+```python
+from stageflow import PipelineContext
+```
+
+```python
+PipelineContext(
+    pipeline_run_id: UUID | None,
+    request_id: UUID | None,
+    session_id: UUID | None,
+    user_id: UUID | None,
+    org_id: UUID | None,
+    interaction_id: UUID | None,
+    topology: str | None = None,
+    execution_mode: str | None = None,
+    input_text: str | None = None,
+    input_audio_duration_ms: int | None = None,
+    conversation: Conversation | None = None,
+    enrichments: Enrichments | None = None,
+    extensions: ExtensionBundle | dict[str, Any] | None = None,
+    metadata: dict[str, Any] = {},
+    configuration: dict[str, Any] = {},
+    service: str = "pipeline",
+    data: dict[str, Any] = {},
+    ...
+)
+```
+
+Important APIs:
+- `to_snapshot() -> ContextSnapshot`
+- `from_snapshot(snapshot, ...) -> PipelineContext`
+- `derive_root_stage_context(stage_name="__pipeline_root__") -> StageContext`
+- `fork(...) -> PipelineContext`
+
+`PipelineContext` is the context users should create and pass into pipeline entrypoints.
+`ContextSnapshot` and `StageContext` are derived execution views.
+
 ## RunIdentity
 
 ```python

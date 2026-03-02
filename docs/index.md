@@ -56,7 +56,7 @@ The docs are organized into the following sections:
 > - **Tier 2 Report Remediation**: Governance, authentication, and context guides now reflect current organizational risk controls, canonical GitHub URLs, and consistent tooling workflows.
 > - **Tools, Approvals & Pipelines**: Approval service enums, pipeline interceptors, and port helpers were reorganized to stay compatible with the latest lint rules and runtime signatures.
 > - **Documentation Refresh**: Tools, tools-approval, stage, and voice guides have been trimmed and rephrased so the published docs align with the running Stageflow release.
-> - **Context & Stageflow Helpers**: StageInputs, StagePorts, and interceptors received small tweaks so import order and helper exports cleanly match the canonical `Antonio7098/stageflow` codebase.
+> - **Context & Stageflow Helpers**: StageInputs, stage ports, and interceptors received small tweaks so import order and helper exports cleanly match the canonical `Antonio7098/stageflow` codebase.
 
 ## Links
 
@@ -103,9 +103,9 @@ The docs are organized into the following sections:
 ### API Reference
 - [**Core Types**](api/core.md) — Stage, StageOutput, StageContext, StageKind
 - [**Pipeline**](api/pipeline.md) — Pipeline builder and StageGraph
-- [**Context**](api/context.md) — ContextSnapshot, ContextBag, StageInputs, StagePorts
+- [**Context**](api/context.md) — PipelineContext, ContextSnapshot, StageInputs
 - [**StageInputs**](api/inputs.md) — Immutable access to prior stage outputs with validation
-- [**Context Sub-modules**](api/context-submodules.md) — ContextBag, Conversation, Enrichments, Extensions
+- [**Context Sub-modules**](api/context-submodules.md) — OutputBag, Conversation, Enrichments, Extensions
 - [**Interceptors**](api/interceptors.md) — BaseInterceptor and built-in interceptors
 - [**Tools**](api/tools.md) — Tool definitions, registry, and executor
 - [**Events**](api/events.md) — EventSink and event types
@@ -157,7 +157,7 @@ The following symbols are exported from `stageflow` and can be imported directly
 
 | Symbol | Documentation |
 |--------|---------------|
-| `ContextSnapshot`, `ContextBag`, `DataConflictError` | [Context](api/context.md) |
+| `PipelineContext`, `ContextSnapshot`, `RunIdentity` | [Context](api/context.md) |
 | `Message`, `RoutingDecision` | [Context](api/context.md) |
 | `ProfileEnrichment`, `MemoryEnrichment`, `DocumentEnrichment` | [Context](api/context.md) |
 
@@ -166,7 +166,7 @@ The following symbols are exported from `stageflow` and can be imported directly
 | Symbol | Documentation |
 |--------|---------------|
 | `StageInputs`, `create_stage_inputs` | [Context](api/context.md#stageinputs) |
-| `StagePorts`, `create_stage_ports` | [Context](api/context.md#stageports) |
+| `CorePorts`, `LLMPorts`, `AudioPorts` | [Context](api/context-submodules.md) |
 
 **Subpipeline module** (`from stageflow.pipeline.subpipeline import ...`):
 

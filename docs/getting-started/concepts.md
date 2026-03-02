@@ -137,34 +137,40 @@ results = await graph.run(ctx)
 
 ## Context
 
-Context carries data through the pipeline. There are two main context types:
+Context carries data through the pipeline.
 
-### ContextSnapshot
+### PipelineContext (Entry Point)
 
-An **immutable**, composition-based view of the world passed to stages. It groups related data into bundles for clarity:
-
-- **RunIdentity**: `pipeline_run_id`, `request_id`, `session_id`, `user_id`, `org_id`, `interaction_id`
-- **Conversation**: `messages`, `input_text`, `routing_decision`
-- **Enrichments**: `profile`, `memory`, `documents`, `web_results`
-- **Extensions**: Application-specific typed bundle
+`PipelineContext` is the canonical context you pass to `graph.run(...)`.
 
 ```python
 from uuid import uuid4
-from stageflow.context import ContextSnapshot, RunIdentity
+from stageflow import PipelineContext
 
-snapshot = ContextSnapshot(
-    run_id=RunIdentity(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=uuid4(),
-        interaction_id=uuid4(),
-    ),
+pipeline_ctx = PipelineContext(
+    pipeline_run_id=uuid4(),
+    request_id=uuid4(),
+    session_id=uuid4(),
+    user_id=uuid4(),
+    org_id=uuid4(),
+    interaction_id=uuid4(),
     topology="chat_fast",
     execution_mode="practice",
     input_text="Hello!",
 )
+```
+
+### ContextSnapshot (Derived)
+
+An **immutable** view derived from `PipelineContext` for stage execution:
+
+- **RunIdentity**: `pipeline_run_id`, `request_id`, `session_id`, `user_id`, `org_id`, `interaction_id`
+- **Conversation**: `messages`, `routing_decision`
+- **Enrichments**: `profile`, `memory`, `documents`, `web_results`
+- **Extensions**: Application-specific typed bundle
+
+```python
+snapshot = pipeline_ctx.to_snapshot()
 ```
 
 ### StageContext
@@ -194,9 +200,10 @@ async def execute(self, ctx: StageContext) -> StageOutput:
 
 Data flows through the pipeline via stage outputs:
 
-1. **Snapshot** provides initial input (immutable)
-2. **Stage outputs** are collected as `StageOutput.data`
-3. **Downstream stages** access upstream outputs via `StageInputs`
+1. **PipelineContext** provides canonical run + input data
+2. **Snapshot** is derived as immutable stage input
+3. **Stage outputs** are collected as `StageOutput.data`
+4. **Downstream stages** access upstream outputs via `StageInputs`
 
 ```python
 class StageA:

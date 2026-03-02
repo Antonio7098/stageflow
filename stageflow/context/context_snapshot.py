@@ -195,8 +195,16 @@ class ContextSnapshot(Generic[T]):
 
         # Serialize extensions if present
         if self.extensions is not None:
-            result["extensions"] = self.extensions.to_dict()
-            result["extensions_type"] = type(self.extensions).__name__
+            if hasattr(self.extensions, "to_dict"):
+                result["extensions"] = self.extensions.to_dict()
+                result["extensions_type"] = type(self.extensions).__name__
+            elif isinstance(self.extensions, dict):
+                result["extensions"] = self.extensions
+                result["extensions_type"] = "dict"
+            else:
+                # Best-effort fallback for custom extension payloads.
+                result["extensions"] = self.extensions
+                result["extensions_type"] = type(self.extensions).__name__
 
         # Add flat fields for backwards compatibility
         result.update({
@@ -332,11 +340,16 @@ class ContextSnapshot(Generic[T]):
 
         # Parse extensions
         extensions = None
-        if data.get("extensions") and data.get("extensions_type"):
-            ext_type_name = data["extensions_type"]
-            if extension_types and ext_type_name in extension_types:
+        if data.get("extensions") is not None:
+            ext_type_name = data.get("extensions_type")
+            if ext_type_name == "dict":
+                extensions = data["extensions"]
+            elif ext_type_name and extension_types and ext_type_name in extension_types:
                 ext_cls = extension_types[ext_type_name]
                 extensions = ext_cls.from_dict(data["extensions"])
+            elif isinstance(data["extensions"], dict):
+                # Graceful fallback when extension type registry is unavailable.
+                extensions = data["extensions"]
 
         # Parse created_at
         created_at = _utc_now()
