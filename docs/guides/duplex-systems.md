@@ -77,6 +77,48 @@ graph = pipeline.build()
 - Subsequent stages depend on the previous stage in that lane.
 - `join_stage` depends on both lane tails plus `join_depends_on`.
 
+## Defining Actual Stages
+
+Stages are just regular Python functions. Use `StageInputs` to get data from any prior stage:
+
+```python
+from stageflow import StageContext, StageOutput
+from stageflow.stages.inputs import StageInputs
+
+class UplinkParseStage:
+    async def execute(self, ctx: StageContext, inputs: StageInputs) -> StageOutput:
+        # Get data from ingress stage
+        raw_data = inputs.get("ingress")
+        
+        parsed = parse(raw_data)
+        
+        return StageOutput.ok(data={"parsed": parsed})
+
+
+class DownlinkParseStage:
+    async def execute(self, ctx: StageContext, inputs: StageInputs) -> StageOutput:
+        # Can access ANY prior stage, including forward lane stages!
+        uplink_data = inputs.get("uplink_parse")
+        
+        return StageOutput.ok(data={"downlink": transform(uplink_data)})
+
+
+class SyncStage:
+    async def execute(self, ctx: StageContext, inputs: StageInputs) -> StageOutput:
+        # Get results from BOTH lanes
+        uplink_result = inputs.get("uplink_send")
+        downlink_result = inputs.get("downlink_send")
+        
+        return StageOutput.ok(data={
+            "sync": merge(uplink_result, downlink_result)
+        })
+```
+
+**Key points:**
+- `inputs.get("stage_name")` accesses any prior stage's output
+- The join stage can access results from both forward and reverse lanes
+- Data flows through the pipeline DAG, not just linearly
+
 ## Fluent Builder Example
 
 ```python
