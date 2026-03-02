@@ -66,8 +66,10 @@ from stageflow.helpers.streaming import (
     AudioFormat,
     BackpressureMonitor,
     ChunkQueue,
+    RealtimeStageBus,
     StreamConfig,
     StreamingBuffer,
+    create_realtime_stage_context,
     encode_audio_for_logging,
 )
 from stageflow.helpers.timestamps import (
@@ -104,11 +106,13 @@ __all__ = [
     "ContentLengthCheck",
     # Streaming
     "ChunkQueue",
+    "RealtimeStageBus",
     "StreamingBuffer",
     "BackpressureMonitor",
     "AudioChunk",
     "AudioFormat",
     "StreamConfig",
+    "create_realtime_stage_context",
     "encode_audio_for_logging",
     # Analytics
     "AnalyticsEvent",

@@ -55,3 +55,68 @@ graph = builder.build(
 ## Note on root imports
 
 `PipelineBuilder` is available from `stageflow.pipeline`. Prefer that import path for clarity.
+
+## Duplex Topology Helpers
+
+```python
+from stageflow.pipeline import (
+    DuplexLaneSpec,
+    DuplexSystemSpec,
+    FluentPipelineBuilder,
+    with_duplex_system,
+)
+```
+
+### DuplexLaneSpec
+
+```python
+DuplexLaneSpec(
+    stages: tuple[tuple[str, StageRunner], ...],
+    depends_on: tuple[str, ...] = (),
+)
+```
+
+- Defines one directional lane.
+- `stages` must contain at least one stage.
+- The first stage in the lane depends on `depends_on`; each next stage depends on the previous stage.
+
+### DuplexSystemSpec
+
+```python
+DuplexSystemSpec(
+    forward: DuplexLaneSpec,
+    reverse: DuplexLaneSpec,
+    join_stage: tuple[str, StageRunner] | None = None,
+    join_depends_on: tuple[str, ...] = (),
+)
+```
+
+- Defines a bidirectional topology.
+- `join_stage` (optional) converges both lane tails.
+- `join_depends_on` appends extra dependencies to the join stage.
+
+### with_duplex_system
+
+```python
+with_duplex_system(builder: PipelineBuilder, system: DuplexSystemSpec) -> PipelineBuilder
+```
+
+- Adds both lanes and optional join stage.
+- Validates duplicate stage names and collisions with existing builder stage names.
+
+### FluentPipelineBuilder.duplex
+
+```python
+duplex(
+    *,
+    forward: tuple[tuple[str, StageRunner], ...] | list[tuple[str, StageRunner]],
+    reverse: tuple[tuple[str, StageRunner], ...] | list[tuple[str, StageRunner]],
+    forward_depends_on: tuple[str, ...] | None = None,
+    reverse_depends_on: tuple[str, ...] | None = None,
+    join_stage: tuple[str, StageRunner] | None = None,
+    join_depends_on: tuple[str, ...] | None = None,
+) -> FluentPipelineBuilder
+```
+
+- Convenience wrapper over `with_duplex_system`.
+- If dependency args are omitted and the fluent builder already has a tail stage, both lanes auto-depend on that tail.

@@ -335,8 +335,8 @@ pipeline = (
     .with_stage("summarize", SummarizeStage, StageKind.TRANSFORM, dependencies=("reverse",))
 )
 
-# Add streaming telemetry emitters if this pipeline processes audio/text concurrently
-queue = ChunkQueue(event_emitter=lambda event, attrs: logger.info("telemetry", extra=attrs))
+# Add streaming telemetry emitters if this pipeline processes audio/text concurrently.
+# See guides/observability.md for full ChunkQueue wiring examples.
 ```
 
 A conditional stage can return `StageOutput.skip()` to be skipped:

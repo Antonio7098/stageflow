@@ -102,6 +102,7 @@ from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
     StageSpec,
+    UnifiedStageExecutionError,
 )
 
 # Interceptors
@@ -216,6 +217,7 @@ __all__ = [
     "UnifiedStageSpec",
     # DAG types
     "StageExecutionError",
+    "UnifiedStageExecutionError",
     "StageGraph",
     "StageSpec",
     # Registry

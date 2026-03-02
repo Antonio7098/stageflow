@@ -19,6 +19,47 @@
   },
   "entries": [
     {
+      "version": "v0.9.4",
+      "date": "2026-03-02",
+      "changes": [
+        {
+          "type": "added",
+          "area": "pipeline.builder_helpers",
+          "description": "Added duplex topology structures (DuplexLaneSpec, DuplexSystemSpec), a with_duplex_system() helper, and FluentPipelineBuilder.duplex() for low-boilerplate bidirectional pipeline construction.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/pipeline/builder_helpers.py",
+            "stageflow/pipeline/__init__.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "tests.pipeline",
+          "description": "Expanded builder helper coverage with duplex topology tests for lane wiring, join dependencies, collision detection, and fluent auto-dependency behavior.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/pipeline/test_builder_helpers.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "docs.pipelines",
+          "description": "Documented duplex system construction across API and guide tiers with step-by-step examples for both structured and fluent builder usage.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/api/pipeline.md",
+            "docs/guides/pipelines.md",
+            "docs/advanced/composition.md",
+            "docs/guides/duplex-systems.md",
+            "docs/index.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.9.3",
       "date": "2026-02-28",
       "changes": [
