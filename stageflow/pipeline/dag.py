@@ -357,6 +357,7 @@ class UnifiedStageGraph:
     - Dependency-driven execution (topological sort)
     - Parallel execution where possible
     - Conditional stage support
+    - Interceptor middleware support (same contract as StageGraph)
     - Cancellation support with structured cleanup
     - Structured logging with stage events
     """
@@ -365,12 +366,14 @@ class UnifiedStageGraph:
         self,
         specs: Iterable[UnifiedStageSpec],
         *,
+        interceptors: list[BaseInterceptor] | None = None,
         cleanup_timeout: float = 10.0,
         guard_retry_strategy: GuardRetryStrategy | None = None,
     ) -> None:
         self._specs = {spec.name: spec for spec in specs}
         if len(self._specs) == 0:
             raise ValueError("UnifiedStageGraph requires at least one UnifiedStageSpec")
+        self._interceptors = interceptors or get_default_interceptors()
         self._cleanup_timeout = cleanup_timeout
         self._cleanup_registry: CleanupRegistry | None = None
         self._cancel_token: CancellationToken | None = None
@@ -428,11 +431,13 @@ class UnifiedStageGraph:
             },
         )
 
-        stage_ctx = (
-            ctx.derive_root_stage_context()
-            if isinstance(ctx, PipelineContext)
-            else ctx
-        )
+        if isinstance(ctx, PipelineContext):
+            stage_ctx = ctx.derive_root_stage_context()
+            interceptor_ctx = ctx
+        else:
+            stage_ctx = ctx
+            # StageContext-only entrypoints use a derived mutable context for interceptors.
+            interceptor_ctx = ctx.as_pipeline_context()
 
         # Initialize cleanup registry and cancellation token for this execution
         self._cleanup_registry = CleanupRegistry()
@@ -480,7 +485,13 @@ class UnifiedStageGraph:
 
         def schedule_stage(name: str) -> None:
             task = asyncio.create_task(
-                self._execute_node(name, stage_ctx, completed, shared_timer)
+                self._execute_node(
+                    name,
+                    stage_ctx,
+                    completed,
+                    shared_timer,
+                    interceptor_ctx,
+                )
             )
             active_tasks.add(task)
 
@@ -550,19 +561,13 @@ class UnifiedStageGraph:
 
                     policy: GuardRetryPolicy | None = None
                     spec = self._specs[stage_name]
-                    if (
-                        self._guard_retry_strategy is not None
-                        and spec.kind == StageKind.GUARD
-                    ):
+                    if self._guard_retry_strategy is not None and spec.kind == StageKind.GUARD:
                         policy = self._guard_retry_strategy.get_policy(stage_name)
 
                     # Always record latest output; finalized guard result may change if retry completes
                     completed[stage_name] = stage_output
 
-                    if (
-                        policy
-                        and stage_output.status == StageStatus.FAIL
-                    ):
+                    if policy and stage_output.status == StageStatus.FAIL:
                         retry_state = guard_retry_state.setdefault(
                             stage_name, GuardRetryRuntimeState()
                         )
@@ -596,8 +601,7 @@ class UnifiedStageGraph:
                         exceeded_timeout = False
                         if policy.timeout_seconds is not None and retry_state.started_at:
                             exceeded_timeout = (
-                                time.monotonic() - retry_state.started_at
-                                >= policy.timeout_seconds
+                                time.monotonic() - retry_state.started_at >= policy.timeout_seconds
                             )
 
                         if exceeded_attempts or exceeded_stagnation or exceeded_timeout:
@@ -756,6 +760,7 @@ class UnifiedStageGraph:
         ctx: StageContext,
         completed: dict[str, StageOutput],
         shared_timer: PipelineTimer,
+        interceptor_ctx: PipelineContext,
     ) -> tuple[str, StageOutput]:
         """Execute a single stage and return its output."""
         spec = self._specs[name]
@@ -787,9 +792,14 @@ class UnifiedStageGraph:
             event_sink=ctx.event_sink,
         )
 
-        return name, await self._run_stage(spec, stage_ctx)
+        return name, await self._run_stage(spec, stage_ctx, interceptor_ctx)
 
-    async def _run_stage(self, spec: UnifiedStageSpec, ctx: StageContext) -> StageOutput:
+    async def _run_stage(
+        self,
+        spec: UnifiedStageSpec,
+        ctx: StageContext,
+        interceptor_ctx: PipelineContext,
+    ) -> StageOutput:
         """Run a stage with normalization and structured logging."""
         started_at = datetime.now(UTC)
 
@@ -830,15 +840,49 @@ class UnifiedStageGraph:
                     )
                 return StageOutput.skip(reason=skip_reason)
 
-        try:
-            raw_output = await spec.runner(ctx)
+        normalized_output: StageOutput | None = None
+        exception_key = f"_interceptor.original_error.{spec.name}"
+
+        async def run_stage() -> StageResult:
+            nonlocal normalized_output
+
+            try:
+                raw_output = await spec.runner(ctx)
+            except Exception as exc:
+                # Preserve original stage exception so unified error paths can
+                # keep original exception types instead of coercing to RuntimeError.
+                interceptor_ctx.data[exception_key] = exc
+                raise
+
             ended_at = datetime.now(UTC)
+            normalized_output = self._normalize_output(spec.name, raw_output, started_at)
+            normalized_output = normalized_output.with_duration(
+                self._duration_ms(started_at, ended_at)
+            )
+            return self._stage_output_to_result(spec.name, normalized_output, started_at, ended_at)
 
-            result = self._normalize_output(spec.name, raw_output, started_at)
-            duration_ms = self._duration_ms(started_at, ended_at)
+        try:
+            stage_result = await run_with_interceptors(
+                stage_name=spec.name,
+                stage_run=run_stage,
+                ctx=interceptor_ctx,
+                interceptors=self._interceptors,
+            )
+            original_exc = interceptor_ctx.data.pop(exception_key, None)
+            if stage_result.status == "failed" and original_exc is not None:
+                raise UnifiedStageExecutionError(spec.name, original_exc)
 
-            # Add duration to the result for per-stage tracking
-            result = result.with_duration(duration_ms)
+            if normalized_output is not None:
+                result = normalized_output
+            else:
+                result = self._stage_result_to_output(stage_result)
+
+            if result.duration_ms is None:
+                result = result.with_duration(
+                    self._duration_ms(stage_result.started_at, stage_result.ended_at)
+                )
+
+            duration_ms = result.duration_ms or 0
 
             logger.info(
                 f"Stage {spec.name} completed with status={result.status.value}",
@@ -891,6 +935,41 @@ class UnifiedStageGraph:
                 },
             )
             raise UnifiedStageExecutionError(spec.name, exc) from exc
+
+    @staticmethod
+    def _stage_output_to_result(
+        name: str,
+        output: StageOutput,
+        started_at: datetime,
+        ended_at: datetime,
+    ) -> StageResult:
+        status = "failed" if output.status == StageStatus.FAIL else "completed"
+
+        return StageResult(
+            name=name,
+            status=status,
+            started_at=started_at,
+            ended_at=ended_at,
+            data=output.data,
+            error=output.error,
+        )
+
+    @staticmethod
+    def _coerce_result_data(data: Any) -> dict[str, Any]:
+        """Coerce interceptor StageResult payloads into StageOutput-compatible dicts."""
+        if isinstance(data, dict):
+            return data
+        if isinstance(data, StageResult):
+            nested = data.data
+            return nested if isinstance(nested, dict) else {}
+        return {}
+
+    @classmethod
+    def _stage_result_to_output(cls, result: StageResult) -> StageOutput:
+        payload = cls._coerce_result_data(result.data)
+        if result.status == "failed":
+            return StageOutput.fail(error=result.error or "Stage failed", data=payload)
+        return StageOutput.ok(data=payload)
 
     @staticmethod
     def _normalize_output(

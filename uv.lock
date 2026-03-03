@@ -636,7 +636,7 @@ wheels = [
 
 [[package]]
 name = "stageflow-core"
-version = "0.9.1"
+version = "0.9.6"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },

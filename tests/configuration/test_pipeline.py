@@ -20,6 +20,7 @@ from stageflow.core import (
     StageStatus,
 )
 from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
+from stageflow.pipeline.interceptors import BaseInterceptor
 from stageflow.pipeline.pipeline import (
     Pipeline,
     UnifiedStageSpec,
@@ -404,6 +405,26 @@ class TestPipeline:
         graph = pipeline.build(guard_retry_strategy=strategy)
 
         assert graph._guard_retry_strategy is strategy
+
+    def test_build_accepts_interceptors(self):
+        """Pipeline.build should pass interceptors through to UnifiedStageGraph."""
+
+        class NoOpInterceptor(BaseInterceptor):
+            name = "noop"
+            priority = 1
+
+            async def before(self, _stage_name, _ctx):
+                return None
+
+            async def after(self, _stage_name, _result, _ctx):
+                return None
+
+        pipeline = Pipeline().with_stage("test", SimpleStage, StageKind.TRANSFORM)
+        custom = [NoOpInterceptor()]
+
+        graph = pipeline.build(interceptors=custom)
+
+        assert graph._interceptors == custom
 
     def test_build_guard_retry_requires_dependency(self):
         """Guard retry validation should fail when dependency is missing."""

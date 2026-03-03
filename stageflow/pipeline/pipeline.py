@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from stageflow.core import Stage, StageKind
     from stageflow.pipeline.guard_retry import GuardRetryStrategy
+    from stageflow.pipeline.interceptors import BaseInterceptor
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +110,7 @@ class Pipeline:
     def build(
         self,
         *,
+        interceptors: list[BaseInterceptor] | None = None,
         guard_retry_strategy: GuardRetryStrategy | None = None,
     ) -> UnifiedStageGraph:
         """Generate executable DAG for the orchestrator.
@@ -116,6 +118,11 @@ class Pipeline:
         Creates a UnifiedStageGraph from the stage specifications.
         Validates that at least one stage exists and dependencies
         are resolvable.
+
+        Args:
+            interceptors: Optional interceptor stack. If omitted, defaults
+                from get_default_interceptors() are used.
+            guard_retry_strategy: Optional guard retry policy strategy.
 
         Returns:
             UnifiedStageGraph ready for orchestration
@@ -168,6 +175,7 @@ class Pipeline:
 
         return UnifiedStageGraph(  # type: ignore
             specs=specs_for_graph,
+            interceptors=interceptors,
             guard_retry_strategy=guard_retry_strategy,
         )
 

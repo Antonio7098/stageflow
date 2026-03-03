@@ -4,6 +4,9 @@ Interceptors run around stage execution and receive the **PipelineContext**, whi
 
 Interceptors are middleware that wrap stage execution to provide cross-cutting concerns like logging, metrics, timeouts, and authentication. This guide covers how to use and create interceptors.
 
+With `UnifiedStageGraph`, stage code still receives `StageContext`; interceptor hooks
+receive a shared `PipelineContext` view for middleware concerns.
+
 ## What Are Interceptors?
 
 Interceptors wrap stage execution in a layered manner:
@@ -415,7 +418,23 @@ This keeps tool parsing centralized and auditable.
 
 ## Using Custom Interceptors
 
-### With StageGraph
+### With UnifiedStageGraph (Recommended)
+
+Pass interceptors through `Pipeline.build(...)`:
+
+```python
+from stageflow import Pipeline, get_default_interceptors
+
+custom_interceptors = [
+    RateLimitInterceptor(max_requests=50),
+    CachingInterceptor(cache_stages={"expensive_stage"}),
+    *get_default_interceptors(),
+]
+
+graph = pipeline.build(interceptors=custom_interceptors)
+```
+
+### With StageGraph (Legacy)
 
 Pass interceptors when creating the graph:
 

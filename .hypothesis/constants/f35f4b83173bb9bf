@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/pipeline/pipeline.py
+# hypothesis_version: 6.151.9
+
+['Pipeline', 'UnifiedStageGraph', 'UnifiedStageSpec', 'execute', 'pipeline']
