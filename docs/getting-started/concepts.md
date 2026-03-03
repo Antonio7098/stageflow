@@ -128,13 +128,17 @@ pipeline = (
 
 ### Building the Graph
 
-Call `build()` to create an executable `StageGraph`:
+Call `build()` to create an executable `UnifiedStageGraph`:
 
 ```python
 graph = pipeline.build()
 pipeline_ctx = PipelineContext(input_text="hello")
 results = await graph.run(pipeline_ctx)
 ```
+
+`UnifiedStageGraph` is the default for modern stageflow usage.
+The legacy `StageGraph` path is compatibility-only and uses a different context
+shape for stage execution.
 
 ## Context
 

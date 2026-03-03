@@ -37,6 +37,8 @@ Important APIs:
 
 `PipelineContext` is the context users should create and pass into pipeline entrypoints.
 `ContextSnapshot` and `StageContext` are derived execution views.
+In the recommended `UnifiedStageGraph` path, stage `execute()` methods receive
+`StageContext` (with `ctx.inputs`), not `PipelineContext`.
 
 ## RunIdentity
 

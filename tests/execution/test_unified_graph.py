@@ -31,6 +31,7 @@ from stageflow.pipeline.dag import (
     UnifiedStageSpec,
 )
 from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
+from stageflow.pipeline.interceptors import BaseInterceptor, InterceptorResult
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs
 
@@ -229,6 +230,76 @@ class TestUnifiedStageGraphExecution:
         assert "test" in results
         assert results["test"].status == StageStatus.OK
         assert results["test"].data == {"result": "success"}
+
+    @pytest.mark.asyncio
+    async def test_run_with_custom_interceptors(self):
+        """Unified graph should run interceptors before/after stage execution."""
+
+        class SpyInterceptor(BaseInterceptor):
+            name = "spy"
+            priority = 1
+
+            def __init__(self) -> None:
+                self.before_calls = 0
+                self.after_calls = 0
+
+            async def before(self, _stage_name: str, ctx: PipelineContext) -> InterceptorResult | None:
+                self.before_calls += 1
+                ctx.data["spy_before"] = True
+                return None
+
+            async def after(self, _stage_name: str, _result, _ctx: PipelineContext) -> None:
+                self.after_calls += 1
+
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"result": "success"})
+
+        interceptor = SpyInterceptor()
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)],
+            interceptors=[interceptor],
+        )
+        pipeline_ctx = create_pipeline_context()
+
+        results = await graph.run(pipeline_ctx)
+
+        assert results["test"].status == StageStatus.OK
+        assert interceptor.before_calls == 1
+        assert interceptor.after_calls == 1
+        assert pipeline_ctx.data["spy_before"] is True
+
+    @pytest.mark.asyncio
+    async def test_interceptor_short_circuit(self):
+        """Short-circuit interceptor should skip stage runner and return interceptor payload."""
+
+        class ShortCircuitInterceptor(BaseInterceptor):
+            name = "short_circuit"
+            priority = 1
+
+            async def before(self, _stage_name: str, _ctx: PipelineContext) -> InterceptorResult | None:
+                return InterceptorResult(stage_ran=False, result={"cached": True})
+
+            async def after(self, _stage_name: str, _result, _ctx: PipelineContext) -> None:
+                return None
+
+        called = False
+
+        async def runner(_ctx: StageContext) -> StageOutput:
+            nonlocal called
+            called = True
+            return StageOutput.ok(data={"result": "should_not_run"})
+
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)],
+            interceptors=[ShortCircuitInterceptor()],
+        )
+        ctx = create_context()
+
+        results = await graph.run(ctx)
+
+        assert called is False
+        assert results["test"].status == StageStatus.OK
+        assert results["test"].data == {"cached": True}
 
     @pytest.mark.asyncio
     async def test_run_multiple_independent_stages_parallel(self):

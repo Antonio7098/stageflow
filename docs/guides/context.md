@@ -85,11 +85,15 @@ graph = pipeline.build()
 results = await graph.run(pipeline_ctx)
 ```
 
+This `pipeline.build()` path returns `UnifiedStageGraph` and is the recommended
+execution mode.
+In this mode, stages execute with `StageContext`, so `ctx.inputs` is available.
+
 ### How Derived Context Types Work
 
 - `ContextSnapshot` is derived from `PipelineContext` via `pipeline_ctx.to_snapshot()`.
 - `StageContext` is derived internally per stage from snapshot + validated inputs.
-- Interceptors in legacy StageGraph flows still receive `PipelineContext` directly and can:
+- Interceptors in legacy `StageGraph` flows still receive `PipelineContext` directly and can:
   - Read IDs, topology, execution_mode, and shared `data`
   - Attach transient flags into `ctx.data` (e.g. rate limiting, caching hints)
 - Tools and agents can consume `PipelineContext.to_dict()` when needed.

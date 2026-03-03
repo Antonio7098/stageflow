@@ -19,6 +19,39 @@
   },
   "entries": [
     {
+      "version": "v0.9.6",
+      "date": "2026-03-03",
+      "changes": [
+        {
+          "type": "added",
+          "area": "pipeline.interceptors",
+          "description": "UnifiedStageGraph now supports interceptor middleware with the same contract as StageGraph. Interceptors run before/after stage execution, support short-circuiting, and can modify results.",
+          "commit": "60a9dc9",
+          "files_affected": [
+            "stageflow/pipeline/dag.py",
+            "stageflow/pipeline/pipeline.py",
+            "tests/execution/test_unified_graph.py",
+            "tests/configuration/test_pipeline.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "docs.pipeline",
+          "description": "Added explicit documentation clarifying the two graph executors: UnifiedStageGraph (recommended default) and StageGraph (legacy). Updated API reference to show interceptor usage with Pipeline.build().",
+          "commit": "60a9dc9",
+          "files_affected": [
+            "docs/api/pipeline.md",
+            "docs/guides/interceptors.md",
+            "docs/getting-started/concepts.md",
+            "docs/guides/context.md",
+            "docs/index.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.9.5",
       "date": "2026-03-02",
       "changes": [

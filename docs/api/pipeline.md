@@ -1,6 +1,12 @@
 # Pipeline API Reference
 
-Stageflow provides two builders with different output graphs.
+Stageflow provides two graph executors:
+
+- `UnifiedStageGraph` (recommended default)
+- `StageGraph` (legacy compatibility)
+
+Use `UnifiedStageGraph` for all new pipelines. It executes stages with
+`StageContext` + `StageInputs`, so stage code can safely use `ctx.inputs`.
 
 ## Pipeline (Unified graph)
 
@@ -28,10 +34,23 @@ with_stage(
 ### build
 
 ```python
-build(*, guard_retry_strategy: GuardRetryStrategy | None = None) -> UnifiedStageGraph
+build(
+    *,
+    interceptors: list[BaseInterceptor] | None = None,
+    guard_retry_strategy: GuardRetryStrategy | None = None,
+) -> UnifiedStageGraph
 ```
 
 `Pipeline.build()` does not accept wide-event flags.
+It accepts custom interceptor stacks via `interceptors=[...]`.
+
+```python
+from stageflow import get_default_interceptors
+
+graph = pipeline.build(
+    interceptors=get_default_interceptors(include_auth=True),
+)
+```
 
 ## PipelineBuilder (StageGraph)
 
@@ -39,7 +58,9 @@ build(*, guard_retry_strategy: GuardRetryStrategy | None = None) -> UnifiedStage
 from stageflow.pipeline import PipelineBuilder
 ```
 
-Use `PipelineBuilder` when you need StageGraph options like wide-event emission.
+`PipelineBuilder` returns the legacy `StageGraph` executor.
+Use it only when you need legacy-only options (for example wide-event emission).
+In `StageGraph`, stages receive `PipelineContext`, not `StageContext`.
 
 ```python
 builder = PipelineBuilder(name="example")
@@ -51,6 +72,12 @@ graph = builder.build(
     wide_event_emitter=WideEventEmitter(),
 )
 ```
+
+## Which One Should I Use?
+
+- Use `Pipeline(...).build()` (`UnifiedStageGraph`) for new code.
+- Keep `PipelineBuilder(...).build()` (`StageGraph`) only for legacy flows you have
+  not migrated yet.
 
 ## Note on root imports
 

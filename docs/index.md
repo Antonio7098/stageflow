@@ -103,7 +103,7 @@ The docs are organized into the following sections:
 
 ### API Reference
 - [**Core Types**](api/core.md) — Stage, StageOutput, StageContext, StageKind
-- [**Pipeline**](api/pipeline.md) — Pipeline builder and StageGraph
+- [**Pipeline**](api/pipeline.md) — Pipeline builder, UnifiedStageGraph (default), and StageGraph (legacy)
 - [**Context**](api/context.md) — PipelineContext, ContextSnapshot, StageInputs
 - [**StageInputs**](api/inputs.md) — Immutable access to prior stage outputs with validation
 - [**Context Sub-modules**](api/context-submodules.md) — OutputBag, Conversation, Enrichments, Extensions
@@ -138,7 +138,8 @@ The following symbols are exported from `stageflow` and can be imported directly
 | `StageContext`, `StageArtifact`, `StageEvent` | Core | [Core Types](api/core.md) |
 | `PipelineTimer`, `create_stage_context` | Core | [Core Types](api/core.md) |
 | `Pipeline`, `UnifiedStageSpec` | Pipeline | [Pipeline](api/pipeline.md) |
-| `StageGraph`, `StageSpec`, `StageExecutionError` | Pipeline | [Pipeline](api/pipeline.md) |
+| `UnifiedStageGraph`, `UnifiedStageSpec` | Pipeline | [Pipeline](api/pipeline.md) |
+| `StageGraph`, `StageSpec`, `StageExecutionError` | Pipeline (Legacy) | [Pipeline](api/pipeline.md) |
 | `PipelineRegistry`, `pipeline_registry` | Pipeline | [Pipeline](api/pipeline.md) |
 | `PipelineContext`, `StageResult`, `StageError` | Context | [Context](api/context.md) |
 | `extract_service` | Context | [Context](api/context.md) |
