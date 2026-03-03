@@ -46,6 +46,12 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
+> **New in Stageflow 0.9.6**
+
+> - **Interceptor Middleware for UnifiedStageGraph**: `UnifiedStageGraph` now supports interceptor middleware with the same contract as `StageGraph`. Interceptors run before/after stage execution, support short-circuiting, and can modify results.
+> - **Custom Interceptor Stacks**: `Pipeline.build()` now accepts a custom interceptor stack via the `interceptors` parameter.
+> - **Documentation**: Updated API reference to clarify `UnifiedStageGraph` (recommended) vs `StageGraph` (legacy) executors.
+
 > **New in Stageflow 0.9.5**
 >
 > - **Duplex Pipeline Systems**: Added `DuplexLaneSpec`, `DuplexSystemSpec`, `with_duplex_system()` helper, and `FluentPipelineBuilder.duplex()` for low-boilerplate bidirectional pipeline construction (A→B and B→A lanes with optional sync stage).
