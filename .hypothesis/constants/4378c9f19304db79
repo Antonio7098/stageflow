@@ -1,0 +1,4 @@
+# file: /home/antonio/programming/sf/stageflow/stageflow/stages/context.py
+# hypothesis_version: 6.151.9
+
+['PipelineContext', 'StageContext', '_', '__pipeline_root__', '_kernel', 'artifacts_count', 'canceled', 'correlation_id', 'data', 'event_sink', 'execution_mode', 'extract_service', 'input_text', 'interaction_id', 'metadata', 'org_id', 'parent_run_id', 'parent_stage_id', 'pipeline', 'pipeline_run_id', 'request_id', 'service', 'session_id', 'stage', 'status', 'timestamp', 'topology', 'user_id']

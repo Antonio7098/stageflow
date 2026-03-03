@@ -561,19 +561,13 @@ class UnifiedStageGraph:
 
                     policy: GuardRetryPolicy | None = None
                     spec = self._specs[stage_name]
-                    if (
-                        self._guard_retry_strategy is not None
-                        and spec.kind == StageKind.GUARD
-                    ):
+                    if self._guard_retry_strategy is not None and spec.kind == StageKind.GUARD:
                         policy = self._guard_retry_strategy.get_policy(stage_name)
 
                     # Always record latest output; finalized guard result may change if retry completes
                     completed[stage_name] = stage_output
 
-                    if (
-                        policy
-                        and stage_output.status == StageStatus.FAIL
-                    ):
+                    if policy and stage_output.status == StageStatus.FAIL:
                         retry_state = guard_retry_state.setdefault(
                             stage_name, GuardRetryRuntimeState()
                         )
@@ -607,8 +601,7 @@ class UnifiedStageGraph:
                         exceeded_timeout = False
                         if policy.timeout_seconds is not None and retry_state.started_at:
                             exceeded_timeout = (
-                                time.monotonic() - retry_state.started_at
-                                >= policy.timeout_seconds
+                                time.monotonic() - retry_state.started_at >= policy.timeout_seconds
                             )
 
                         if exceeded_attempts or exceeded_stagnation or exceeded_timeout:
@@ -950,11 +943,7 @@ class UnifiedStageGraph:
         started_at: datetime,
         ended_at: datetime,
     ) -> StageResult:
-        if output.status == StageStatus.FAIL:
-            status = "failed"
-        else:
-            # Legacy interceptor contract only distinguishes completed/failed.
-            status = "completed"
+        status = "failed" if output.status == StageStatus.FAIL else "completed"
 
         return StageResult(
             name=name,
