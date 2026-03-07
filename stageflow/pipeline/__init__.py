@@ -13,6 +13,7 @@ from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
     StageSpec,
+    UnifiedStageGraph,
     UnifiedStageExecutionError,
 )
 from stageflow.pipeline.failure_tolerance import (
@@ -81,6 +82,7 @@ __all__ = [
     "StageRunner",
     "StageSpec",
     "StageExecutionError",
+    "UnifiedStageGraph",
     "UnifiedStageExecutionError",
     "UnifiedStageSpec",
     "GuardRetryPolicy",

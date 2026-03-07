@@ -25,6 +25,7 @@ from stageflow.pipeline.pipeline import (
     Pipeline,
     UnifiedStageSpec,
 )
+from stageflow.pipeline.spec import CycleDetectedError, PipelineValidationError
 
 # === Test Fixtures ===
 
@@ -172,6 +173,31 @@ class TestPipeline:
         assert pipeline.name == "demo"
         assert "simple" in pipeline.stages
 
+    def test_get_stage(self):
+        """Pipeline should expose stage lookup by name."""
+        pipeline = Pipeline().with_stage("simple", SimpleStage, StageKind.TRANSFORM)
+
+        assert pipeline.get_stage("simple") is not None
+        assert pipeline.get_stage("missing") is None
+
+    def test_has_stage(self):
+        """Pipeline should expose stage existence checks."""
+        pipeline = Pipeline().with_stage("simple", SimpleStage, StageKind.TRANSFORM)
+
+        assert pipeline.has_stage("simple") is True
+        assert pipeline.has_stage("missing") is False
+
+    def test_stage_names_topological_order(self):
+        """Pipeline should report stage names in topological order."""
+        pipeline = (
+            Pipeline()
+            .with_stage("a", SimpleStage, StageKind.TRANSFORM)
+            .with_stage("c", EnrichStage, StageKind.ENRICH, dependencies=("b",))
+            .with_stage("b", TransformStage, StageKind.TRANSFORM, dependencies=("a",))
+        )
+
+        assert pipeline.stage_names() == ["a", "b", "c"]
+
     def test_with_stage_single(self):
         """Test adding a single stage."""
         pipeline = Pipeline().with_stage(
@@ -284,16 +310,15 @@ class TestPipeline:
         pipeline1 = Pipeline().with_stage("a", SimpleStage, StageKind.TRANSFORM)
         pipeline2 = Pipeline().with_stage("b", TransformStage, StageKind.TRANSFORM)
         composed = pipeline1.compose(pipeline2)
-        # Both should be present
-        assert "a" in composed.stages
-        assert "b" in composed.stages
+        assert composed.stage_names() == ["a", "b"]
 
-    def test_compose_other_wins_on_conflict(self):
-        """Test that other pipeline wins on name conflict."""
+    def test_compose_rejects_conflicting_specs(self):
+        """Compose should reject incompatible duplicate stage definitions."""
         pipeline1 = Pipeline().with_stage("conflict", SimpleStage, StageKind.TRANSFORM)
         pipeline2 = Pipeline().with_stage("conflict", TransformStage, StageKind.TRANSFORM)
-        composed = pipeline1.compose(pipeline2)
-        assert composed.stages["conflict"].runner == TransformStage
+
+        with pytest.raises(PipelineValidationError, match="different specs"):
+            pipeline1.compose(pipeline2)
 
     def test_compose_returns_new_instance(self):
         """Test that compose returns a new Pipeline instance."""
@@ -325,11 +350,34 @@ class TestPipeline:
     # === build() method tests ===
 
     def test_build_empty_pipeline_raises(self):
-        """Test that building empty pipeline raises ValueError."""
+        """Test that building empty pipeline raises PipelineValidationError."""
         pipeline = Pipeline()
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(PipelineValidationError) as exc_info:
             pipeline.build()
-        assert "UnifiedStageGraph requires at least one UnifiedStageSpec" in str(exc_info.value)
+        assert "Cannot build empty pipeline" in str(exc_info.value)
+
+    def test_build_missing_dependency_raises(self):
+        """Build should fail fast on missing dependencies."""
+        pipeline = Pipeline().with_stage(
+            "orphan",
+            SimpleStage,
+            StageKind.TRANSFORM,
+            dependencies=("missing",),
+        )
+
+        with pytest.raises(PipelineValidationError, match="does not exist"):
+            pipeline.build()
+
+    def test_build_cycle_raises(self):
+        """Build should fail fast on dependency cycles."""
+        pipeline = (
+            Pipeline()
+            .with_stage("a", SimpleStage, StageKind.TRANSFORM, dependencies=("b",))
+            .with_stage("b", TransformStage, StageKind.TRANSFORM, dependencies=("a",))
+        )
+
+        with pytest.raises(CycleDetectedError, match="cycle"):
+            pipeline.build()
 
     def test_build_creates_graph(self):
         """Test that build() creates a UnifiedStageGraph."""
@@ -425,6 +473,16 @@ class TestPipeline:
         graph = pipeline.build(interceptors=custom)
 
         assert graph._interceptors == custom
+
+    def test_build_accepts_wide_event_options(self):
+        """Pipeline.build should pass wide-event configuration through."""
+        pipeline = Pipeline(name="demo").with_stage("test", SimpleStage, StageKind.TRANSFORM)
+
+        graph = pipeline.build(emit_stage_wide_events=True, emit_pipeline_wide_event=True)
+
+        assert graph._emit_stage_wide_events is True
+        assert graph._emit_pipeline_wide_event is True
+        assert graph._pipeline_name == "demo"
 
     def test_build_guard_retry_requires_dependency(self):
         """Guard retry validation should fail when dependency is missing."""
@@ -531,15 +589,15 @@ class TestPipelineEdgeCases:
         )
         assert pipeline.stages["b"].dependencies == ("a",)
 
-    def test_circular_dependency_not_prevented_at_build_time(self):
-        """Note: Circular dependencies cause deadlock at runtime, not build time."""
+    def test_circular_dependency_rejected_at_build_time(self):
+        """Circular dependencies should be rejected during build validation."""
         pipeline = (Pipeline()
             .with_stage("a", SimpleStage, StageKind.TRANSFORM, dependencies=("b",))
             .with_stage("b", TransformStage, StageKind.TRANSFORM, dependencies=("a",))
         )
-        # Build should succeed (validation is at runtime)
-        graph = pipeline.build()
-        assert len(graph.stage_specs) == 2
+
+        with pytest.raises(CycleDetectedError, match="cycle"):
+            pipeline.build()
 
     def test_very_long_stage_name(self):
         """Test pipeline with very long stage names."""

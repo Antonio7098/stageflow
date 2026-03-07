@@ -10,6 +10,7 @@ from stageflow.core.timer import PipelineTimer
 from stageflow.protocols import ExecutionContext
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs
+from stageflow.stages.ports import create_core_ports
 from stageflow.tools.adapters import DictContextAdapter, adapt_context
 
 
@@ -29,9 +30,10 @@ def _make_stage_context(
     *,
     stage_name: str = "test_stage",
     event_sink=None,
+    ports=None,
 ) -> StageContext:
     """Create a StageContext with sensible defaults for testing."""
-    inputs = StageInputs(snapshot=snapshot)
+    inputs = StageInputs(snapshot=snapshot, ports=ports)
     timer = PipelineTimer()
     return StageContext(
         snapshot=snapshot,
@@ -133,7 +135,8 @@ class TestStageContextExecutionContext:
         event_sink = MockSink()
         stage_ctx = _make_stage_context(snapshot, event_sink=event_sink)
 
-        pipeline_ctx = stage_ctx.as_pipeline_context()
+        with pytest.deprecated_call(match="as_pipeline_context"):
+            pipeline_ctx = stage_ctx.as_pipeline_context()
 
         assert isinstance(pipeline_ctx, PipelineContext)
         assert pipeline_ctx.pipeline_run_id == snapshot.pipeline_run_id
@@ -155,12 +158,13 @@ class TestStageContextExecutionContext:
         config = {"routes": ["a", "b"]}
         data = {"foo": "bar"}
 
-        pipeline_ctx = stage_ctx.as_pipeline_context(
-            configuration=config,
-            data=data,
-            service="voice",
-            db="session",
-        )
+        with pytest.deprecated_call(match="as_pipeline_context"):
+            pipeline_ctx = stage_ctx.as_pipeline_context(
+                configuration=config,
+                data=data,
+                service="voice",
+                db="session",
+            )
 
         assert pipeline_ctx.configuration == config
         assert pipeline_ctx.configuration is not config
@@ -168,6 +172,19 @@ class TestStageContextExecutionContext:
         assert pipeline_ctx.data is not data
         assert pipeline_ctx.service == "voice"
         assert pipeline_ctx.db == "session"
+
+    def test_as_pipeline_context_preserves_ports(self):
+        """Helper should carry stage ports into the derived PipelineContext."""
+        snapshot = _make_snapshot()
+        db = object()
+        stage_ctx = _make_stage_context(snapshot, ports=create_core_ports(db=db))
+
+        with pytest.deprecated_call(match="as_pipeline_context"):
+            pipeline_ctx = stage_ctx.as_pipeline_context()
+
+        assert pipeline_ctx.ports is not None
+        assert pipeline_ctx.ports.db is db
+        assert pipeline_ctx.db is db
 
     def test_pipeline_run_id_from_snapshot(self):
         """pipeline_run_id should come from snapshot."""

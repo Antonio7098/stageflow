@@ -17,6 +17,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
+from stageflow.observability.wide_events import WideEventEmitter
+from stageflow.pipeline.validation import (
+    ensure_compatible_stage_specs,
+    ensure_non_empty,
+    topologically_sorted_stage_names,
+    validate_stage_dependencies,
+)
+
 if TYPE_CHECKING:
     from stageflow.core import Stage, StageKind
     from stageflow.pipeline.guard_retry import GuardRetryStrategy
@@ -52,6 +60,11 @@ class Pipeline:
 
     name: str = "pipeline"
     stages: dict[str, UnifiedStageSpec] = field(default_factory=dict)
+
+    def _validated_stages(self) -> dict[str, UnifiedStageSpec]:
+        """Return stages after dependency/cycle validation."""
+        validate_stage_dependencies(self.stages)
+        return self.stages
 
     def with_stage(
         self,
@@ -95,7 +108,7 @@ class Pipeline:
         """Merge stages and dependencies from another pipeline.
 
         Stages from the other pipeline are added to this pipeline.
-        If stage names conflict, the other pipeline's stage wins.
+        If stage names conflict, the definitions must be compatible.
 
         Args:
             other: Another Pipeline instance to merge
@@ -104,14 +117,39 @@ class Pipeline:
             New Pipeline with merged stages
         """
         merged_stages = dict(self.stages)
-        merged_stages.update(other.stages)
-        return Pipeline(name=self.name, stages=merged_stages)
+        for name, spec in other.stages.items():
+            if name in merged_stages:
+                ensure_compatible_stage_specs(
+                    name=name,
+                    existing=merged_stages[name],
+                    incoming=spec,
+                    attrs=("runner", "kind", "dependencies", "conditional", "config"),
+                )
+                continue
+            merged_stages[name] = spec
+        composed_name = self.name if self.name == other.name else f"{self.name}+{other.name}"
+        return Pipeline(name=composed_name, stages=merged_stages)
+
+    def get_stage(self, name: str) -> UnifiedStageSpec | None:
+        """Get a stage specification by name."""
+        return self.stages.get(name)
+
+    def has_stage(self, name: str) -> bool:
+        """Check whether a stage exists in the pipeline."""
+        return name in self.stages
+
+    def stage_names(self) -> list[str]:
+        """Return stage names in topological order."""
+        return topologically_sorted_stage_names(self.stages)
 
     def build(
         self,
         *,
         interceptors: list[BaseInterceptor] | None = None,
         guard_retry_strategy: GuardRetryStrategy | None = None,
+        emit_stage_wide_events: bool = False,
+        emit_pipeline_wide_event: bool = False,
+        wide_event_emitter: WideEventEmitter | None = None,
     ) -> UnifiedStageGraph:
         """Generate executable DAG for the orchestrator.
 
@@ -128,14 +166,14 @@ class Pipeline:
             UnifiedStageGraph ready for orchestration
 
         Raises:
-            ValueError: If pipeline is empty or dependencies are invalid
+            PipelineValidationError: If pipeline is empty or dependencies are invalid
         """
-        if not self.stages:
-            raise ValueError("UnifiedStageGraph requires at least one UnifiedStageSpec")
+        ensure_non_empty(self.stages, message="Cannot build empty pipeline")
+        validated_stages = self._validated_stages()
 
         # Convert stage classes to callables for UnifiedStageGraph
         specs_for_graph = []
-        for spec in self.stages.values():
+        for spec in validated_stages.values():
             if isinstance(spec.runner, type):
                 # It's a stage class, create a callable wrapper
                 stage_class = spec.runner
@@ -175,8 +213,12 @@ class Pipeline:
 
         return UnifiedStageGraph(  # type: ignore
             specs=specs_for_graph,
+            pipeline_name=self.name,
             interceptors=interceptors,
             guard_retry_strategy=guard_retry_strategy,
+            wide_event_emitter=wide_event_emitter,
+            emit_stage_wide_events=emit_stage_wide_events,
+            emit_pipeline_wide_event=emit_pipeline_wide_event,
         )
 
 

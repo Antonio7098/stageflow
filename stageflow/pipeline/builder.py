@@ -6,20 +6,25 @@ cycle detection, and composition capabilities.
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+from warnings import warn
 
 if TYPE_CHECKING:
     from stageflow.observability.wide_events import WideEventEmitter
     from stageflow.pipeline.dag import StageGraph
 
-from stageflow.contracts import ContractErrorInfo
 from stageflow.pipeline.spec import (
     CycleDetectedError,
     PipelineSpec,
     PipelineValidationError,
     StageRunner,
+)
+from stageflow.pipeline.validation import (
+    ensure_compatible_stage_specs,
+    ensure_non_empty,
+    topologically_sorted_stage_names,
+    validate_stage_dependencies,
 )
 
 
@@ -40,6 +45,11 @@ class PipelineBuilder:
 
     def __post_init__(self) -> None:
         """Validate pipeline after initialization."""
+        warn(
+            "PipelineBuilder is deprecated; use Pipeline as the canonical builder API.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self.stages:
             self._validate()
 
@@ -49,25 +59,7 @@ class PipelineBuilder:
         Raises:
             PipelineValidationError: If validation fails
         """
-        # Check all dependencies reference existing stages
-        for stage_name, spec in self.stages.items():
-            for dep in spec.dependencies:
-                if dep not in self.stages:
-                    error_info = ContractErrorInfo(
-                        code="CONTRACT-004-MISSING_DEP",
-                        summary="Stage depends on an undefined dependency",
-                        fix_hint="Add the missing stage or remove it from the dependency list.",
-                        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#missing-stage-dependencies",
-                        context={"stage": stage_name, "dependency": dep},
-                    )
-                    raise PipelineValidationError(
-                        f"Stage '{stage_name}' depends on '{dep}' which does not exist",
-                        stages=[stage_name, dep],
-                        error_info=error_info,
-                    )
-
-        # Check for cycles using Kahn's algorithm (topological sort)
-        self._detect_cycles()
+        validate_stage_dependencies(self.stages)
 
     def _detect_cycles(self) -> None:
         """Detect cycles in the pipeline DAG using DFS with cycle path extraction.
@@ -202,28 +194,12 @@ class PipelineBuilder:
         for name, spec in other.stages.items():
             if name in merged_stages:
                 existing = merged_stages[name]
-                # Check if specs are equivalent (same runner, dependencies, etc.)
-                if (
-                    existing.runner != spec.runner
-                    or existing.dependencies != spec.dependencies
-                    or existing.conditional != spec.conditional
-                ):
-                    error_info = ContractErrorInfo(
-                        code="CONTRACT-004-CONFLICT",
-                        summary="Stage defined multiple times with conflicting specs",
-                        fix_hint="Ensure composed pipelines define the stage with identical runner and dependencies.",
-                        doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#conflicting-stage-definitions",
-                        context={
-                            "stage": name,
-                            "existing_runner": getattr(existing.runner, "__name__", str(existing.runner)),
-                            "incoming_runner": getattr(spec.runner, "__name__", str(spec.runner)),
-                        },
-                    )
-                    raise PipelineValidationError(
-                        f"Stage '{name}' exists in both pipelines with different specs",
-                        stages=[name],
-                        error_info=error_info,
-                    )
+                ensure_compatible_stage_specs(
+                    name=name,
+                    existing=existing,
+                    incoming=spec,
+                    attrs=("runner", "dependencies", "conditional", "inputs", "outputs", "args"),
+                )
             else:
                 merged_stages[name] = spec
 
@@ -252,14 +228,7 @@ class PipelineBuilder:
         Raises:
             ValueError: If pipeline is empty
         """
-        if not self.stages:
-            error_info = ContractErrorInfo(
-                code="CONTRACT-004-EMPTY",
-                summary="Cannot build a pipeline with zero stages",
-                fix_hint="Add at least one stage before calling build().",
-                doc_url="https://github.com/stageflow/stageflow/blob/main/docs/advanced/error-messages.md#empty-pipelines",
-            )
-            raise PipelineValidationError("Cannot build empty pipeline", error_info=error_info)
+        ensure_non_empty(self.stages, message="Cannot build empty pipeline")
 
         from stageflow.pipeline.dag import StageGraph, StageSpec
 
@@ -330,29 +299,7 @@ class PipelineBuilder:
         Returns:
             List of stage names sorted topologically
         """
-        if not self.stages:
-            return []
-
-        # Topological sort using Kahn's algorithm
-        in_degree = {name: len(set(spec.dependencies)) for name, spec in self.stages.items()}
-        queue: deque[str] = deque()
-        result: list[str] = []
-
-        for name, count in in_degree.items():
-            if count == 0:
-                queue.append(name)
-
-        while queue:
-            node = queue.popleft()
-            result.append(node)
-
-            for name, spec in self.stages.items():
-                if node in spec.dependencies:
-                    in_degree[name] -= 1
-                    if in_degree[name] == 0:
-                        queue.append(name)
-
-        return result
+        return topologically_sorted_stage_names(self.stages)
 
     def __repr__(self) -> str:
         return f"PipelineBuilder(name={self.name!r}, stages={list(self.stages.keys())})"

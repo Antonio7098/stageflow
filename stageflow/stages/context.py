@@ -82,7 +82,9 @@ class PipelineContext:
     service: str = "pipeline"
     event_sink: EventSink = field(default_factory=get_event_sink)
     data: dict[str, Any] = field(default_factory=dict)
-    # Generic database session - type depends on implementation
+    # Injected capabilities for stage execution.
+    ports: CorePorts | LLMPorts | AudioPorts | None = None
+    # Legacy database slot retained for compatibility; prefer ports.
     db: Any = None
     # Cancellation support
     canceled: bool = False
@@ -206,6 +208,7 @@ class PipelineContext:
         service: str = "pipeline",
         event_sink: EventSink | None = None,
         data: dict[str, Any] | None = None,
+        ports: CorePorts | LLMPorts | AudioPorts | None = None,
         db: Any = None,
         canceled: bool = False,
         artifacts: list[Artifact] | None = None,
@@ -233,6 +236,7 @@ class PipelineContext:
             created_at=snapshot.created_at,
             service=service,
             data=data.copy() if data else {},
+            ports=ports,
             db=db,
             canceled=canceled,
             artifacts=list(artifacts or []),
@@ -262,6 +266,16 @@ class PipelineContext:
         if self._parent_data is None:
             return default
         return self._parent_data.get(key, default)
+
+    def _effective_ports(self) -> CorePorts | LLMPorts | AudioPorts | None:
+        """Resolve stage ports for derived StageContext instances."""
+        if self.ports is not None:
+            return self.ports
+        if self.db is None:
+            return None
+        from stageflow.stages.ports import create_core_ports
+
+        return create_core_ports(db=self.db)
 
     def fork(
         self,
@@ -313,6 +327,7 @@ class PipelineContext:
             service=self.service,
             event_sink=self.event_sink,
             data={},  # Fresh data dict for child
+            ports=self.ports,
             db=self.db,
             canceled=False,
             artifacts=[],  # Fresh artifacts list
@@ -406,7 +421,7 @@ class PipelineContext:
         inputs = StageInputs(
             snapshot=snapshot,
             prior_outputs=prior_outputs,
-            ports=ports,
+            ports=ports or self._effective_ports(),
             declared_deps=deps,
             stage_name=stage_name,
             strict=strict,
@@ -430,7 +445,7 @@ class PipelineContext:
         root_inputs = create_stage_inputs(
             snapshot=snapshot,
             prior_outputs={},
-            ports=None,
+            ports=self._effective_ports(),
             declared_deps=(),
             stage_name=stage_name,
         )

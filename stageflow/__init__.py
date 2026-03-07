@@ -102,6 +102,7 @@ from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
     StageSpec,
+    UnifiedStageGraph,
     UnifiedStageExecutionError,
 )
 
@@ -219,6 +220,7 @@ __all__ = [
     "StageExecutionError",
     "UnifiedStageExecutionError",
     "StageGraph",
+    "UnifiedStageGraph",
     "StageSpec",
     # Registry
     "PipelineRegistry",

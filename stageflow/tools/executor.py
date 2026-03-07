@@ -261,14 +261,10 @@ class ToolExecutor:
         async def runner(child_ctx: PipelineContext) -> dict[str, Any]:
             """Execute the child pipeline with the forked context.
 
-            This runner creates a StageContext from the child PipelineContext
-            and executes the pre-built graph. Returns stage outputs as dict.
+            This runner executes the pre-built graph with the child PipelineContext
+            and returns stage outputs as a plain dict payload.
             """
-            # Derive immutable execution wrapper from canonical PipelineContext.
-            stage_ctx = child_ctx.derive_root_stage_context(stage_name="__subpipeline_root__")
-
-            # Execute the graph
-            results = await graph.run(stage_ctx)
+            results = await graph.run(child_ctx)
 
             # Convert StageOutput objects to dict
             return {name: output.data for name, output in results.items()}

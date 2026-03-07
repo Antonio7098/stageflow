@@ -13,6 +13,7 @@ from stageflow.stages.context import (
     PipelineContext,
     extract_service,
 )
+from stageflow.stages.ports import create_core_ports
 
 # === Test extract_service ===
 
@@ -163,6 +164,63 @@ class TestPipelineContext:
             db=db,
         )
         assert ctx.db == db
+
+    def test_derive_root_stage_context_uses_explicit_ports(self):
+        """Root StageContext should inherit explicit ports from PipelineContext."""
+        db = object()
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            ports=create_core_ports(db=db),
+        )
+
+        root = ctx.derive_root_stage_context()
+
+        assert root.inputs.ports is not None
+        assert root.inputs.ports.db is db
+
+    def test_derive_root_stage_context_falls_back_to_db(self):
+        """Legacy db values should still be exposed via derived ports."""
+        db = object()
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            db=db,
+        )
+
+        root = ctx.derive_root_stage_context()
+
+        assert root.inputs.ports is not None
+        assert root.inputs.ports.db is db
+
+    def test_fork_preserves_ports(self):
+        """Child PipelineContext should retain the parent ports bundle."""
+        ports = create_core_ports(db=object())
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            ports=ports,
+        )
+
+        child = ctx.fork(
+            child_run_id=uuid4(),
+            parent_stage_id="stage.parent",
+            correlation_id=uuid4(),
+        )
+
+        assert child.ports is ports
 
     def test_canceled_flag(self):
         """Test canceled flag."""
