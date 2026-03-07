@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from warnings import warn
 
 
 class DataConflictError(Exception):
@@ -46,6 +47,11 @@ class ContextBag:
     """
 
     def __init__(self) -> None:
+        warn(
+            "ContextBag is deprecated; use OutputBag for stage outputs and PipelineContext.data for mutable orchestration state.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._data: dict[str, Any] = {}
         self._lock = asyncio.Lock()
         self._writers: dict[str, str] = {}  # key -> stage_name

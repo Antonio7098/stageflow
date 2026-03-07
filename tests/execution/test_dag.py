@@ -121,6 +121,13 @@ class TestStageSpec:
 class TestStageGraphInit:
     """Tests for StageGraph initialization."""
 
+    def test_init_emits_deprecation_warning(self):
+        """StageGraph should advertise deprecation toward UnifiedStageGraph."""
+        spec = StageSpec(name="test", runner=SimpleStage)
+
+        with pytest.deprecated_call(match="StageGraph is deprecated"):
+            StageGraph(specs=[spec])
+
     def test_init_with_single_spec(self):
         """Test StageGraph with single StageSpec."""
         spec = StageSpec(name="test", runner=SimpleStage)
