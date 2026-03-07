@@ -4,7 +4,7 @@ from typing import Protocol
 
 from .stage_context import StageContext
 from .stage_enums import StageKind
-from .stage_output import StageOutput
+from .stage_output import StageReturn
 
 
 class Stage(Protocol):
@@ -28,13 +28,13 @@ class Stage(Protocol):
     name: str
     kind: StageKind
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> StageReturn:
         """Execute the stage logic.
 
         Args:
             ctx: StageContext with snapshot and output buffer
 
         Returns:
-            StageOutput with status, data, artifacts, and events
+            StageOutput, a plain dict payload, or None
         """
         ...

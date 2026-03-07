@@ -58,12 +58,12 @@ class PipelineContext:
     ContextBag for outputs.
     """
 
-    pipeline_run_id: UUID | None
-    request_id: UUID | None
-    session_id: UUID | None
-    user_id: UUID | None
-    org_id: UUID | None
-    interaction_id: UUID | None
+    pipeline_run_id: UUID | None = None
+    request_id: UUID | None = None
+    session_id: UUID | None = None
+    user_id: UUID | None = None
+    org_id: UUID | None = None
+    interaction_id: UUID | None = None
     # Topology / Configuration / Execution Mode
     # topology: the named pipeline topology (e.g. "chat_fast", "voice_accurate")
     topology: str | None = None
@@ -200,6 +200,71 @@ class PipelineContext:
         return self.to_snapshot()
 
     @classmethod
+    def create(
+        cls,
+        *,
+        pipeline_run_id: UUID | None = None,
+        request_id: UUID | None = None,
+        session_id: UUID | None = None,
+        user_id: UUID | None = None,
+        org_id: UUID | None = None,
+        interaction_id: UUID | None = None,
+        topology: str | None = None,
+        configuration: dict[str, Any] | None = None,
+        execution_mode: str | None = None,
+        input_text: str | None = None,
+        input_audio_duration_ms: int | None = None,
+        conversation: Conversation | None = None,
+        enrichments: Enrichments | None = None,
+        extensions: ExtensionBundle | dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        created_at: datetime | None = None,
+        service: str = "pipeline",
+        event_sink: EventSink | None = None,
+        data: dict[str, Any] | None = None,
+        ports: CorePorts | LLMPorts | AudioPorts | None = None,
+        db: Any = None,
+        canceled: bool = False,
+        artifacts: list[Artifact] | None = None,
+    ) -> PipelineContext:
+        """Create a PipelineContext without manual snapshot plumbing.
+
+        This is the ergonomic constructor for application code. Use
+        ``PipelineContext(...)`` or ``PipelineContext.create(...)`` for normal
+        graph entrypoints; reserve ``from_snapshot(...)`` for replay/bridging
+        scenarios where you already have a ``ContextSnapshot``.
+        """
+        kwargs: dict[str, Any] = {}
+        if created_at is not None:
+            kwargs["created_at"] = created_at
+        if event_sink is not None:
+            kwargs["event_sink"] = event_sink
+        return cls(
+            pipeline_run_id=pipeline_run_id,
+            request_id=request_id,
+            session_id=session_id,
+            user_id=user_id,
+            org_id=org_id,
+            interaction_id=interaction_id,
+            topology=topology,
+            configuration=configuration.copy() if configuration else {},
+            execution_mode=execution_mode,
+            input_text=input_text,
+            input_audio_duration_ms=input_audio_duration_ms,
+            conversation=conversation,
+            enrichments=enrichments,
+            extensions=extensions,
+            metadata=metadata.copy() if metadata else {},
+            service=service,
+            data=data.copy() if data else {},
+            ports=ports,
+            db=db,
+            canceled=canceled,
+            artifacts=list(artifacts or []),
+            **kwargs,
+        )
+
+    @classmethod
     def from_snapshot(
         cls,
         snapshot: ContextSnapshot,
@@ -214,10 +279,7 @@ class PipelineContext:
         artifacts: list[Artifact] | None = None,
     ) -> PipelineContext:
         """Construct PipelineContext from immutable snapshot data."""
-        kwargs: dict[str, Any] = {}
-        if event_sink is not None:
-            kwargs["event_sink"] = event_sink
-        return cls(
+        return cls.create(
             pipeline_run_id=snapshot.pipeline_run_id,
             request_id=snapshot.request_id,
             session_id=snapshot.session_id,
@@ -235,12 +297,12 @@ class PipelineContext:
             metadata=snapshot.metadata.copy(),
             created_at=snapshot.created_at,
             service=service,
+            event_sink=event_sink,
             data=data.copy() if data else {},
             ports=ports,
             db=db,
             canceled=canceled,
             artifacts=list(artifacts or []),
-            **kwargs,
         )
 
     @classmethod

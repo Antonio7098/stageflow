@@ -22,7 +22,7 @@ Lint a Pipeline instance for dependency issues.
 **Example:**
 ```python
 from stageflow.cli import lint_pipeline
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 pipeline = (
     Pipeline()

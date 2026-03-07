@@ -15,7 +15,7 @@ A ROUTE stage determines the conversation path, then a TRANSFORM stage calls an 
 ### RouterStage
 
 ```python
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 class RouterStage:
@@ -123,7 +123,7 @@ class LLMStage:
 ## The Pipeline
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 
 def create_chat_pipeline(llm_client=None) -> Pipeline:
@@ -154,7 +154,7 @@ def create_chat_pipeline(llm_client=None) -> Pipeline:
 import asyncio
 from uuid import uuid4
 
-from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
+from stageflow.api import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 from stageflow.context import Message
 
 
@@ -246,8 +246,6 @@ async def main():
         .with_stage("llm", LLMStage(llm_client), StageKind.TRANSFORM, dependencies=("router",))
     )
     
-    graph = pipeline.build()
-    
     # Test different inputs
     test_inputs = [
         "Hello, how are you?",
@@ -261,7 +259,7 @@ async def main():
             execution_mode="default",
             input_text=input_text,
         )
-        results = await graph.run(pipeline_ctx)
+        results = await pipeline.run(pipeline_ctx)
         
         print(f"Input: {input_text}")
         print(f"Route: {results['router'].data['route']}")

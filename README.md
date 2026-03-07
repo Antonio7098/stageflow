@@ -29,61 +29,55 @@ pip install stageflow-core[dev]
 
 ```python
 import asyncio
-from stageflow import (
+from stageflow.api import (
     Pipeline,
-    Stage,
     StageContext,
-    StageOutput,
     StageKind,
-    PipelineTimer,
+    stage,
+    stage_metadata,
 )
-from stageflow.context import ContextSnapshot, RunIdentity
-from stageflow.stages import StageInputs
 
 # Define a stage
+@stage_metadata(name="greet", kind=StageKind.TRANSFORM)
 class GreetStage:
-    name = "greet"
-    kind = StageKind.TRANSFORM
-
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
         name = ctx.snapshot.input_text or "World"
-        return StageOutput.ok(greeting=f"Hello, {name}!")
+        return {"greeting": f"Hello, {name}!"}
 
 # Define another stage that depends on the first
+@stage_metadata(name="shout", kind=StageKind.TRANSFORM)
 class ShoutStage:
-    name = "shout"
-    kind = StageKind.TRANSFORM
-
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
         # Access output from dependency via StageInputs
         greeting = ctx.inputs.get_from("greet", "greeting", default="Hello!")
-        return StageOutput.ok(shouted=greeting.upper())
+        return {"shouted": greeting.upper()}
 
 # Build the pipeline
-pipeline = (
-    Pipeline()
-    .with_stage("greet", GreetStage, StageKind.TRANSFORM)
-    .with_stage("shout", ShoutStage, StageKind.TRANSFORM, dependencies=("greet",))
+pipeline = Pipeline.from_stages(
+    stage("greet", GreetStage),
+    stage("shout", ShoutStage, after="greet"),
 )
+
+# Use `after=` for simple chains like this. Switch to `dependencies=` when a
+# stage waits on multiple upstream stages or when you want the full DAG edges
+# spelled out explicitly.
 
 # Execute
 async def main():
-    graph = pipeline.build()
-    snapshot = ContextSnapshot(run_id=RunIdentity(), input_text="World")
-    base_inputs = StageInputs(snapshot=snapshot)
-    ctx = StageContext(
-        snapshot=snapshot,
-        inputs=base_inputs,
-        stage_name="pipeline_entry",
-        timer=PipelineTimer(),
+    results = await pipeline.run(
+        input_text="World",
+        topology="readme_quickstart",
+        execution_mode="default",
     )
-    results = await graph.run(ctx)
-    print(results["shout"].data["shouted"])  # "HELLO, WORLD!"
+    print(results.data("shout")["shouted"])  # "HELLO, WORLD!"
 
 asyncio.run(main())
 ```
 
 ## Core Concepts
+
+If you want the smallest practical import surface, start with `stageflow.api`.
+Use `stageflow.advanced` or the root package when you need advanced/runtime internals.
 
 ### Stages
 

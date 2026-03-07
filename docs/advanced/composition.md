@@ -145,6 +145,7 @@ from stageflow.pipeline import (
     with_duplex_system,
 )
 
+# `with_duplex_system(...)` currently targets the deprecated PipelineBuilder API.
 def create_duplex_transport_component(
     *,
     with_sync: bool = True,
@@ -264,7 +265,7 @@ pipeline_registry.register("chat_accurate", create_accurate_pipeline())
 Inject services into pipeline components:
 
 ```python
-class PipelineBuilder:
+class PipelineFactory:
     def __init__(
         self,
         llm_client,
@@ -298,7 +299,7 @@ class PipelineBuilder:
         )
 
 # Production
-builder = PipelineBuilder(
+builder = PipelineFactory(
     llm_client=RealLLMClient(),
     profile_service=RealProfileService(),
     memory_service=RealMemoryService(),
@@ -307,7 +308,7 @@ builder = PipelineBuilder(
 production_pipeline = builder.build_chat_pipeline()
 
 # Testing
-test_builder = PipelineBuilder(
+test_builder = PipelineFactory(
     llm_client=MockLLMClient(),
     profile_service=MockProfileService(),
     memory_service=MockMemoryService(),
@@ -520,7 +521,7 @@ provides two layers of defense to keep DAGs acyclic:
 
 1. **Lint before build**: `stageflow.cli.lint_pipeline()` surfaces
    cycles, missing dependencies, and orphans before you even create a
-   `StageGraph`.
+   runnable graph.
 2. **Structured build errors**: The pipeline builder raises
    `CycleDetectedError` with a `ContractErrorInfo` payload (code,
    summary, fix hint, docs URL) so you can pinpoint the offending stage

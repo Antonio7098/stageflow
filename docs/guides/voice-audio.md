@@ -20,6 +20,7 @@ Stageflow provides:
 Use `AudioPorts` to inject audio services into stages:
 
 ```python
+from stageflow import PipelineContext
 from stageflow.stages.ports import AudioPorts, create_audio_ports
 
 # Create ports with your providers
@@ -29,11 +30,15 @@ ports = create_audio_ports(
     audio_callback=handle_audio_output,
 )
 
-# Use in stage context
-ctx = StageContext(
-    snapshot=snapshot,
-    inputs=create_stage_inputs(snapshot, ports=ports),
+# Pass ports into PipelineContext; UnifiedStageGraph derives StageContext for you.
+pipeline_ctx = PipelineContext(
+    topology="voice_demo",
+    execution_mode="demo",
+    ports=ports,
 )
+
+# Advanced/testing only: derive a root StageContext manually.
+ctx = pipeline_ctx.derive_root_stage_context()
 ```
 
 ### Accessing Ports in Stages

@@ -17,11 +17,9 @@ Both stages can run at the same time. The producer closes the channel when done.
 
 ```python
 import asyncio
-from uuid import uuid4
 
-from stageflow import Pipeline, PipelineContext, PipelineTimer, StageContext, StageKind, StageOutput
+from stageflow.api import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 from stageflow.helpers import RealtimeStageBus
-from stageflow.stages.inputs import create_stage_inputs
 from stageflow.stages.ports import create_core_ports
 
 
@@ -74,34 +72,19 @@ async def run_demo() -> None:
             dependencies=("llm_stream",),
         )
     )
-    graph = pipeline.build()
-
     pipeline_ctx = PipelineContext(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=uuid4(),
-        interaction_id=uuid4(),
         topology="realtime_llm_tts",
         execution_mode="demo",
         input_text="stream this text in real time",
     )
 
-    # For advanced port wiring, derive a stage context from PipelineContext.
-    snapshot = pipeline_ctx.to_snapshot()
+    # Inject realtime capabilities through PipelineContext ports.
     bus = RealtimeStageBus(default_max_size=128)
     ports = create_core_ports(realtime_bus=bus)
-    inputs = create_stage_inputs(snapshot, ports=ports)
-    root_stage_ctx = StageContext(
-        snapshot=snapshot,
-        inputs=inputs,
-        stage_name="pipeline_entry",
-        timer=PipelineTimer(),
-    )
+    pipeline_ctx.ports = ports
 
-    # Execute through the Stageflow graph.
-    results = await graph.run(root_stage_ctx)
+    # Execute through the pipeline convenience API.
+    results = await pipeline.run(pipeline_ctx)
     print("LLM status:", results["llm_stream"].status)
     print("TTS chunks:", results["tts_stream"].data["audio_chunks"])
 

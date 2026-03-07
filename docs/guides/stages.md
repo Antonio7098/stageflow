@@ -7,16 +7,18 @@ Stages are the fundamental building blocks of stageflow pipelines. This guide co
 Every stage must implement the `Stage` protocol:
 
 ```python
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, stage_metadata
 
+@stage_metadata(name="my_stage", kind=StageKind.TRANSFORM)
 class MyStage:
-    name: str = "my_stage"      # Unique identifier
-    kind: StageKind = StageKind.TRANSFORM  # Categorization
-    
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
         """Execute the stage logic."""
-        ...
+        return {"result": "done"}
 ```
+
+Use a plain `dict` return for the common success path. Switch to
+`StageOutput.ok(...)`, `.skip(...)`, `.cancel(...)`, or `.fail(...)` when you
+need explicit status semantics.
 
 ## Stage Kinds
 

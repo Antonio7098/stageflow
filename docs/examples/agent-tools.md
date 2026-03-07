@@ -57,7 +57,7 @@ class TogglePanelTool(BaseTool):
 ### DispatchStage
 
 ```python
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 class DispatchStage:
@@ -86,7 +86,7 @@ import re
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 from stageflow.tools import get_tool_registry
 
 
@@ -211,7 +211,7 @@ class AgentStage:
 ## The Pipeline
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 
 def create_agent_demo_pipeline() -> Pipeline:
@@ -244,7 +244,7 @@ import re
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
+from stageflow.api import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 from stageflow.tools import BaseTool, ToolInput, ToolOutput, get_tool_registry
 
 
@@ -354,8 +354,6 @@ async def main():
         .with_stage("agent", AgentStage(), StageKind.AGENT, dependencies=("dispatch",))
     )
     
-    graph = pipeline.build()
-    
     # Test inputs
     test_inputs = [
         "Hello there!",
@@ -372,7 +370,7 @@ async def main():
             input_text=input_text,
         )
 
-        results = await graph.run(pipeline_ctx)
+        results = await pipeline.run(pipeline_ctx)
         
         agent_output = results["agent"]
         print(f"Input: {input_text}")
@@ -421,8 +419,8 @@ hash-based stagnation detection.
 
 ```python
 from dataclasses import dataclass
-from stageflow import Pipeline, StageKind, StageOutput
-from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
+from stageflow.api import Pipeline, StageKind, StageOutput
+from stageflow.advanced import GuardRetryPolicy, GuardRetryStrategy
 from stageflow.testing import create_test_stage_context
 
 MAX_RETRIES = 3

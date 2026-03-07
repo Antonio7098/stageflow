@@ -6,7 +6,6 @@ This page documents the concrete APIs in `stageflow.context`.
 
 ```python
 from stageflow.context import (
-    ContextBag,
     ContextSnapshot,
     Conversation,
     DataConflictError,
@@ -21,6 +20,9 @@ from stageflow.context import (
     RunIdentity,
 )
 ```
+
+`ContextBag` is still exported for compatibility, but it is deprecated in favor of
+`OutputBag` plus `PipelineContext.data`.
 
 ## ExtensionBundle
 
@@ -67,7 +69,7 @@ RunIdentity(
 
 ```python
 from stageflow.context import OutputBag
-from stageflow import StageOutput
+from stageflow.api import StageOutput
 
 bag = OutputBag()
 entry = await bag.write("stage_a", StageOutput.ok(result="ok"))
@@ -99,6 +101,8 @@ Conversation(
 `Conversation` has `messages` and `routing_decision` (plus derived properties like `last_user_message`).
 It does not define `input_text`, `input_audio_duration_ms`, or `metadata`.
 
-## ContextBag (legacy)
+## ContextBag (deprecated)
 
-`ContextBag` remains available for compatibility; new code should prefer `OutputBag`.
+`ContextBag` remains available for compatibility, but it is deprecated. New code
+should prefer `OutputBag` for stage outputs and `PipelineContext.data` for shared
+mutable orchestration state.

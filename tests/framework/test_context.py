@@ -85,6 +85,49 @@ class TestPipelineContext:
         assert ctx.artifacts == []
         assert ctx._stage_metadata == {}
 
+    def test_default_initialization_without_ids(self):
+        """PipelineContext should be ergonomic for common entrypoint usage."""
+        ctx = PipelineContext(
+            input_text="hello world",
+            topology="quickstart",
+            execution_mode="default",
+        )
+
+        assert ctx.pipeline_run_id is None
+        assert ctx.request_id is None
+        assert ctx.session_id is None
+        assert ctx.user_id is None
+        assert ctx.org_id is None
+        assert ctx.interaction_id is None
+        assert ctx.input_text == "hello world"
+        assert ctx.topology == "quickstart"
+        assert ctx.execution_mode == "default"
+
+    def test_create_classmethod(self):
+        """PipelineContext.create should offer the same ergonomic path explicitly."""
+        config = {"mode": "demo"}
+        data = {"k": "v"}
+        metadata = {"source": "test"}
+
+        ctx = PipelineContext.create(
+            input_text="hello world",
+            topology="quickstart",
+            execution_mode="default",
+            configuration=config,
+            data=data,
+            metadata=metadata,
+        )
+
+        assert ctx.input_text == "hello world"
+        assert ctx.topology == "quickstart"
+        assert ctx.execution_mode == "default"
+        assert ctx.configuration == config
+        assert ctx.data == data
+        assert ctx.metadata == metadata
+        assert ctx.configuration is not config
+        assert ctx.data is not data
+        assert ctx.metadata is not metadata
+
     def test_with_topology(self):
         """Test with topology."""
         ctx = PipelineContext(

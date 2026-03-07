@@ -71,7 +71,23 @@ def create_context(snapshot: ContextSnapshot | None = None) -> StageContext:
 def create_pipeline_context(snapshot: ContextSnapshot | None = None, **kwargs) -> PipelineContext:
     """Create a test PipelineContext."""
     snap = snapshot or create_snapshot()
-    return PipelineContext.from_snapshot(snap, **kwargs)
+    return PipelineContext.create(
+        pipeline_run_id=snap.pipeline_run_id,
+        request_id=snap.request_id,
+        session_id=snap.session_id,
+        user_id=snap.user_id,
+        org_id=snap.org_id,
+        interaction_id=snap.interaction_id,
+        topology=snap.topology,
+        execution_mode=snap.execution_mode,
+        input_text=snap.input_text,
+        input_audio_duration_ms=snap.input_audio_duration_ms,
+        conversation=snap.conversation,
+        enrichments=snap.enrichments,
+        extensions=snap.extensions,
+        metadata=snap.metadata.copy(),
+        **kwargs,
+    )
 
 
 class CapturingWideEmitter:

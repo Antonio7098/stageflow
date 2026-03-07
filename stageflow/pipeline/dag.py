@@ -15,6 +15,7 @@ from stageflow.core import (
     StageContext,
     StageKind,
     StageOutput,
+    StageReturn,
     StageStatus,
 )
 from stageflow.observability.wide_events import WideEventEmitter
@@ -32,6 +33,7 @@ from stageflow.pipeline.interceptors import (
     get_default_interceptors,
     run_with_interceptors,
 )
+from stageflow.pipeline.results import PipelineResults
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.result import StageError, StageResult
 
@@ -39,7 +41,7 @@ logger = logging.getLogger("pipeline_dag")
 DEBUG_LOG_PATH = "/tmp/debug_pipeline_dag.log"
 
 StageRunner = Callable[[PipelineContext], Awaitable[StageResult | dict | None]]
-StageRunnerNew = Callable[[StageContext], Awaitable[StageOutput]]
+StageRunnerNew = Callable[[StageContext], Awaitable[StageReturn]]
 
 
 @dataclass(slots=True, kw_only=True)
@@ -97,7 +99,7 @@ class UnifiedPipelineCancelled(Exception):
         super().__init__(f"Pipeline cancelled by stage '{stage}': {reason}")
         self.stage = stage
         self.reason = reason
-        self.results = results
+        self.results = PipelineResults(results)
 
 
 class StageGraph:
@@ -449,7 +451,7 @@ class UnifiedStageGraph:
             started_at=started_at,
         )
 
-    async def run(self, ctx: StageContext | PipelineContext) -> dict[str, StageOutput]:
+    async def run(self, ctx: StageContext | PipelineContext) -> PipelineResults:
         """Execute the DAG with the given context.
 
         Uses structured cancellation to ensure proper resource cleanup
@@ -460,7 +462,7 @@ class UnifiedStageGraph:
                 StageContext remains supported for backwards compatibility.
 
         Returns:
-            Dict mapping stage name to StageOutput
+            PipelineResults mapping stage name to StageOutput
         """
         graph_started_at = datetime.now(UTC)
         logger.info(
@@ -564,7 +566,7 @@ class UnifiedStageGraph:
                     raise UnifiedPipelineCancelled(
                         stage="<external>",
                         reason=self._cancel_token.reason or "Cancelled via token",
-                        results=completed,
+                        results=PipelineResults(completed),
                     )
 
                 if not active_tasks:
@@ -730,7 +732,7 @@ class UnifiedStageGraph:
                         raise UnifiedPipelineCancelled(
                             stage=stage_name,
                             reason=stage_output.data.get("cancel_reason", "Pipeline cancelled"),
-                            results=completed,
+                            results=PipelineResults(completed),
                         )
 
                     if stage_output.status == StageStatus.FAIL:
@@ -797,7 +799,7 @@ class UnifiedStageGraph:
                 status="completed",
             )
 
-            return completed
+            return PipelineResults(completed)
 
         except UnifiedPipelineCancelled:
             self._publish_pipeline_wide_event(
@@ -1062,7 +1064,7 @@ class UnifiedStageGraph:
     @staticmethod
     def _normalize_output(
         name: str,
-        raw: StageOutput | dict | None,
+        raw: StageReturn,
         _started_at: datetime,
     ) -> StageOutput:
         """Normalize stage output to StageOutput."""

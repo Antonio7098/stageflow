@@ -5,7 +5,7 @@ This document provides the API reference for interceptor middleware.
 ## BaseInterceptor
 
 ```python
-from stageflow import BaseInterceptor
+from stageflow.advanced import BaseInterceptor
 ```
 
 Base class for stage interceptors.
@@ -59,7 +59,7 @@ async def on_error(self, stage_name: str, error: Exception, ctx: PipelineContext
 ## InterceptorResult
 
 ```python
-from stageflow import InterceptorResult
+from stageflow.advanced import InterceptorResult
 ```
 
 Result from an interceptor's `before()` hook.
@@ -86,7 +86,7 @@ return InterceptorResult(
 ## ErrorAction
 
 ```python
-from stageflow import ErrorAction
+from stageflow.advanced import ErrorAction
 ```
 
 Action to take when a stage errors.
@@ -104,7 +104,7 @@ Action to take when a stage errors.
 ## InterceptorContext
 
 ```python
-from stageflow import InterceptorContext
+from stageflow.advanced import InterceptorContext
 ```
 
 Read-only view of PipelineContext for interceptors.
@@ -140,7 +140,7 @@ Get observation from previous interceptor.
 ### TimeoutInterceptor
 
 ```python
-from stageflow import TimeoutInterceptor
+from stageflow.advanced import TimeoutInterceptor
 ```
 
 Enforces per-stage execution timeouts.
@@ -156,7 +156,7 @@ ctx.data["_timeout_ms"] = 60000  # 60 seconds
 ### CircuitBreakerInterceptor
 
 ```python
-from stageflow import CircuitBreakerInterceptor
+from stageflow.advanced import CircuitBreakerInterceptor
 ```
 
 Prevents cascading failures.
@@ -168,7 +168,7 @@ Prevents cascading failures.
 ### TracingInterceptor
 
 ```python
-from stageflow import TracingInterceptor
+from stageflow.advanced import TracingInterceptor
 ```
 
 Creates OpenTelemetry-compatible span context.
@@ -178,7 +178,7 @@ Creates OpenTelemetry-compatible span context.
 ### ChildTrackerMetricsInterceptor
 
 ```python
-from stageflow import ChildTrackerMetricsInterceptor
+from stageflow.advanced import ChildTrackerMetricsInterceptor
 ```
 
 Logs `ChildRunTracker` metrics for subpipeline orchestration observability.
@@ -188,7 +188,7 @@ Logs `ChildRunTracker` metrics for subpipeline orchestration observability.
 ### MetricsInterceptor
 
 ```python
-from stageflow import MetricsInterceptor
+from stageflow.advanced import MetricsInterceptor
 ```
 
 Records stage execution metrics.
@@ -198,7 +198,7 @@ Records stage execution metrics.
 ### LoggingInterceptor
 
 ```python
-from stageflow import LoggingInterceptor
+from stageflow.advanced import LoggingInterceptor
 ```
 
 Provides structured JSON logging.
@@ -237,7 +237,7 @@ exporter = BufferedExporter(
 ### get_default_interceptors
 
 ```python
-from stageflow import get_default_interceptors
+from stageflow.advanced import get_default_interceptors
 
 interceptors = get_default_interceptors(include_auth=False)
 ```
@@ -252,7 +252,7 @@ Get the default set of interceptors.
 ### run_with_interceptors
 
 ```python
-from stageflow import run_with_interceptors
+from stageflow.advanced import run_with_interceptors
 
 result = await run_with_interceptors(
     stage_name="my_stage",
@@ -299,9 +299,9 @@ Ensures tenant isolation.
 ## Creating Custom Interceptors
 
 ```python
-from stageflow import BaseInterceptor, InterceptorResult, ErrorAction
-from stageflow.stages.context import PipelineContext
-from stageflow.stages.result import StageResult
+from stageflow.advanced import BaseInterceptor, InterceptorResult, ErrorAction
+from stageflow.api import PipelineContext
+from stageflow.advanced import StageResult
 
 class MyInterceptor(BaseInterceptor):
     name = "my_interceptor"
@@ -331,12 +331,13 @@ class MyInterceptor(BaseInterceptor):
 ## Usage Example
 
 ```python
-from stageflow import (
+from stageflow.advanced import (
     BaseInterceptor,
     InterceptorResult,
     ErrorAction,
     get_default_interceptors,
     Pipeline,
+    PipelineContext,
     StageKind,
 )
 
@@ -371,9 +372,6 @@ interceptors = [
     *get_default_interceptors(),
 ]
 
-# Build pipeline with custom interceptors
-from stageflow.pipeline.dag import StageGraph
-
 pipeline = Pipeline().with_stage("my_stage", MyStage, StageKind.TRANSFORM)
-graph = StageGraph(specs=pipeline.build().stage_specs, interceptors=interceptors)
+results = await pipeline.run(PipelineContext(), interceptors=interceptors)
 ```

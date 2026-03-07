@@ -29,12 +29,16 @@ from stageflow.helpers.uuid_utils import generate_uuid7
 uid = generate_uuid7()
 ```
 
+> Prefer `pipeline.run(...)` / `pipeline.build(...)` for new code. `PipelineRunner`
+> remains available as a compatibility/utility helper when you specifically want
+> its `RunResult` wrapper or helper-managed runtime wiring.
+
 ## Memory Growth Tracking
 
-### PipelineRunner Integration
+### Optional PipelineRunner Compatibility Integration
 
 ```python
-from stageflow.helpers.run_utils import PipelineRunner
+from stageflow.helpers import PipelineRunner
 
 runner = PipelineRunner(
     enable_memory_tracker=True,
@@ -57,22 +61,21 @@ async def heavy_computation():
 > **Performance Warning:** This interceptor serializes the entire context before and after each stage. Use only during development or testing.
 
 ```python
-from stageflow.helpers.run_utils import PipelineRunner
+from stageflow.advanced import ImmutabilityInterceptor
 
-runner = PipelineRunner(
-    enable_immutability_check=True,
-)
+interceptor = ImmutabilityInterceptor(crash_on_violation=True)
+# pass via pipeline.build(interceptors=[..., interceptor])
 ```
 
 ## Context Size Monitoring
 
 ```python
-from stageflow.helpers.run_utils import PipelineRunner
+from stageflow.advanced import ContextSizeInterceptor
 
-runner = PipelineRunner(
-    enable_context_size_monitor=True,
-    # Custom thresholds via ContextSizeInterceptor if needed
+interceptor = ContextSizeInterceptor(
+    # Custom thresholds here if needed
 )
+# pass via pipeline.build(interceptors=[..., interceptor])
 ```
 
 ## Compression Utilities
@@ -105,7 +108,7 @@ print(metrics.ratio)
 Detects if a stage mutates the input ContextSnapshot.
 
 ```python
-from stageflow.pipeline.interceptors_hardening import ImmutabilityInterceptor
+from stageflow.advanced import ImmutabilityInterceptor
 
 interceptor = ImmutabilityInterceptor(crash_on_violation=True)
 ```
@@ -115,7 +118,7 @@ interceptor = ImmutabilityInterceptor(crash_on_violation=True)
 Monitors context payload size and growth.
 
 ```python
-from stageflow.pipeline.interceptors_hardening import ContextSizeInterceptor
+from stageflow.advanced import ContextSizeInterceptor
 
 interceptor = ContextSizeInterceptor(
     max_size_bytes=1024 * 1024,  # 1MB warning

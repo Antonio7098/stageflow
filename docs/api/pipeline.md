@@ -1,9 +1,9 @@
 # Pipeline API Reference
 
-Stageflow provides two graph executors:
+Stageflow provides one canonical graph executor and one deprecated compatibility executor:
 
 - `UnifiedStageGraph` (recommended default)
-- `StageGraph` (legacy compatibility)
+- `StageGraph` (deprecated compatibility)
 
 Use `UnifiedStageGraph` for all new pipelines. It executes stages with
 `StageContext` + `StageInputs`, so stage code can safely use `ctx.inputs`.
@@ -11,7 +11,7 @@ Use `UnifiedStageGraph` for all new pipelines. It executes stages with
 ## Pipeline (Unified graph)
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, stage
 ```
 
 ```python
@@ -24,11 +24,38 @@ Pipeline(name: str = "pipeline", stages: dict[str, UnifiedStageSpec] = {})
 with_stage(
     name: str,
     runner: type[Stage] | Stage,
-    kind: StageKind,
-    dependencies: tuple[str, ...] | None = None,
+    kind: StageKind | str | None = None,
+    dependencies: tuple[str, ...] | list[str] | None = None,
+    *,
+    after: str | Sequence[str] | None = None,
     conditional: bool = False,
     config: dict[str, Any] | None = None,
 ) -> Pipeline
+```
+
+If `kind` is omitted, Stageflow infers it from `runner.kind`.
+
+Dependency syntax guidance:
+
+- use `after=` for simple single-edge tutorial/script pipelines
+- use `dependencies=` for multi-edge joins or when you want the full DAG edge list to stay explicit
+
+### with_stages / from_stages / stage
+
+```python
+stage(name: str, runner: type[Stage] | Stage, kind: StageKind | str | None = None, *, after: str | Sequence[str] | None = None, ...) -> UnifiedStageSpec
+with_stages(*specs: UnifiedStageSpec) -> Pipeline
+from_stages(*specs: UnifiedStageSpec, name: str = "pipeline") -> Pipeline
+```
+
+These helpers give you a lower-ceremony, dependency-explicit way to define a
+pipeline:
+
+```python
+pipeline = Pipeline.from_stages(
+    stage("greet", GreetStage),
+    stage("shout", ShoutStage, after="greet"),
+)
 ```
 
 ### build
@@ -38,28 +65,121 @@ build(
     *,
     interceptors: list[BaseInterceptor] | None = None,
     guard_retry_strategy: GuardRetryStrategy | None = None,
+    emit_stage_wide_events: bool = False,
+    emit_pipeline_wide_event: bool = False,
+    wide_event_emitter: WideEventEmitter | None = None,
 ) -> UnifiedStageGraph
 ```
 
-`Pipeline.build()` does not accept wide-event flags.
-It accepts custom interceptor stacks via `interceptors=[...]`.
+`Pipeline.build()` is the canonical builder entrypoint. It:
+
+- validates empty pipelines, missing dependencies, and cycles before execution
+- accepts custom interceptor stacks via `interceptors=[...]`
+- can emit stage-wide and pipeline-wide observability events directly
 
 ```python
-from stageflow import get_default_interceptors
+from stageflow.advanced import get_default_interceptors
+from stageflow.observability import WideEventEmitter
 
 graph = pipeline.build(
     interceptors=get_default_interceptors(include_auth=True),
+    emit_stage_wide_events=True,
+    emit_pipeline_wide_event=True,
+    wide_event_emitter=WideEventEmitter(),
 )
 ```
 
-## PipelineBuilder (StageGraph)
+### run
 
 ```python
-from stageflow.pipeline import PipelineBuilder
+run(
+    ctx: PipelineContext | StageContext | None = None,
+    *,
+    interceptors: list[BaseInterceptor] | None = None,
+    guard_retry_strategy: GuardRetryStrategy | None = None,
+    emit_stage_wide_events: bool = False,
+    emit_pipeline_wide_event: bool = False,
+    wide_event_emitter: WideEventEmitter | None = None,
+    **context_kwargs: Any,
+) -> PipelineResults
 ```
 
-`PipelineBuilder` returns the legacy `StageGraph` executor.
-Use it only when you need legacy-only options (for example wide-event emission).
+`Pipeline.run(...)` is the canonical entrypoint for application code.
+It builds a `UnifiedStageGraph` and executes it for you.
+
+```python
+results = await pipeline.run(input_text="hello")
+print(results.data("shout"))
+```
+
+`PipelineResults` also includes helpers such as:
+
+- `results.output("stage")`
+- `results.data("stage")`
+- `results.require("stage")`
+- `results.require_ok("stage")`
+- `results.ok("stage")`
+
+Use `build()` when you want to keep a reusable graph object or configure it once
+and run it multiple times.
+
+### invoke
+
+```python
+invoke(
+    input_text_or_ctx: str | PipelineContext | StageContext | None = None,
+    *,
+    interceptors: list[BaseInterceptor] | None = None,
+    guard_retry_strategy: GuardRetryStrategy | None = None,
+    emit_stage_wide_events: bool = False,
+    emit_pipeline_wide_event: bool = False,
+    wide_event_emitter: WideEventEmitter | None = None,
+    **context_kwargs: Any,
+) -> PipelineResults
+```
+
+`Pipeline.invoke(...)` is a small alias for `run(...)` that accepts positional
+input text. Prefer `run(...)` in docs and reusable application code; keep
+`invoke(...)` for scripts or call sites where a positional input string reads
+more naturally:
+
+```python
+results = await pipeline.invoke("hello")
+```
+
+### run_stage
+
+```python
+run_stage(
+    name: str,
+    runner: type[Stage] | Stage,
+    kind: StageKind | str | None = None,
+    **context_kwargs: Any,
+) -> StageOutput
+```
+
+Use `run_stage(...)` for quick single-stage smoke tests or tiny scripts.
+
+### Additional helpers
+
+```python
+get_stage(name: str) -> UnifiedStageSpec | None
+has_stage(name: str) -> bool
+stage_names() -> list[str]
+compose(other: Pipeline) -> Pipeline
+```
+
+`compose()` preserves identical stage definitions and raises `PipelineValidationError`
+when same-named stages have conflicting specs.
+
+## PipelineBuilder (Deprecated StageGraph compatibility)
+
+```python
+from stageflow.advanced import PipelineBuilder
+```
+
+`PipelineBuilder` is deprecated and returns the legacy `StageGraph` executor.
+Use it only to keep older call sites working while you migrate them.
 In `StageGraph`, stages receive `PipelineContext`, not `StageContext`.
 
 ```python
@@ -75,13 +195,17 @@ graph = builder.build(
 
 ## Which One Should I Use?
 
-- Use `Pipeline(...).build()` (`UnifiedStageGraph`) for new code.
-- Keep `PipelineBuilder(...).build()` (`StageGraph`) only for legacy flows you have
-  not migrated yet.
+- Use `stageflow.api` when you want the smallest practical public surface.
+- Use `Pipeline(...).run(...)` for the canonical new-code path.
+- Use `Pipeline(...).invoke(...)` only as a convenience alias for small scripts.
+- Use `Pipeline(...).build()` when you want an explicit reusable `UnifiedStageGraph`.
+- Keep `PipelineBuilder(...).build()` (`StageGraph`) only for deprecated flows you
+  have not migrated yet.
 
 ## Note on root imports
 
-`PipelineBuilder` is available from `stageflow.pipeline`. Prefer that import path for clarity.
+`PipelineBuilder` remains available from `stageflow.pipeline` for migration work,
+but it is not the preferred entrypoint for new code.
 
 ## Duplex Topology Helpers
 
@@ -129,6 +253,7 @@ with_duplex_system(builder: PipelineBuilder, system: DuplexSystemSpec) -> Pipeli
 ```
 
 - Adds both lanes and optional join stage.
+- Currently targets the deprecated `PipelineBuilder` compatibility path.
 - Validates duplicate stage names and collisions with existing builder stage names.
 
 ### FluentPipelineBuilder.duplex

@@ -156,3 +156,6 @@ class StageOutput:
             duration_ms=self.duration_ms,
             version=version,
         )
+
+
+StageReturn = StageOutput | dict[str, Any] | None

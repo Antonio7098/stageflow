@@ -27,6 +27,21 @@ pipeline = (
 
 The `dependencies` parameter is a tuple of stage names that must complete before this stage runs.
 
+If you are using the declarative `stage(...)` helper, prefer:
+
+- `after=` for simple single-edge chains
+- `dependencies=` for multi-edge joins or DAG-heavy definitions where the full edge list is the clearest representation
+
+```python
+from stageflow.api import Pipeline, stage
+
+pipeline = Pipeline.from_stages(
+    stage("fetch_data", FetchStage),
+    stage("transform", TransformStage, after="fetch_data"),
+    stage("merge", MergeStage, dependencies=("transform", "other_branch")),
+)
+```
+
 ## Accessing Upstream Data
 
 In your stage's `execute` method, use `ctx.inputs` to access upstream outputs:

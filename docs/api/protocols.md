@@ -17,7 +17,7 @@ Required interface:
 
 ```python
 from uuid import uuid4
-from stageflow import PipelineContext
+from stageflow.api import PipelineContext
 
 ctx = PipelineContext(
     pipeline_run_id=uuid4(),

@@ -402,22 +402,24 @@ from stageflow.auth import (
     OrgEnforcementInterceptor,
     MockJwtValidator,
 )
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 # Create auth components
 validator = MockJwtValidator()
 auth_interceptor = AuthInterceptor(jwt_validator=validator)
 org_interceptor = OrgEnforcementInterceptor()
 
-# Build pipeline with auth interceptors
+# Run pipeline with auth interceptors
 pipeline = (
     Pipeline()
     .with_stage("protected_stage", MyStage(), StageKind.TRANSFORM)
 )
 
-# Run graph (auth policies are typically wired via default/custom graph interceptors)
-graph = pipeline.build()
-results = await graph.run(pipeline_ctx)
+# Auth policies are typically wired via graph interceptors.
+results = await pipeline.run(
+    pipeline_ctx,
+    interceptors=[auth_interceptor, org_interceptor],
+)
 ```
 
 ### Manual Auth Context Creation

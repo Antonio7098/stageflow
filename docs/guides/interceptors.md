@@ -434,9 +434,10 @@ custom_interceptors = [
 graph = pipeline.build(interceptors=custom_interceptors)
 ```
 
-### With StageGraph (Legacy)
+### With StageGraph (Deprecated compatibility)
 
-Pass interceptors when creating the graph:
+Prefer `Pipeline.build(...)` for new code. If you still maintain a deprecated
+`StageGraph` flow, pass interceptors when creating the graph:
 
 ```python
 from stageflow.pipeline.dag import StageGraph

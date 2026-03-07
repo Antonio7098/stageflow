@@ -58,25 +58,21 @@ Run this minimal example to verify everything works:
 
 ```python
 import asyncio
-from stageflow import Pipeline, PipelineContext, StageKind, StageOutput, StageContext
+from stageflow.api import Pipeline, StageContext, StageKind, stage_metadata
 
+@stage_metadata(name="hello", kind=StageKind.TRANSFORM)
 class HelloStage:
-    name = "hello"
-    kind = StageKind.TRANSFORM
-
-    async def execute(self, ctx: StageContext) -> StageOutput:
-        return StageOutput.ok(message="Hello, Stageflow!")
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
+        return {"message": "Hello, Stageflow!"}
 
 async def main():
-    # Build the pipeline
-    pipeline = Pipeline().with_stage("hello", HelloStage, StageKind.TRANSFORM)
-    graph = pipeline.build()
+    # Create the pipeline
+    pipeline = Pipeline().with_stage("hello", HelloStage)
 
-    # PipelineContext is the single entry-point context.
-    pipeline_ctx = PipelineContext(input_text="Hello, Stageflow!")
-    results = await graph.run(pipeline_ctx)
+    # The simple path: pass input directly to pipeline.run(...)
+    results = await pipeline.run(input_text="Hello, Stageflow!")
     
-    print(results["hello"].data)  # {'message': 'Hello, Stageflow!'}
+    print(results.data("hello"))  # {'message': 'Hello, Stageflow!'}
 
     # Optional: emit quick telemetry from the queue helpers
     from stageflow.helpers import ChunkQueue
@@ -89,6 +85,9 @@ asyncio.run(main())
 ```
 
 ## Next Steps
+
+For day-to-day app code, prefer `stageflow.api`. Reach for `stageflow.advanced`
+or root-package imports only when you need lower-level runtime controls.
 
 - Continue to the [Quick Start](quickstart.md) guide to build your first real pipeline
 - Read about [Core Concepts](concepts.md) to understand the framework architecture

@@ -29,7 +29,7 @@ Use a multi-hop RAG pattern when:
 from collections import deque
 from typing import Iterable
 
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 class MultiHopRetrievalStage:

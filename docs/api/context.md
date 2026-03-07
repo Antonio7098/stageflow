@@ -3,17 +3,17 @@
 ## PipelineContext (Canonical User Context)
 
 ```python
-from stageflow import PipelineContext
+from stageflow.api import PipelineContext
 ```
 
 ```python
 PipelineContext(
-    pipeline_run_id: UUID | None,
-    request_id: UUID | None,
-    session_id: UUID | None,
-    user_id: UUID | None,
-    org_id: UUID | None,
-    interaction_id: UUID | None,
+    pipeline_run_id: UUID | None = None,
+    request_id: UUID | None = None,
+    session_id: UUID | None = None,
+    user_id: UUID | None = None,
+    org_id: UUID | None = None,
+    interaction_id: UUID | None = None,
     topology: str | None = None,
     execution_mode: str | None = None,
     input_text: str | None = None,
@@ -25,22 +25,30 @@ PipelineContext(
     configuration: dict[str, Any] = {},
     service: str = "pipeline",
     data: dict[str, Any] = {},
+    ports: CorePorts | LLMPorts | AudioPorts | None = None,
     ...
 )
 ```
 
 Important APIs:
 - `to_snapshot() -> ContextSnapshot`
+- `create(...) -> PipelineContext`
 - `from_snapshot(snapshot, ...) -> PipelineContext`
-- `derive_root_stage_context(stage_name="__pipeline_root__") -> StageContext`
+- `derive_root_stage_context(stage_name="__pipeline_root__") -> StageContext` (advanced/internal)
 - `fork(...) -> PipelineContext`
 
 `PipelineContext` is the context users should create and pass into pipeline entrypoints.
-`ContextSnapshot` and `StageContext` are derived execution views.
+For normal application code, `await pipeline.run(input_text=..., topology=...)`
+is often enough; create `PipelineContext(...)` when you want explicit control
+over metadata, ports, or correlation IDs.
+`ContextSnapshot` and `StageContext` are derived execution views used by the runtime.
 In the recommended `UnifiedStageGraph` path, stage `execute()` methods receive
 `StageContext` (with `ctx.inputs`), not `PipelineContext`.
 
-## RunIdentity
+Use `ports=` on `PipelineContext` when you want the root graph entrypoint to pass
+shared runtime capabilities into derived `StageContext.inputs.ports` values.
+
+## RunIdentity (Advanced)
 
 ```python
 from stageflow.context import RunIdentity
@@ -58,7 +66,7 @@ RunIdentity(
 )
 ```
 
-## ContextSnapshot
+## ContextSnapshot (Advanced)
 
 ```python
 from stageflow.context import ContextSnapshot
@@ -135,7 +143,7 @@ Important APIs:
 ## StageContext
 
 ```python
-from stageflow.core import StageContext
+from stageflow.api import StageContext
 ```
 
 ```python
@@ -147,3 +155,6 @@ StageContext(
     event_sink: EventSink | None = None,
 )
 ```
+
+`StageContext` is usually created internally by `UnifiedStageGraph`. Construct it
+directly only in tests or advanced orchestration code.

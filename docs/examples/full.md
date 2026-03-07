@@ -23,7 +23,7 @@ This pipeline includes:
 ### InputGuardStage
 
 ```python
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 class InputGuardStage:
@@ -221,7 +221,7 @@ class LLMStage:
 ## The Pipeline
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 
 def create_full_pipeline(
@@ -296,8 +296,8 @@ import asyncio
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
-from stageflow.pipeline.dag import UnifiedPipelineCancelled
+from stageflow.api import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
+from stageflow import UnifiedPipelineCancelled
 
 
 # Mock Services
@@ -459,8 +459,6 @@ async def main():
         .with_stage("output_guard", OutputGuardStage(guard), StageKind.GUARD, dependencies=("llm",))
     )
     
-    graph = pipeline.build()
-    
     # Test 1: Normal input
     print("=== Test 1: Normal Input ===")
     pipeline_ctx = PipelineContext(
@@ -468,7 +466,7 @@ async def main():
         execution_mode="default",
         input_text="Hello, I need help with Python!",
     )
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
     
     print(f"Route: {results['router'].data.get('route')}")
     print(f"Profile: {results['profile_enrich'].data.get('profile')}")

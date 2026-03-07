@@ -3,6 +3,11 @@
 This module provides standardized utilities for running pipelines
 with consistent logging, event capture, and result handling.
 
+For most application code, prefer `await pipeline.run(...)` directly. The
+helpers in this module remain useful as a compatibility/utility layer when you
+specifically want `RunResult`, extra helper-managed event capture, or built-in
+UUID/memory helper integration.
+
 Usage:
     from stageflow.helpers import PipelineRunner, ObservableEventSink, setup_logging
 
@@ -327,13 +332,17 @@ class RunResult:
 
 
 class PipelineRunner:
-    """Standardized pipeline execution with observability.
+    """Compatibility/utility runner around `Pipeline.run(...)`.
 
     Provides a consistent interface for running pipelines with:
     - Automatic event sink setup
     - Context creation from inputs
     - Error handling and result normalization
     - Timing and metrics capture
+
+    Prefer direct `pipeline.run(...)` for most new code. Reach for
+    `PipelineRunner` when you specifically want a `RunResult` wrapper or this
+    helper's UUID/memory instrumentation behavior.
 
     Example:
         runner = PipelineRunner(colorize=True)
@@ -655,8 +664,9 @@ async def run_simple_pipeline(
 ) -> RunResult:
     """Execute a pipeline with minimal boilerplate.
 
-    This is a convenience function that handles all context creation
-    automatically. Ideal for simple use cases, testing, and scripts.
+    This is a compatibility convenience function that handles all context
+    creation automatically. For most new code, prefer `await pipeline.run(...)`
+    directly.
 
     Args:
         pipeline: Pipeline to run (Pipeline instance or UnifiedStageGraph).

@@ -30,8 +30,9 @@ from stageflow.pipeline.guard_retry import (
     GuardRetryStrategy,
     hash_retry_payload,
 )
-from stageflow.pipeline.pipeline import Pipeline, UnifiedStageSpec
+from stageflow.pipeline.pipeline import Pipeline, UnifiedStageSpec, run_stage, stage
 from stageflow.pipeline.registry import PipelineRegistry, pipeline_registry
+from stageflow.pipeline.results import PipelineResults
 from stageflow.pipeline.retry import (
     BackoffStrategy,
     JitterStrategy,
@@ -85,9 +86,12 @@ __all__ = [
     "UnifiedStageGraph",
     "UnifiedStageExecutionError",
     "UnifiedStageSpec",
+    "PipelineResults",
     "GuardRetryPolicy",
     "GuardRetryStrategy",
     "hash_retry_payload",
+    "stage",
+    "run_stage",
     # Subpipeline support
     "DEFAULT_MAX_SUBPIPELINE_DEPTH",
     "MaxDepthExceededError",
