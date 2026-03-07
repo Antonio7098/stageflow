@@ -4,7 +4,13 @@ Use this module when you want a more explicit import surface for interceptors,
 context internals, graph builders, and other advanced runtime controls.
 """
 
-from stageflow.context import ContextSnapshot, Conversation, Enrichments, ExtensionBundle, RunIdentity
+from stageflow.context import (
+    ContextSnapshot,
+    Conversation,
+    Enrichments,
+    ExtensionBundle,
+    RunIdentity,
+)
 from stageflow.core import (
     Stage,
     StageContext,
@@ -14,8 +20,18 @@ from stageflow.core import (
     StageStatus,
     stage_metadata,
 )
-from stageflow.observability import WideEventEmitter, emit_pipeline_wide_event, emit_stage_wide_event
-from stageflow.pipeline import GuardRetryPolicy, GuardRetryStrategy, PipelineBuilder, PipelineResults, hash_retry_payload
+from stageflow.observability import (
+    WideEventEmitter,
+    emit_pipeline_wide_event,
+    emit_stage_wide_event,
+)
+from stageflow.pipeline import (
+    GuardRetryPolicy,
+    GuardRetryStrategy,
+    PipelineBuilder,
+    PipelineResults,
+    hash_retry_payload,
+)
 from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
@@ -37,7 +53,10 @@ from stageflow.pipeline.interceptors import (
     get_default_interceptors,
     run_with_interceptors,
 )
-from stageflow.pipeline.interceptors_hardening import ContextSizeInterceptor, ImmutabilityInterceptor
+from stageflow.pipeline.interceptors_hardening import (
+    ContextSizeInterceptor,
+    ImmutabilityInterceptor,
+)
 from stageflow.pipeline.pipeline import Pipeline, UnifiedStageSpec, run_stage, stage
 from stageflow.pipeline.spec import CycleDetectedError, PipelineValidationError
 from stageflow.stages.context import PipelineContext

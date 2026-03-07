@@ -24,8 +24,8 @@ def stage_metadata(
     resolved_kind = kind if isinstance(kind, StageKind) else StageKind(kind)
 
     def decorator(cls: TStageClass) -> TStageClass:
-        setattr(cls, "name", name)
-        setattr(cls, "kind", resolved_kind)
+        cls.name = name
+        cls.kind = resolved_kind
         return cls
 
     return decorator

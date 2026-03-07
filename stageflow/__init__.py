@@ -108,8 +108,8 @@ from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
     StageSpec,
-    UnifiedStageGraph,
     UnifiedStageExecutionError,
+    UnifiedStageGraph,
 )
 
 # Interceptors
@@ -135,11 +135,11 @@ from stageflow.pipeline.pipeline import (
     run_stage,
     stage,
 )
-from stageflow.pipeline.results import PipelineResults
 from stageflow.pipeline.registry import (
     PipelineRegistry,
     pipeline_registry,
 )
+from stageflow.pipeline.results import PipelineResults
 from stageflow.pipeline.spec import (
     CycleDetectedError,
     PipelineValidationError,

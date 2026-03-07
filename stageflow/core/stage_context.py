@@ -18,8 +18,8 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
-from warnings import warn
 from uuid import UUID
+from warnings import warn
 
 from .timer import PipelineTimer
 

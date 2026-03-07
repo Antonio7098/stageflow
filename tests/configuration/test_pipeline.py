@@ -25,9 +25,9 @@ from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
 from stageflow.pipeline.interceptors import BaseInterceptor
 from stageflow.pipeline.pipeline import (
     Pipeline,
+    UnifiedStageSpec,
     run_stage,
     stage,
-    UnifiedStageSpec,
 )
 from stageflow.pipeline.results import PipelineResults
 from stageflow.pipeline.spec import CycleDetectedError, PipelineValidationError
@@ -579,15 +579,13 @@ class TestPipeline:
 
     def test_curated_api_module_exports_happy_path_symbols(self):
         """stageflow.api should expose the streamlined public surface."""
-        from stageflow.api import (
-            Pipeline as ApiPipeline,
-            PipelineContext as ApiPipelineContext,
-            PipelineResults as ApiPipelineResults,
-            StageReturn as ApiStageReturn,
-            run_stage as api_run_stage,
-            stage as api_stage,
-            stage_metadata as api_stage_metadata,
-        )
+        from stageflow.api import Pipeline as ApiPipeline
+        from stageflow.api import PipelineContext as ApiPipelineContext
+        from stageflow.api import PipelineResults as ApiPipelineResults
+        from stageflow.api import StageReturn as ApiStageReturn
+        from stageflow.api import run_stage as api_run_stage
+        from stageflow.api import stage as api_stage
+        from stageflow.api import stage_metadata as api_stage_metadata
 
         assert ApiPipeline is Pipeline
         assert ApiPipelineContext is PipelineContext
@@ -601,13 +599,13 @@ class TestPipeline:
         """stageflow.advanced should provide an explicit advanced import surface."""
         from stageflow.advanced import (
             ContextSnapshot,
-            Pipeline as AdvancedPipeline,
             PipelineBuilder,
-            StageReturn as AdvancedStageReturn,
             UnifiedStageGraph,
             get_default_interceptors,
-            stage_metadata as advanced_stage_metadata,
         )
+        from stageflow.advanced import Pipeline as AdvancedPipeline
+        from stageflow.advanced import StageReturn as AdvancedStageReturn
+        from stageflow.advanced import stage_metadata as advanced_stage_metadata
 
         assert AdvancedPipeline is Pipeline
         assert AdvancedStageReturn is StageReturn
@@ -646,10 +644,12 @@ class TestPipeline:
             ) -> None:
                 self.pipeline_events.append(
                     {
+                        "ctx_topology": ctx.topology,
                         "pipeline_name": pipeline_name,
                         "status": status,
                         "stage_count": len(stage_results),
                         "duration_ms": duration_ms,
+                        "started_at": started_at,
                     }
                 )
 

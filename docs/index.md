@@ -42,11 +42,11 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.9.6**
+> **New in Stageflow 1.0.0**
 
-> - **Interceptor Middleware for UnifiedStageGraph**: `UnifiedStageGraph` now supports interceptor middleware with the same contract as the deprecated `StageGraph` path. Interceptors run before/after stage execution, support short-circuiting, and can modify results.
-> - **Custom Interceptor Stacks**: `Pipeline.build()` now accepts a custom interceptor stack via the `interceptors` parameter.
-> - **Documentation**: Updated API reference to clarify `UnifiedStageGraph` (recommended) vs `StageGraph` (deprecated compatibility) executors.
+> - **Curated Public API Surfaces**: `stageflow.api` is now the primary happy-path import surface for application code, while `stageflow.advanced` groups advanced orchestration and interceptor utilities.
+> - **Canonical Pipeline Ergonomics**: `Pipeline.run(...)`, `Pipeline.from_stages(...)`, `stage(...)`, `run_stage(...)`, `stage_metadata`, and plain-dict stage returns now define the recommended low-ceremony workflow.
+> - **Docs & Migration Refresh**: README, guides, API reference, examples, and external migration samples were updated to consistently present the new public API split and runtime semantics.
 
 > **New in Stageflow 0.9.5**
 >

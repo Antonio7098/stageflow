@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 from stageflow.pipeline.spec import (
     CycleDetectedError,
     PipelineSpec,
-    PipelineValidationError,
     StageRunner,
 )
 from stageflow.pipeline.validation import (

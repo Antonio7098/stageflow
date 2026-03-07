@@ -13,8 +13,8 @@ from stageflow.pipeline.dag import (
     StageExecutionError,
     StageGraph,
     StageSpec,
-    UnifiedStageGraph,
     UnifiedStageExecutionError,
+    UnifiedStageGraph,
 )
 from stageflow.pipeline.failure_tolerance import (
     BackpressureConfig,
