@@ -2,6 +2,11 @@
 
 This page documents the APIs exported by `stageflow.helpers`.
 
+For most application code, prefer `stageflow.api` plus `await pipeline.run(...)`.
+Treat `PipelineRunner` and `run_simple_pipeline(...)` as compatibility/utility
+helpers when you specifically want `RunResult`, helper-managed event capture, or
+their extra runtime helper wiring.
+
 ## Key exports
 
 ```python

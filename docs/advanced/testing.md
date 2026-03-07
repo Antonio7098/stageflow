@@ -6,16 +6,16 @@ This guide covers testing patterns for stageflow pipelines, stages, and intercep
 
 Stageflow provides optional hardening interceptors and helpers for development and production safety:
 
+For new code, prefer direct interceptors or helper utilities with
+`pipeline.run(...)` / `pipeline.build(...)`. `PipelineRunner` remains a
+compatibility/utility helper rather than the main execution path.
+
 ### UUID Collision and Clock Skew Detection
 
 ```python
 from stageflow.helpers.uuid_utils import UuidCollisionMonitor, generate_uuid7
 
-# Enable in PipelineRunner
-runner = PipelineRunner(
-    enable_uuid_monitor=True,
-    uuid_monitor_ttl_seconds=300,
-)
+monitor = UuidCollisionMonitor(ttl_seconds=300, category="pipeline")
 
 # Use UUIDv7 for time-ordered IDs
 uid = generate_uuid7()  # Falls back to uuid4 if uuid6 unavailable
@@ -26,8 +26,7 @@ uid = generate_uuid7()  # Falls back to uuid4 if uuid6 unavailable
 ```python
 from stageflow.helpers.memory_tracker import MemoryTracker, track_memory
 
-# Enable in PipelineRunner
-runner = PipelineRunner(enable_memory_tracker=True)
+tracker = MemoryTracker(auto_start=True)
 
 # Decorator for functions
 @track_memory(label="my_stage")
@@ -38,17 +37,18 @@ async def expensive_work():
 ### Deep Immutability Validation
 
 ```python
-# Enable in PipelineRunner (slow, dev/testing only)
-runner = PipelineRunner(enable_immutability_check=True)
+from stageflow.advanced import ImmutabilityInterceptor
+
+immutability = ImmutabilityInterceptor(crash_on_violation=True)
 ```
 
 ### Context Size Monitoring
 
 ```python
-# Enable in PipelineRunner
-runner = PipelineRunner(
-    enable_context_size_monitor=True,
-    # Optionally customize thresholds via ContextSizeInterceptor
+from stageflow.advanced import ContextSizeInterceptor
+
+context_size = ContextSizeInterceptor(
+    # Optionally customize thresholds here
 )
 ```
 

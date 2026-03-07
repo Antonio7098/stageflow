@@ -11,36 +11,30 @@ Let's build a simple pipeline that transforms user input through multiple stages
 Stages are the building blocks of pipelines. Each stage implements the `Stage` protocol:
 
 ```python
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, stage_metadata
 
+@stage_metadata(name="uppercase", kind=StageKind.TRANSFORM)
 class UppercaseStage:
     """Transform text to uppercase."""
-    
-    name = "uppercase"
-    kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
         # Get input from the context snapshot
         text = ctx.snapshot.input_text or ""
-        
+
         # Transform and return
-        result = text.upper()
-        return StageOutput.ok(text=result)
+        return {"text": text.upper()}
 
 
+@stage_metadata(name="exclaim", kind=StageKind.TRANSFORM)
 class AddExclamationStage:
     """Add exclamation marks to text."""
-    
-    name = "exclaim"
-    kind = StageKind.TRANSFORM
 
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, object]:
         # Get output from previous stage via StageInputs
         text = ctx.inputs.get_from("uppercase", "text", default="")
-        
+
         # Transform and return
-        result = f"{text}!!!"
-        return StageOutput.ok(text=result, excited=True)
+        return {"text": f"{text}!!!", "excited": True}
 ```
 
 ### Step 2: Build the Pipeline
@@ -48,45 +42,36 @@ class AddExclamationStage:
 Use the `Pipeline` builder to compose stages into a DAG:
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, stage
 
-pipeline = (
-    Pipeline()
-    .with_stage(
-        name="uppercase",
-        runner=UppercaseStage,
-        kind=StageKind.TRANSFORM,
-    )
-    .with_stage(
-        name="exclaim",
-        runner=AddExclamationStage,
-        kind=StageKind.TRANSFORM,
-        dependencies=("uppercase",),  # Runs after uppercase completes
-    )
+pipeline = Pipeline.from_stages(
+    stage("uppercase", UppercaseStage),
+    stage("exclaim", AddExclamationStage, after="uppercase"),
 )
 ```
 
+Use `after=` for simple tutorial-style chains like this. Use `dependencies=`
+when a stage waits on multiple upstream stages or when you want to emphasize the
+full DAG edge list explicitly.
+
 ### Step 3: Run It (Recommended)
 
-For most projects, use `PipelineRunner`. It creates the snapshot and root
-`StageContext` for you.
+For most projects, call `pipeline.run(...)` directly. This is the canonical
+execution verb for Stageflow application code.
 
 ```python
 import asyncio
-from stageflow.helpers import PipelineRunner
 
 async def main():
-    runner = PipelineRunner(verbose=False)
-    result = await runner.run(
-        pipeline,
+    results = await pipeline.run(
         input_text="hello world",
         topology="quickstart",
         execution_mode="default",
     )
 
     # Access results by stage name
-    print(result.stages["uppercase"])  # {'text': 'HELLO WORLD'}
-    print(result.stages["exclaim"])    # {'text': 'HELLO WORLD!!!', 'excited': True}
+    print(results.data("uppercase"))  # {'text': 'HELLO WORLD'}
+    print(results.data("exclaim"))    # {'text': 'HELLO WORLD!!!', 'excited': True}
 
 asyncio.run(main())
 ```
@@ -99,32 +84,32 @@ custom event sinks.
 ```python
 import asyncio
 
-from uuid import uuid4
-from stageflow import PipelineContext
+from stageflow.api import PipelineContext
 
 async def main():
     pipeline_ctx = PipelineContext(
-        pipeline_run_id=uuid4(),
-        request_id=uuid4(),
-        session_id=uuid4(),
-        user_id=uuid4(),
-        org_id=None,
-        interaction_id=uuid4(),
         input_text="hello world",
         topology="quickstart",
         execution_mode="default",
     )
 
-    graph = pipeline.build()
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
 
 asyncio.run(main())
 ```
 
+Add explicit IDs only when you need correlation metadata; they are optional on
+the normal path.
+
+If you prefer a slightly more app-like alias in a quick script,
+`pipeline.invoke("hello world")` works too. Treat it as a convenience alias,
+not the primary API.
+
 ### About `PipelineContext`
 
-`PipelineContext` is the caller-facing context you pass to `graph.run(...)`.
-`StageContext` is derived internally and is what stage `execute()` methods receive.
+`PipelineContext` is the caller-facing context you pass to `pipeline.run(...)`.
+Most application code only needs this type. `StageContext` is derived internally
+for stage execution.
 
 > **Testing tip**: When you only need to run a single stage in isolation,
 > use `stageflow.testing.create_test_stage_context()` instead of
@@ -143,7 +128,7 @@ issues even earlier by running the lint pass while you iterate. The
 - Self-dependencies and orphaned stages
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 from stageflow.cli.lint import lint_pipeline
 
 pipeline = (
@@ -175,25 +160,20 @@ Here's the full working code:
 ```python
 import asyncio
 
-from stageflow import Pipeline, StageContext, StageKind, StageOutput
+from stageflow.api import Pipeline, StageContext, StageKind, stage, stage_metadata
 from stageflow.helpers import LLMResponse
-from stageflow.helpers import PipelineRunner
 
 
+@stage_metadata(name="uppercase", kind=StageKind.TRANSFORM)
 class UppercaseStage:
-    name = "uppercase"
-    kind = StageKind.TRANSFORM
-
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
         text = ctx.snapshot.input_text or ""
-        return StageOutput.ok(text=text.upper())
+        return {"text": text.upper()}
 
 
+@stage_metadata(name="exclaim", kind=StageKind.TRANSFORM)
 class AddExclamationStage:
-    name = "exclaim"
-    kind = StageKind.TRANSFORM
-
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, object]:
         text = ctx.inputs.get_from("uppercase", "text", default="")
 
         # Example: capture LLM metadata even if you are mocking it
@@ -205,29 +185,17 @@ class AddExclamationStage:
             output_tokens=len(text) + 3,
         )
 
-        return StageOutput.ok(
-            text=mock_llm.content,
-            excited=True,
-            llm=mock_llm.to_dict(),
-        )
+        return {"text": mock_llm.content, "excited": True, "llm": mock_llm.to_dict()}
 
 
 async def main():
     # Build pipeline
-    pipeline = (
-        Pipeline()
-        .with_stage("uppercase", UppercaseStage, StageKind.TRANSFORM)
-        .with_stage(
-            "exclaim",
-            AddExclamationStage,
-            StageKind.TRANSFORM,
-            dependencies=("uppercase",),
-        )
+    pipeline = Pipeline.from_stages(
+        stage("uppercase", UppercaseStage),
+        stage("exclaim", AddExclamationStage, after="uppercase"),
     )
 
-    runner = PipelineRunner(verbose=False)
-    result = await runner.run(
-        pipeline,
+    results = await pipeline.run(
         input_text="hello world",
         topology="quickstart",
         execution_mode="default",
@@ -235,8 +203,8 @@ async def main():
 
     # Output
     print(f"Input: hello world")
-    print(f"After uppercase: {result.stages['uppercase']['text']}")
-    print(f"After exclaim: {result.stages['exclaim']['text']}")
+    print(f"After uppercase: {results.data('uppercase')['text']}")
+    print(f"After exclaim: {results.data('exclaim')['text']}")
 
 
 if __name__ == "__main__":

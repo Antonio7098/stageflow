@@ -8,12 +8,14 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+from warnings import warn
 
 from stageflow.core import (
     PipelineTimer,
     StageContext,
     StageKind,
     StageOutput,
+    StageReturn,
     StageStatus,
 )
 from stageflow.observability.wide_events import WideEventEmitter
@@ -31,6 +33,7 @@ from stageflow.pipeline.interceptors import (
     get_default_interceptors,
     run_with_interceptors,
 )
+from stageflow.pipeline.results import PipelineResults
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.result import StageError, StageResult
 
@@ -38,7 +41,7 @@ logger = logging.getLogger("pipeline_dag")
 DEBUG_LOG_PATH = "/tmp/debug_pipeline_dag.log"
 
 StageRunner = Callable[[PipelineContext], Awaitable[StageResult | dict | None]]
-StageRunnerNew = Callable[[StageContext], Awaitable[StageOutput]]
+StageRunnerNew = Callable[[StageContext], Awaitable[StageReturn]]
 
 
 @dataclass(slots=True, kw_only=True)
@@ -96,7 +99,7 @@ class UnifiedPipelineCancelled(Exception):
         super().__init__(f"Pipeline cancelled by stage '{stage}': {reason}")
         self.stage = stage
         self.reason = reason
-        self.results = results
+        self.results = PipelineResults(results)
 
 
 class StageGraph:
@@ -117,6 +120,11 @@ class StageGraph:
         emit_stage_wide_events: bool = False,
         emit_pipeline_wide_event: bool = False,
     ) -> None:
+        warn(
+            "StageGraph is deprecated; use Pipeline.build() / UnifiedStageGraph for new code.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._specs = {spec.name: spec for spec in specs}
         if len(self._specs) == 0:
             raise ValueError("StageGraph requires at least one StageSpec")
@@ -366,9 +374,13 @@ class UnifiedStageGraph:
         self,
         specs: Iterable[UnifiedStageSpec],
         *,
+        pipeline_name: str | None = None,
         interceptors: list[BaseInterceptor] | None = None,
         cleanup_timeout: float = 10.0,
         guard_retry_strategy: GuardRetryStrategy | None = None,
+        wide_event_emitter: WideEventEmitter | None = None,
+        emit_stage_wide_events: bool = False,
+        emit_pipeline_wide_event: bool = False,
     ) -> None:
         self._specs = {spec.name: spec for spec in specs}
         if len(self._specs) == 0:
@@ -378,6 +390,12 @@ class UnifiedStageGraph:
         self._cleanup_registry: CleanupRegistry | None = None
         self._cancel_token: CancellationToken | None = None
         self._guard_retry_strategy = guard_retry_strategy
+        self._pipeline_name = pipeline_name
+        if wide_event_emitter is None and (emit_stage_wide_events or emit_pipeline_wide_event):
+            wide_event_emitter = WideEventEmitter()
+        self._wide_event_emitter = wide_event_emitter
+        self._emit_stage_wide_events = emit_stage_wide_events and wide_event_emitter is not None
+        self._emit_pipeline_wide_event = emit_pipeline_wide_event and wide_event_emitter is not None
         if self._guard_retry_strategy is not None:
             self._guard_retry_strategy.validate(self._specs)
 
@@ -409,7 +427,31 @@ class UnifiedStageGraph:
     def _duration_ms(self, started_at: datetime, ended_at: datetime) -> int:
         return int((ended_at - started_at).total_seconds() * 1000)
 
-    async def run(self, ctx: StageContext | PipelineContext) -> dict[str, StageOutput]:
+    def _publish_stage_wide_event(self, ctx: PipelineContext, result: StageResult) -> None:
+        if not self._emit_stage_wide_events or self._wide_event_emitter is None:
+            return
+        self._wide_event_emitter.emit_stage_event(ctx=ctx, result=result)
+
+    def _publish_pipeline_wide_event(
+        self,
+        ctx: PipelineContext,
+        stage_results: dict[str, StageResult],
+        *,
+        started_at: datetime,
+        status: str,
+    ) -> None:
+        if not self._emit_pipeline_wide_event or self._wide_event_emitter is None:
+            return
+        self._wide_event_emitter.emit_pipeline_event(
+            ctx=ctx,
+            stage_results=stage_results,
+            pipeline_name=self._pipeline_name or ctx.topology,
+            status=status,
+            duration_ms=self._duration_ms(started_at, datetime.now(UTC)),
+            started_at=started_at,
+        )
+
+    async def run(self, ctx: StageContext | PipelineContext) -> PipelineResults:
         """Execute the DAG with the given context.
 
         Uses structured cancellation to ensure proper resource cleanup
@@ -420,8 +462,9 @@ class UnifiedStageGraph:
                 StageContext remains supported for backwards compatibility.
 
         Returns:
-            Dict mapping stage name to StageOutput
+            PipelineResults mapping stage name to StageOutput
         """
+        graph_started_at = datetime.now(UTC)
         logger.info(
             "UnifiedStageGraph execution started",
             extra={
@@ -435,6 +478,11 @@ class UnifiedStageGraph:
             stage_ctx = ctx.derive_root_stage_context()
             interceptor_ctx = ctx
         else:
+            warn(
+                "UnifiedStageGraph.run(StageContext) is deprecated; pass PipelineContext at orchestration boundaries.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             stage_ctx = ctx
             # StageContext-only entrypoints use a derived mutable context for interceptors.
             interceptor_ctx = ctx.as_pipeline_context()
@@ -446,6 +494,7 @@ class UnifiedStageGraph:
         shared_timer = stage_ctx.timer or PipelineTimer()
 
         completed: dict[str, StageOutput] = {}
+        completed_results: dict[str, StageResult] = {}
         guard_retry_state: dict[str, GuardRetryRuntimeState] = {}
         pending_guard_retries: dict[str, list[str]] = defaultdict(list)
         finalized: set[str] = set()
@@ -453,7 +502,7 @@ class UnifiedStageGraph:
         in_degree: dict[str, int] = {
             name: len(set(spec.dependencies)) for name, spec in self._specs.items()
         }
-        active_tasks: set[asyncio.Task[tuple[str, StageOutput]]] = set()
+        active_tasks: set[asyncio.Task[tuple[str, StageOutput, StageResult]]] = set()
 
         def emit_guard_retry_event(event: str, **payload: Any) -> None:
             try:
@@ -517,7 +566,7 @@ class UnifiedStageGraph:
                     raise UnifiedPipelineCancelled(
                         stage="<external>",
                         reason=self._cancel_token.reason or "Cancelled via token",
-                        results=completed,
+                        results=PipelineResults(completed),
                     )
 
                 if not active_tasks:
@@ -557,7 +606,7 @@ class UnifiedStageGraph:
                         )
                         raise exc  # type: ignore[misc]
 
-                    stage_name, stage_output = task.result()
+                    stage_name, stage_output, stage_result = task.result()
 
                     policy: GuardRetryPolicy | None = None
                     spec = self._specs[stage_name]
@@ -566,6 +615,8 @@ class UnifiedStageGraph:
 
                     # Always record latest output; finalized guard result may change if retry completes
                     completed[stage_name] = stage_output
+                    completed_results[stage_name] = stage_result
+                    self._publish_stage_wide_event(interceptor_ctx, stage_result)
 
                     if policy and stage_output.status == StageStatus.FAIL:
                         retry_state = guard_retry_state.setdefault(
@@ -681,7 +732,7 @@ class UnifiedStageGraph:
                         raise UnifiedPipelineCancelled(
                             stage=stage_name,
                             reason=stage_output.data.get("cancel_reason", "Pipeline cancelled"),
-                            results=completed,
+                            results=PipelineResults(completed),
                         )
 
                     if stage_output.status == StageStatus.FAIL:
@@ -741,11 +792,30 @@ class UnifiedStageGraph:
                 },
             )
 
-            return completed
+            self._publish_pipeline_wide_event(
+                interceptor_ctx,
+                completed_results,
+                started_at=graph_started_at,
+                status="completed",
+            )
 
+            return PipelineResults(completed)
+
+        except UnifiedPipelineCancelled:
+            self._publish_pipeline_wide_event(
+                interceptor_ctx,
+                completed_results,
+                started_at=graph_started_at,
+                status="cancelled",
+            )
+            raise
         except Exception:
-            # Run cleanup on any exception (including cancellation)
-            await run_cleanup()
+            self._publish_pipeline_wide_event(
+                interceptor_ctx,
+                completed_results,
+                started_at=graph_started_at,
+                status="failed",
+            )
             raise
         finally:
             # Always run cleanup, even on success
@@ -761,7 +831,7 @@ class UnifiedStageGraph:
         completed: dict[str, StageOutput],
         shared_timer: PipelineTimer,
         interceptor_ctx: PipelineContext,
-    ) -> tuple[str, StageOutput]:
+    ) -> tuple[str, StageOutput, StageResult]:
         """Execute a single stage and return its output."""
         spec = self._specs[name]
 
@@ -792,14 +862,15 @@ class UnifiedStageGraph:
             event_sink=ctx.event_sink,
         )
 
-        return name, await self._run_stage(spec, stage_ctx, interceptor_ctx)
+        stage_output, stage_result = await self._run_stage(spec, stage_ctx, interceptor_ctx)
+        return name, stage_output, stage_result
 
     async def _run_stage(
         self,
         spec: UnifiedStageSpec,
         ctx: StageContext,
         interceptor_ctx: PipelineContext,
-    ) -> StageOutput:
+    ) -> tuple[StageOutput, StageResult]:
         """Run a stage with normalization and structured logging."""
         started_at = datetime.now(UTC)
 
@@ -838,7 +909,10 @@ class UnifiedStageGraph:
                             "request_id": str(ctx.request_id) if ctx.request_id else None,
                         },
                     )
-                return StageOutput.skip(reason=skip_reason)
+                output = StageOutput.skip(reason=skip_reason)
+                ended_at = datetime.now(UTC)
+                result = self._stage_output_to_result(spec.name, output, started_at, ended_at)
+                return output, result
 
         normalized_output: StageOutput | None = None
         exception_key = f"_interceptor.original_error.{spec.name}"
@@ -881,6 +955,12 @@ class UnifiedStageGraph:
                 result = result.with_duration(
                     self._duration_ms(stage_result.started_at, stage_result.ended_at)
                 )
+            emitted_stage_result = self._stage_output_to_result(
+                spec.name,
+                result,
+                stage_result.started_at,
+                stage_result.ended_at,
+            )
 
             duration_ms = result.duration_ms or 0
 
@@ -919,13 +999,23 @@ class UnifiedStageGraph:
                         "duration_ms": duration_ms,
                     },
                 )
-                return result
+                return result, emitted_stage_result
 
-            return result
+            return result, emitted_stage_result
 
         except UnifiedStageExecutionError:
             raise
         except Exception as exc:
+            ended_at = datetime.now(UTC)
+            failed_result = StageResult(
+                name=spec.name,
+                status="failed",
+                started_at=started_at,
+                ended_at=ended_at,
+                data={},
+                error=str(exc),
+            )
+            self._publish_stage_wide_event(interceptor_ctx, failed_result)
             logger.exception(
                 f"Stage {spec.name} failed with error: {exc}",
                 extra={
@@ -974,7 +1064,7 @@ class UnifiedStageGraph:
     @staticmethod
     def _normalize_output(
         name: str,
-        raw: StageOutput | dict | None,
+        raw: StageReturn,
         _started_at: datetime,
     ) -> StageOutput:
         """Normalize stage output to StageOutput."""

@@ -388,11 +388,15 @@ interceptors = [
 ]
 ```
 
-### With StageGraph
+### With StageGraph (Deprecated compatibility)
 
 ```python
 from stageflow.pipeline.dag import StageGraph
 
+# Prefer this for new code:
+graph = pipeline.build(interceptors=interceptors)
+
+# Legacy compatibility path:
 graph = StageGraph(
     specs=pipeline.build().stage_specs,
     interceptors=interceptors,

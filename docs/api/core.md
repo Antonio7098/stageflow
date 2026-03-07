@@ -3,19 +3,34 @@
 ## Stage
 
 ```python
-from stageflow import Stage
+from stageflow.api import Stage, stage_metadata
 ```
 
 A stage implements:
 
 - `name: str`
 - `kind: StageKind`
-- `async execute(ctx: StageContext) -> StageOutput`
+- `async execute(ctx: StageContext) -> StageReturn`
+
+You can attach `name` and `kind` either as class attributes or with the
+`@stage_metadata(...)` decorator.
+
+## StageReturn
+
+```python
+from stageflow.api import StageReturn
+```
+
+`StageReturn = StageOutput | dict[str, Any] | None`
+
+- return a plain `dict` for the common happy path
+- return `StageOutput` when you need explicit status, error, artifact, or event semantics
+- return `None` when an empty successful payload is enough
 
 ## StageKind
 
 ```python
-from stageflow import StageKind
+from stageflow.api import StageKind
 ```
 
 Values: `TRANSFORM`, `ENRICH`, `ROUTE`, `GUARD`, `WORK`, `AGENT`.
@@ -23,7 +38,7 @@ Values: `TRANSFORM`, `ENRICH`, `ROUTE`, `GUARD`, `WORK`, `AGENT`.
 ## StageStatus
 
 ```python
-from stageflow import StageStatus
+from stageflow.api import StageStatus
 ```
 
 Values: `OK`, `SKIP`, `CANCEL`, `FAIL`, `RETRY`.
@@ -31,7 +46,7 @@ Values: `OK`, `SKIP`, `CANCEL`, `FAIL`, `RETRY`.
 ## StageOutput
 
 ```python
-from stageflow import StageOutput, StageArtifact, StageEvent
+from stageflow.api import StageOutput, StageArtifact, StageEvent
 ```
 
 ### Attributes
@@ -57,7 +72,7 @@ StageOutput.retry(error: str, data: dict[str, Any] | None = None, *, version: st
 ## StageContext
 
 ```python
-from stageflow import StageContext
+from stageflow.api import StageContext
 ```
 
 ### Constructor
@@ -90,7 +105,8 @@ StageContext(
 - `try_emit_event(type: str, data: dict[str, Any]) -> None`
 - `emit_event(type: str, data: dict[str, Any]) -> None` (alias)
 - `record_stage_event(stage: str, status: str, **kwargs) -> None`
-- `as_pipeline_context(...) -> PipelineContext`
+- `as_pipeline_context(...) -> PipelineContext` (deprecated; prefer `PipelineContext.from_snapshot(...)` when bridging back to orchestration code)
 - `now() -> datetime` (classmethod)
 
+`StageContext` is a runtime wrapper, not the recommended pipeline entrypoint.
 Artifacts are returned via `StageOutput.artifacts`; they are not accumulated through context mutators.

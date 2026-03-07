@@ -105,16 +105,16 @@ emit_pipeline_wide_event(*, ctx, stage_results, emitter=None, pipeline_name=None
 
 ## Pipeline integration
 
-`Pipeline.build()` does not accept wide-event flags. Use `PipelineBuilder` when you want automatic wide-event emission from the graph builder.
+`Pipeline.run()` and `Pipeline.build()` both support wide-event emission directly.
 
 ```python
-from stageflow.pipeline import PipelineBuilder
+from stageflow.api import Pipeline, PipelineContext
 from stageflow.observability import WideEventEmitter
 
-builder = PipelineBuilder(name="example")
-# add stages...
+pipeline = Pipeline(name="example").with_stage("llm", LLMStage)
 
-graph = builder.build(
+await pipeline.run(
+    PipelineContext(topology="example"),
     emit_stage_wide_events=True,
     emit_pipeline_wide_event=True,
     wide_event_emitter=WideEventEmitter(),

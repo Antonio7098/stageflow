@@ -211,20 +211,27 @@ async def execute(self, ctx: StageContext) -> StageOutput:
 Use wide events when you want a single, denormalized record per stage or per pipeline run.
 
 ```python
+from stageflow import Pipeline, PipelineContext, StageKind
 from stageflow.observability import WideEventEmitter
-from stageflow.pipeline.dag import StageGraph, StageSpec
 
 emitter = WideEventEmitter()
 
-graph = StageGraph(
-    specs=[StageSpec(name="llm", runner=LLMStage)],
+pipeline = Pipeline(name="observability_demo").with_stage(
+    "llm",
+    LLMStage,
+    StageKind.TRANSFORM,
+)
+
+await pipeline.run(
+    PipelineContext(topology="observability_demo"),
     wide_event_emitter=emitter,
     emit_stage_wide_events=True,
     emit_pipeline_wide_event=True,
 )
 ```
 
-If you build graphs via `PipelineBuilder`, pass the flags through `build()`:
+If you still maintain a deprecated `PipelineBuilder` flow, pass the same flags
+through `build()` there as well:
 
 ```python
 graph = builder.build(
@@ -719,7 +726,7 @@ from stageflow.observability import (
 )
 
 try:
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
 except Exception as e:
     summary = summarize_pipeline_error(e)
     # {
@@ -785,7 +792,7 @@ set_event_sink(LoggingEventSink())
 ### 3. Inspect Stage Results
 
 ```python
-results = await graph.run(pipeline_ctx)
+results = await pipeline.run(pipeline_ctx)
 
 for name, output in results.items():
     print(f"Stage: {name}")

@@ -12,6 +12,7 @@ Tests the UnifiedStageGraph - the new DAG executor using unified Stage protocol:
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -34,6 +35,7 @@ from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
 from stageflow.pipeline.interceptors import BaseInterceptor, InterceptorResult
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs
+from stageflow.stages.ports import create_core_ports
 
 # === Test Fixtures ===
 
@@ -66,10 +68,56 @@ def create_context(snapshot: ContextSnapshot | None = None) -> StageContext:
     )
 
 
-def create_pipeline_context(snapshot: ContextSnapshot | None = None) -> PipelineContext:
+def create_pipeline_context(snapshot: ContextSnapshot | None = None, **kwargs) -> PipelineContext:
     """Create a test PipelineContext."""
     snap = snapshot or create_snapshot()
-    return PipelineContext.from_snapshot(snap)
+    return PipelineContext.create(
+        pipeline_run_id=snap.pipeline_run_id,
+        request_id=snap.request_id,
+        session_id=snap.session_id,
+        user_id=snap.user_id,
+        org_id=snap.org_id,
+        interaction_id=snap.interaction_id,
+        topology=snap.topology,
+        execution_mode=snap.execution_mode,
+        input_text=snap.input_text,
+        input_audio_duration_ms=snap.input_audio_duration_ms,
+        conversation=snap.conversation,
+        enrichments=snap.enrichments,
+        extensions=snap.extensions,
+        metadata=snap.metadata.copy(),
+        **kwargs,
+    )
+
+
+class CapturingWideEmitter:
+    """Test double for wide-event emission."""
+
+    def __init__(self) -> None:
+        self.stage_events: list[tuple[str, str]] = []
+        self.pipeline_events: list[dict[str, Any]] = []
+
+    def emit_stage_event(self, *, ctx, result):  # noqa: ARG002
+        self.stage_events.append((result.name, result.status))
+
+    def emit_pipeline_event(
+        self,
+        *,
+        ctx,  # noqa: ARG002
+        stage_results,
+        pipeline_name,
+        status,
+        duration_ms,
+        started_at,  # noqa: ARG002
+    ) -> None:
+        self.pipeline_events.append(
+            {
+                "pipeline_name": pipeline_name,
+                "status": status,
+                "stage_count": len(stage_results),
+                "duration_ms": duration_ms,
+            }
+        )
 
 
 # === Test UnifiedStageSpec ===
@@ -232,6 +280,41 @@ class TestUnifiedStageGraphExecution:
         assert results["test"].data == {"result": "success"}
 
     @pytest.mark.asyncio
+    async def test_run_single_stage_with_stage_context_warns(self):
+        """StageContext entrypoints should be supported but deprecated."""
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"result": "success"})
+
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)]
+        )
+        ctx = create_context()
+
+        with pytest.deprecated_call(match=r"UnifiedStageGraph.run\(StageContext\)"):
+            results = await graph.run(ctx)
+
+        assert results["test"].status == StageStatus.OK
+
+    @pytest.mark.asyncio
+    async def test_run_single_stage_with_pipeline_context_uses_ports(self):
+        """Derived StageContext should inherit ports from PipelineContext."""
+        db = object()
+
+        async def runner(ctx: StageContext) -> StageOutput:
+            assert ctx.inputs.ports is not None
+            assert ctx.inputs.ports.db is db
+            return StageOutput.ok(data={"result": "success"})
+
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)]
+        )
+        pipeline_ctx = create_pipeline_context(ports=create_core_ports(db=db))
+
+        results = await graph.run(pipeline_ctx)
+
+        assert results["test"].status == StageStatus.OK
+
+    @pytest.mark.asyncio
     async def test_run_with_custom_interceptors(self):
         """Unified graph should run interceptors before/after stage execution."""
 
@@ -267,6 +350,49 @@ class TestUnifiedStageGraphExecution:
         assert interceptor.before_calls == 1
         assert interceptor.after_calls == 1
         assert pipeline_ctx.data["spy_before"] is True
+
+    @pytest.mark.asyncio
+    async def test_stage_wide_events_can_be_emitted(self):
+        """Unified graph should support per-stage wide-event emission."""
+        emitter = CapturingWideEmitter()
+
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"result": "success"})
+
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)],
+            wide_event_emitter=emitter,
+            emit_stage_wide_events=True,
+        )
+
+        await graph.run(create_pipeline_context())
+
+        assert emitter.stage_events == [("test", "completed")]
+
+    @pytest.mark.asyncio
+    async def test_pipeline_wide_event_can_be_emitted(self):
+        """Unified graph should support pipeline summary wide events."""
+        emitter = CapturingWideEmitter()
+
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"result": "success"})
+
+        graph = UnifiedStageGraph(
+            specs=[
+                UnifiedStageSpec(name="a", runner=runner, kind=StageKind.TRANSFORM),
+                UnifiedStageSpec(name="b", runner=runner, kind=StageKind.TRANSFORM),
+            ],
+            pipeline_name="demo",
+            wide_event_emitter=emitter,
+            emit_pipeline_wide_event=True,
+        )
+
+        await graph.run(create_pipeline_context())
+
+        assert len(emitter.pipeline_events) == 1
+        assert emitter.pipeline_events[0]["pipeline_name"] == "demo"
+        assert emitter.pipeline_events[0]["stage_count"] == 2
+        assert emitter.pipeline_events[0]["status"] == "completed"
 
     @pytest.mark.asyncio
     async def test_interceptor_short_circuit(self):

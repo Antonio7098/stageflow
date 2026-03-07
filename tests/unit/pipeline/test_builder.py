@@ -32,6 +32,11 @@ class MockStageC:
 class TestPipelineBuilder:
     """Tests for PipelineBuilder class."""
 
+    def test_create_empty_pipeline_emits_deprecation_warning(self):
+        """PipelineBuilder should advertise deprecation toward Pipeline."""
+        with pytest.deprecated_call(match="PipelineBuilder is deprecated"):
+            PipelineBuilder(name="empty")
+
     def test_create_empty_pipeline(self):
         """Test creating an empty PipelineBuilder."""
         pipeline = PipelineBuilder(name="empty")

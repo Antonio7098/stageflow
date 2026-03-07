@@ -7,21 +7,17 @@
 Stageflow provides a **DAG-based execution substrate** for building complex data processing and AI agent pipelines. It separates the concerns of *orchestration* (how stages run) from *business logic* (what stages do), enabling you to build maintainable, testable, and observable systems.
 
 ```python
-from stageflow import Pipeline, PipelineContext, StageKind, StageOutput
+from stageflow.api import Pipeline, StageContext, StageKind, stage_metadata
 
+@stage_metadata(name="greet", kind=StageKind.TRANSFORM)
 class GreetStage:
-    name = "greet"
-    kind = StageKind.TRANSFORM
-
-    async def execute(self, ctx):
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
         name = ctx.snapshot.input_text or "World"
-        return StageOutput.ok(message=f"Hello, {name}!")
+        return {"message": f"Hello, {name}!"}
 
 # Build and run the pipeline
-pipeline = Pipeline().with_stage("greet", GreetStage, StageKind.TRANSFORM)
-graph = pipeline.build()
-pipeline_ctx = PipelineContext(input_text="Stageflow")
-results = await graph.run(pipeline_ctx)
+pipeline = Pipeline().with_stage("greet", GreetStage)
+results = await pipeline.run(input_text="Stageflow")
 ```
 
 ## Key Features
@@ -46,11 +42,11 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 0.9.6**
+> **New in Stageflow 1.0.0**
 
-> - **Interceptor Middleware for UnifiedStageGraph**: `UnifiedStageGraph` now supports interceptor middleware with the same contract as `StageGraph`. Interceptors run before/after stage execution, support short-circuiting, and can modify results.
-> - **Custom Interceptor Stacks**: `Pipeline.build()` now accepts a custom interceptor stack via the `interceptors` parameter.
-> - **Documentation**: Updated API reference to clarify `UnifiedStageGraph` (recommended) vs `StageGraph` (legacy) executors.
+> - **Curated Public API Surfaces**: `stageflow.api` is now the primary happy-path import surface for application code, while `stageflow.advanced` groups advanced orchestration and interceptor utilities.
+> - **Canonical Pipeline Ergonomics**: `Pipeline.run(...)`, `Pipeline.from_stages(...)`, `stage(...)`, `run_stage(...)`, `stage_metadata`, and plain-dict stage returns now define the recommended low-ceremony workflow.
+> - **Docs & Migration Refresh**: README, guides, API reference, examples, and external migration samples were updated to consistently present the new public API split and runtime semantics.
 
 > **New in Stageflow 0.9.5**
 >
@@ -78,6 +74,7 @@ The docs are organized into the following sections:
 - [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
 
 ## Getting Started
+- **Happy-path imports**: if you want the smallest practical public surface, start with `from stageflow.api import ...`.
 - [**Installation**](getting-started/installation.md) — Install stageflow and set up your environment
 - [**Quick Start**](getting-started/quickstart.md) — Build your first pipeline in 5 minutes
 - [**Core Concepts**](getting-started/concepts.md) — Understand the fundamental ideas
@@ -109,7 +106,8 @@ The docs are organized into the following sections:
 
 ### API Reference
 - [**Core Types**](api/core.md) — Stage, StageOutput, StageContext, StageKind
-- [**Pipeline**](api/pipeline.md) — Pipeline builder, UnifiedStageGraph (default), and StageGraph (legacy)
+- [**Pipeline**](api/pipeline.md) — Pipeline builder, UnifiedStageGraph (default), and StageGraph (deprecated compatibility)
+- [**Advanced API Surface**](api/advanced.md) — `stageflow.advanced` imports for runtime customization and internals
 - [**Context**](api/context.md) — PipelineContext, ContextSnapshot, StageInputs
 - [**StageInputs**](api/inputs.md) — Immutable access to prior stage outputs with validation
 - [**Context Sub-modules**](api/context-submodules.md) — OutputBag, Conversation, Enrichments, Extensions
@@ -145,7 +143,7 @@ The following symbols are exported from `stageflow` and can be imported directly
 | `PipelineTimer`, `create_stage_context` | Core | [Core Types](api/core.md) |
 | `Pipeline`, `UnifiedStageSpec` | Pipeline | [Pipeline](api/pipeline.md) |
 | `UnifiedStageGraph`, `UnifiedStageSpec` | Pipeline | [Pipeline](api/pipeline.md) |
-| `StageGraph`, `StageSpec`, `StageExecutionError` | Pipeline (Legacy) | [Pipeline](api/pipeline.md) |
+| `StageGraph`, `StageSpec`, `StageExecutionError` | Pipeline (Deprecated) | [Pipeline](api/pipeline.md) |
 | `PipelineRegistry`, `pipeline_registry` | Pipeline | [Pipeline](api/pipeline.md) |
 | `PipelineContext`, `StageResult`, `StageError` | Context | [Context](api/context.md) |
 | `extract_service` | Context | [Context](api/context.md) |
@@ -169,14 +167,14 @@ The following symbols are exported from `stageflow` and can be imported directly
 | `Message`, `RoutingDecision` | [Context](api/context.md) |
 | `ProfileEnrichment`, `MemoryEnrichment`, `DocumentEnrichment` | [Context](api/context.md) |
 
-**Stages module** (`from stageflow.stages.inputs import ...`):
+**API module** (`from stageflow.api import ...`):
 
 | Symbol | Documentation |
 |--------|---------------|
 | `StageInputs`, `create_stage_inputs` | [Context](api/context.md#stageinputs) |
 | `CorePorts`, `LLMPorts`, `AudioPorts` | [Context](api/context-submodules.md) |
 
-**Subpipeline module** (`from stageflow.pipeline.subpipeline import ...`):
+**Advanced module** (`from stageflow.advanced import ...`):
 
 | Symbol | Documentation |
 |--------|---------------|

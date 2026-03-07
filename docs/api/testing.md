@@ -75,7 +75,7 @@ create_test_pipeline_context(
 
 ```python
 from stageflow.testing import create_test_snapshot, create_test_stage_context
-from stageflow import StageOutput
+from stageflow.api import StageOutput
 
 snapshot = create_test_snapshot(input_text="hello")
 ctx = create_test_stage_context(

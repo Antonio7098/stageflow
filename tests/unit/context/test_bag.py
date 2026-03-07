@@ -44,6 +44,11 @@ class TestDataConflictError:
 class TestContextBag:
     """Tests for ContextBag class."""
 
+    def test_init_emits_deprecation_warning(self):
+        """ContextBag should advertise its deprecation path."""
+        with pytest.deprecated_call(match="ContextBag is deprecated"):
+            ContextBag()
+
     @pytest.mark.asyncio
     async def test_write_stores_value(self):
         """Test that write() stores value correctly."""

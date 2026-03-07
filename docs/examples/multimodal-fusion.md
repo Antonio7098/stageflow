@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from typing import Any
 from datetime import datetime, timezone
 
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 @dataclass
@@ -292,8 +292,8 @@ class MultimodalFusionStage:
 Process modalities in parallel for better performance:
 
 ```python
-from stageflow.pipeline import Pipeline
-from stageflow.pipeline.dag import UnifiedStageGraph
+from stageflow.api import Pipeline
+from stageflow.advanced import UnifiedStageGraph
 
 
 def build_multimodal_pipeline() -> Pipeline:

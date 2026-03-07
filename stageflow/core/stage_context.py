@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
+from warnings import warn
 
 from .timer import PipelineTimer
 
@@ -158,15 +159,23 @@ class StageContext:
             PipelineContext populated with the identifiers and metadata
             from this StageContext.
         """
+        warn(
+            "StageContext.as_pipeline_context() is deprecated; pass PipelineContext at API boundaries and keep StageContext inside stage execution.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         from stageflow.stages.context import PipelineContext
+
+        ports = self.inputs.ports
 
         return PipelineContext.from_snapshot(
             self.snapshot,
             configuration=configuration.copy() if configuration else {},
             service=service or "pipeline",
             data=(data.copy() if data else {}),
-            db=db,
+            ports=ports,
+            db=db if db is not None else getattr(ports, "db", None),
             event_sink=self.event_sink,
         )
 

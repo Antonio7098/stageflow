@@ -242,7 +242,7 @@ set_event_sink(DatabaseEventSink(db=my_db))
 ## Emitting Events from Stages
 
 ```python
-from stageflow import StageContext, StageOutput
+from stageflow.api import StageContext, StageOutput
 
 class MyStage:
     async def execute(self, ctx: StageContext) -> StageOutput:

@@ -175,6 +175,7 @@ def create_test_pipeline_context(
     service: str = "test",
     data: dict[str, Any] | None = None,
     event_sink: Any | None = None,
+    ports: CorePorts | LLMPorts | AudioPorts | None = None,
     **kwargs: Any,
 ) -> PipelineContext:
     """Create a PipelineContext for testing with sensible defaults.
@@ -202,7 +203,7 @@ def create_test_pipeline_context(
             data={"key": "value"},
         )
     """
-    return PipelineContext(
+    return PipelineContext.create(
         pipeline_run_id=pipeline_run_id or uuid4(),
         request_id=request_id or uuid4(),
         session_id=session_id or uuid4(),
@@ -214,6 +215,7 @@ def create_test_pipeline_context(
         service=service,
         data=data or {},
         event_sink=event_sink or NoOpEventSink(),
+        ports=ports,
         **kwargs,
     )
 

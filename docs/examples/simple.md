@@ -14,7 +14,7 @@ A single TRANSFORM stage that receives input and returns it unchanged.
 
 ```python
 import asyncio
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 class EchoStage:
@@ -59,7 +59,7 @@ class EchoStage:
 ## The Pipeline
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 
 def create_simple_pipeline() -> Pipeline:
@@ -86,7 +86,7 @@ def create_simple_pipeline() -> Pipeline:
 ```python
 import asyncio
 
-from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
+from stageflow.api import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 
 
 class EchoStage:
@@ -105,9 +105,6 @@ async def main():
     # Create the pipeline
     pipeline = Pipeline().with_stage("echo", EchoStage, StageKind.TRANSFORM)
     
-    # Build the executable graph
-    graph = pipeline.build()
-    
     # Create the pipeline entry context
     pipeline_ctx = PipelineContext(
         topology="simple",
@@ -116,7 +113,7 @@ async def main():
     )
     
     # Run the pipeline
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
     
     # Access results
     echo_output = results["echo"]
@@ -140,10 +137,9 @@ Message: Echoed: Hello, Stageflow!
 ## What's Happening
 
 1. **Pipeline Creation**: We create a pipeline with one stage
-2. **Graph Building**: `pipeline.build()` creates an executable `StageGraph`
-3. **Context Creation**: We create a `PipelineContext` with our input
-4. **Execution**: `graph.run(pipeline_ctx)` executes all stages
-5. **Results**: We get a dict mapping stage names to `StageOutput`
+2. **Context Creation**: We create a `PipelineContext` with our input
+3. **Execution**: `pipeline.run(pipeline_ctx)` builds and executes the graph
+4. **Results**: We get a dict mapping stage names to `StageOutput`
 
 ## Variations
 
@@ -169,7 +165,7 @@ from stageflow.helpers import ChunkQueue
 set_event_sink(LoggingEventSink())
 
 # Now all stage events will be logged
-results = await graph.run(pipeline_ctx)
+results = await pipeline.run(pipeline_ctx)
 
 # Emit queue telemetry even in simple pipelines (tracks drops/throttle)
 queue = ChunkQueue(event_emitter=lambda event, attrs: print(event, attrs))
@@ -180,10 +176,10 @@ await queue.close()
 ### Error Handling
 
 ```python
-from stageflow.pipeline.dag import UnifiedStageExecutionError
+from stageflow import UnifiedStageExecutionError
 
 try:
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
 except UnifiedStageExecutionError as e:
     print(f"Stage '{e.stage}' failed: {e.original}")
 ```

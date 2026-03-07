@@ -17,14 +17,21 @@ from stageflow.core import (
     StageContext,
     StageKind,
     StageOutput,
+    StageReturn,
     StageStatus,
+    stage_metadata,
 )
 from stageflow.pipeline.guard_retry import GuardRetryPolicy, GuardRetryStrategy
 from stageflow.pipeline.interceptors import BaseInterceptor
 from stageflow.pipeline.pipeline import (
     Pipeline,
     UnifiedStageSpec,
+    run_stage,
+    stage,
 )
+from stageflow.pipeline.results import PipelineResults
+from stageflow.pipeline.spec import CycleDetectedError, PipelineValidationError
+from stageflow.stages.context import PipelineContext
 
 # === Test Fixtures ===
 
@@ -88,6 +95,46 @@ class StageWithDelay:
         import time
         time.sleep(self.delay_seconds)
         return StageOutput.ok(data={"delayed": True})
+
+
+class EchoInputStage:
+    """Stage that echoes caller-facing context fields."""
+
+    name = "echo_input"
+    kind = StageKind.TRANSFORM
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        return StageOutput.ok(
+            input_text=ctx.snapshot.input_text,
+            topology=ctx.snapshot.topology,
+        )
+
+
+class KindlessStage:
+    """Stage without a declared kind."""
+
+    async def execute(self, _ctx: StageContext) -> StageOutput:
+        return StageOutput.ok(data={"ok": True})
+
+
+class InvalidKindStage:
+    """Stage with an invalid string kind value."""
+
+    kind = "not-a-real-kind"
+
+    async def execute(self, _ctx: StageContext) -> StageOutput:
+        return StageOutput.ok(data={"ok": True})
+
+
+@stage_metadata(name="decorated_echo", kind=StageKind.TRANSFORM)
+class DecoratedEchoStage:
+    """Stage using the metadata decorator and plain dict return path."""
+
+    async def execute(self, ctx: StageContext) -> StageReturn:
+        return {
+            "input_text": ctx.snapshot.input_text,
+            "topology": ctx.snapshot.topology,
+        }
 
 
 # === Test UnifiedStageSpec ===
@@ -172,6 +219,31 @@ class TestPipeline:
         assert pipeline.name == "demo"
         assert "simple" in pipeline.stages
 
+    def test_get_stage(self):
+        """Pipeline should expose stage lookup by name."""
+        pipeline = Pipeline().with_stage("simple", SimpleStage, StageKind.TRANSFORM)
+
+        assert pipeline.get_stage("simple") is not None
+        assert pipeline.get_stage("missing") is None
+
+    def test_has_stage(self):
+        """Pipeline should expose stage existence checks."""
+        pipeline = Pipeline().with_stage("simple", SimpleStage, StageKind.TRANSFORM)
+
+        assert pipeline.has_stage("simple") is True
+        assert pipeline.has_stage("missing") is False
+
+    def test_stage_names_topological_order(self):
+        """Pipeline should report stage names in topological order."""
+        pipeline = (
+            Pipeline()
+            .with_stage("a", SimpleStage, StageKind.TRANSFORM)
+            .with_stage("c", EnrichStage, StageKind.ENRICH, dependencies=("b",))
+            .with_stage("b", TransformStage, StageKind.TRANSFORM, dependencies=("a",))
+        )
+
+        assert pipeline.stage_names() == ["a", "b", "c"]
+
     def test_with_stage_single(self):
         """Test adding a single stage."""
         pipeline = Pipeline().with_stage(
@@ -182,6 +254,69 @@ class TestPipeline:
         assert "simple" in pipeline.stages
         assert pipeline.stages["simple"].name == "simple"
         assert pipeline.stages["simple"].kind == StageKind.TRANSFORM
+
+    def test_with_stage_infers_kind_from_stage_class(self):
+        """with_stage should infer StageKind from stage classes when omitted."""
+        pipeline = Pipeline().with_stage("simple", SimpleStage)
+
+        assert pipeline.stages["simple"].kind == StageKind.TRANSFORM
+
+    def test_with_stage_infers_kind_from_stage_instance(self):
+        """with_stage should infer StageKind from stage instances when omitted."""
+        pipeline = Pipeline().with_stage("simple", SimpleStage())
+
+        assert pipeline.stages["simple"].kind == StageKind.TRANSFORM
+
+    def test_with_stage_requires_kind_when_not_inferable(self):
+        """with_stage should fail fast when kind cannot be inferred."""
+        with pytest.raises(ValueError, match="kind is required"):
+            Pipeline().with_stage("kindless", KindlessStage)
+
+    def test_with_stage_rejects_invalid_inferred_kind(self):
+        """Invalid string kind metadata should fail clearly."""
+        with pytest.raises(ValueError, match="Unsupported stage kind value"):
+            Pipeline().with_stage("bad", InvalidKindStage)
+
+    def test_with_stage_after_alias(self):
+        """after= should provide a readable dependency alias."""
+        pipeline = (
+            Pipeline()
+            .with_stage("a", SimpleStage)
+            .with_stage("b", TransformStage, after="a")
+        )
+
+        assert pipeline.stages["b"].dependencies == ("a",)
+
+    def test_with_stage_rejects_dependencies_and_after_together(self):
+        """dependencies and after should be mutually exclusive."""
+        with pytest.raises(ValueError, match="either dependencies=... or after"):
+            Pipeline().with_stage(
+                "b",
+                TransformStage,
+                dependencies=("a",),
+                after="a",
+            )
+
+    def test_with_stages_and_stage_helper(self):
+        """Declarative stage specs should compose cleanly."""
+        pipeline = Pipeline(name="demo").with_stages(
+            stage("a", SimpleStage),
+            stage("b", TransformStage, after="a"),
+        )
+
+        assert set(pipeline.stages.keys()) == {"a", "b"}
+        assert pipeline.stages["b"].dependencies == ("a",)
+
+    def test_from_stages_classmethod(self):
+        """Pipeline.from_stages should support concise declarative definitions."""
+        pipeline = Pipeline.from_stages(
+            stage("a", SimpleStage),
+            stage("b", EnrichStage, after="a"),
+            name="demo",
+        )
+
+        assert pipeline.name == "demo"
+        assert pipeline.stages["b"].dependencies == ("a",)
 
     def test_with_stage_fluent_interface(self):
         """Test fluent interface returns new Pipeline."""
@@ -284,16 +419,15 @@ class TestPipeline:
         pipeline1 = Pipeline().with_stage("a", SimpleStage, StageKind.TRANSFORM)
         pipeline2 = Pipeline().with_stage("b", TransformStage, StageKind.TRANSFORM)
         composed = pipeline1.compose(pipeline2)
-        # Both should be present
-        assert "a" in composed.stages
-        assert "b" in composed.stages
+        assert composed.stage_names() == ["a", "b"]
 
-    def test_compose_other_wins_on_conflict(self):
-        """Test that other pipeline wins on name conflict."""
+    def test_compose_rejects_conflicting_specs(self):
+        """Compose should reject incompatible duplicate stage definitions."""
         pipeline1 = Pipeline().with_stage("conflict", SimpleStage, StageKind.TRANSFORM)
         pipeline2 = Pipeline().with_stage("conflict", TransformStage, StageKind.TRANSFORM)
-        composed = pipeline1.compose(pipeline2)
-        assert composed.stages["conflict"].runner == TransformStage
+
+        with pytest.raises(PipelineValidationError, match="different specs"):
+            pipeline1.compose(pipeline2)
 
     def test_compose_returns_new_instance(self):
         """Test that compose returns a new Pipeline instance."""
@@ -325,17 +459,211 @@ class TestPipeline:
     # === build() method tests ===
 
     def test_build_empty_pipeline_raises(self):
-        """Test that building empty pipeline raises ValueError."""
+        """Test that building empty pipeline raises PipelineValidationError."""
         pipeline = Pipeline()
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(PipelineValidationError) as exc_info:
             pipeline.build()
-        assert "UnifiedStageGraph requires at least one UnifiedStageSpec" in str(exc_info.value)
+        assert "Cannot build empty pipeline" in str(exc_info.value)
+
+    def test_build_missing_dependency_raises(self):
+        """Build should fail fast on missing dependencies."""
+        pipeline = Pipeline().with_stage(
+            "orphan",
+            SimpleStage,
+            StageKind.TRANSFORM,
+            dependencies=("missing",),
+        )
+
+        with pytest.raises(PipelineValidationError, match="does not exist"):
+            pipeline.build()
+
+    def test_build_cycle_raises(self):
+        """Build should fail fast on dependency cycles."""
+        pipeline = (
+            Pipeline()
+            .with_stage("a", SimpleStage, StageKind.TRANSFORM, dependencies=("b",))
+            .with_stage("b", TransformStage, StageKind.TRANSFORM, dependencies=("a",))
+        )
+
+        with pytest.raises(CycleDetectedError, match="cycle"):
+            pipeline.build()
 
     def test_build_creates_graph(self):
         """Test that build() creates a UnifiedStageGraph."""
         pipeline = Pipeline().with_stage("test", SimpleStage, StageKind.TRANSFORM)
         graph = pipeline.build()
         assert graph is not None
+
+    @pytest.mark.asyncio
+    async def test_run_executes_pipeline_with_pipeline_context(self):
+        """Pipeline.run should wrap build().run(...) for the common path."""
+        pipeline = Pipeline().with_stage("test", SimpleStage, StageKind.TRANSFORM)
+
+        results = await pipeline.run(
+            PipelineContext(
+                input_text="hello",
+                topology="demo",
+                execution_mode="default",
+            )
+        )
+
+        assert results["test"].status == StageStatus.OK
+        assert results["test"].data == {"result": "simple_done"}
+
+    @pytest.mark.asyncio
+    async def test_run_accepts_direct_context_kwargs(self):
+        """Pipeline.run should create PipelineContext from direct keyword args."""
+        pipeline = Pipeline(name="demo").with_stage("echo", EchoInputStage)
+
+        results = await pipeline.run(input_text="hello", topology="demo")
+
+        assert isinstance(results, PipelineResults)
+        assert results.data("echo")["input_text"] == "hello"
+        assert results.data("echo")["topology"] == "demo"
+
+    @pytest.mark.asyncio
+    async def test_run_rejects_ctx_and_context_kwargs_together(self):
+        """Pipeline.run should avoid ambiguous context construction."""
+        pipeline = Pipeline(name="demo").with_stage("echo", EchoInputStage)
+
+        with pytest.raises(ValueError, match="either ctx or PipelineContext keyword fields"):
+            await pipeline.run(PipelineContext(topology="demo"), input_text="hello")
+
+    @pytest.mark.asyncio
+    async def test_invoke_accepts_positional_input_text(self):
+        """Pipeline.invoke should accept the common one-string path."""
+        pipeline = Pipeline(name="demo").with_stage("echo", EchoInputStage)
+
+        results = await pipeline.invoke("hello", topology="demo")
+
+        assert results.ok("echo") is True
+        assert results.data("echo")["input_text"] == "hello"
+
+    @pytest.mark.asyncio
+    async def test_run_stage_executes_single_stage_fast_path(self):
+        """run_stage should build a tiny pipeline and return the stage output."""
+        output = await run_stage("echo", EchoInputStage, input_text="hello", topology="single")
+
+        assert output.status == StageStatus.OK
+        assert output.data["input_text"] == "hello"
+
+    @pytest.mark.asyncio
+    async def test_run_normalizes_plain_dict_stage_returns(self):
+        """Stages may return plain dict payloads on the happy path."""
+        pipeline = Pipeline(name="demo").with_stage("echo", DecoratedEchoStage)
+
+        results = await pipeline.run(input_text="hello", topology="demo")
+
+        assert results.require_ok("echo").data["input_text"] == "hello"
+        assert results.data("echo")["topology"] == "demo"
+
+    def test_pipeline_results_helpers(self):
+        """PipelineResults should provide nicer stage access helpers."""
+        results = PipelineResults(
+            {
+                "ok_stage": StageOutput.ok(answer=42),
+                "failed_stage": StageOutput.fail(error="boom"),
+            }
+        )
+
+        assert results.require("ok_stage").data["answer"] == 42
+        assert results.require_ok("ok_stage").data["answer"] == 42
+        assert results.data("ok_stage")["answer"] == 42
+        assert results.ok("ok_stage") is True
+        assert results.ok("failed_stage") is False
+        assert results.failed() == ["failed_stage"]
+        with pytest.raises(KeyError):
+            results.require("missing")
+        with pytest.raises(RuntimeError, match="did not complete with OK status"):
+            results.require_ok("failed_stage")
+
+    def test_curated_api_module_exports_happy_path_symbols(self):
+        """stageflow.api should expose the streamlined public surface."""
+        from stageflow.api import Pipeline as ApiPipeline
+        from stageflow.api import PipelineContext as ApiPipelineContext
+        from stageflow.api import PipelineResults as ApiPipelineResults
+        from stageflow.api import StageReturn as ApiStageReturn
+        from stageflow.api import run_stage as api_run_stage
+        from stageflow.api import stage as api_stage
+        from stageflow.api import stage_metadata as api_stage_metadata
+
+        assert ApiPipeline is Pipeline
+        assert ApiPipelineContext is PipelineContext
+        assert ApiPipelineResults is PipelineResults
+        assert ApiStageReturn is StageReturn
+        assert api_run_stage is run_stage
+        assert api_stage is stage
+        assert api_stage_metadata is stage_metadata
+
+    def test_advanced_module_exports_runtime_symbols(self):
+        """stageflow.advanced should provide an explicit advanced import surface."""
+        from stageflow.advanced import (
+            ContextSnapshot,
+            PipelineBuilder,
+            UnifiedStageGraph,
+            get_default_interceptors,
+        )
+        from stageflow.advanced import Pipeline as AdvancedPipeline
+        from stageflow.advanced import StageReturn as AdvancedStageReturn
+        from stageflow.advanced import stage_metadata as advanced_stage_metadata
+
+        assert AdvancedPipeline is Pipeline
+        assert AdvancedStageReturn is StageReturn
+        assert advanced_stage_metadata is stage_metadata
+        assert PipelineBuilder is not None
+        assert UnifiedStageGraph is not None
+        assert ContextSnapshot is not None
+        assert callable(get_default_interceptors)
+
+    @pytest.mark.asyncio
+    async def test_run_without_context_uses_default_pipeline_context(self):
+        """Pipeline.run should create an empty PipelineContext when omitted."""
+        pipeline = Pipeline(name="demo").with_stage("test", SimpleStage, StageKind.TRANSFORM)
+
+        results = await pipeline.run()
+
+        assert results["test"].status == StageStatus.OK
+
+    @pytest.mark.asyncio
+    async def test_run_passes_build_options_through(self):
+        """Pipeline.run should forward build-time observability options."""
+
+        class CapturingWideEmitter:
+            def __init__(self) -> None:
+                self.pipeline_events: list[dict[str, object]] = []
+
+            def emit_pipeline_event(
+                self,
+                *,
+                ctx,
+                stage_results,
+                pipeline_name,
+                status,
+                duration_ms,
+                started_at,
+            ) -> None:
+                self.pipeline_events.append(
+                    {
+                        "ctx_topology": ctx.topology,
+                        "pipeline_name": pipeline_name,
+                        "status": status,
+                        "stage_count": len(stage_results),
+                        "duration_ms": duration_ms,
+                        "started_at": started_at,
+                    }
+                )
+
+        emitter = CapturingWideEmitter()
+        pipeline = Pipeline(name="demo").with_stage("test", SimpleStage, StageKind.TRANSFORM)
+
+        await pipeline.run(
+            PipelineContext(topology="demo"),
+            emit_pipeline_wide_event=True,
+            wide_event_emitter=emitter,
+        )
+
+        assert len(emitter.pipeline_events) == 1
+        assert emitter.pipeline_events[0]["pipeline_name"] == "demo"
 
     def test_build_with_single_stage(self):
         """Test building pipeline with single stage."""
@@ -425,6 +753,16 @@ class TestPipeline:
         graph = pipeline.build(interceptors=custom)
 
         assert graph._interceptors == custom
+
+    def test_build_accepts_wide_event_options(self):
+        """Pipeline.build should pass wide-event configuration through."""
+        pipeline = Pipeline(name="demo").with_stage("test", SimpleStage, StageKind.TRANSFORM)
+
+        graph = pipeline.build(emit_stage_wide_events=True, emit_pipeline_wide_event=True)
+
+        assert graph._emit_stage_wide_events is True
+        assert graph._emit_pipeline_wide_event is True
+        assert graph._pipeline_name == "demo"
 
     def test_build_guard_retry_requires_dependency(self):
         """Guard retry validation should fail when dependency is missing."""
@@ -531,15 +869,15 @@ class TestPipelineEdgeCases:
         )
         assert pipeline.stages["b"].dependencies == ("a",)
 
-    def test_circular_dependency_not_prevented_at_build_time(self):
-        """Note: Circular dependencies cause deadlock at runtime, not build time."""
+    def test_circular_dependency_rejected_at_build_time(self):
+        """Circular dependencies should be rejected during build validation."""
         pipeline = (Pipeline()
             .with_stage("a", SimpleStage, StageKind.TRANSFORM, dependencies=("b",))
             .with_stage("b", TransformStage, StageKind.TRANSFORM, dependencies=("a",))
         )
-        # Build should succeed (validation is at runtime)
-        graph = pipeline.build()
-        assert len(graph.stage_specs) == 2
+
+        with pytest.raises(CycleDetectedError, match="cycle"):
+            pipeline.build()
 
     def test_very_long_stage_name(self):
         """Test pipeline with very long stage names."""

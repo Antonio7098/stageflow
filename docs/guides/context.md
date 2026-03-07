@@ -61,12 +61,6 @@ A simplified view of the important fields:
 from stageflow.stages.context import PipelineContext
 
 pipeline_ctx = PipelineContext(
-    pipeline_run_id=...,   # run identity
-    request_id=...,
-    session_id=...,
-    user_id=...,
-    org_id=...,
-    interaction_id=...,
     topology="chat_fast",
     execution_mode="practice",
     input_text="Hello, how are you?",
@@ -78,27 +72,32 @@ pipeline_ctx = PipelineContext(
 )
 ```
 
+Explicit run/request/session IDs are supported, but optional for normal
+pipeline execution.
+
 ### Running with PipelineContext
 
 ```python
-graph = pipeline.build()
-results = await graph.run(pipeline_ctx)
+results = await pipeline.run(pipeline_ctx)
 ```
 
-This `pipeline.build()` path returns `UnifiedStageGraph` and is the recommended
-execution mode.
-In this mode, stages execute with `StageContext`, so `ctx.inputs` is available.
+Use `pipeline.build()` only when you want to retain the graph object or pass
+build-time options. In the normal path, stages still execute with
+`StageContext`, so `ctx.inputs` is available.
 
 ### How Derived Context Types Work
 
+- Most applications only need `PipelineContext`.
 - `ContextSnapshot` is derived from `PipelineContext` via `pipeline_ctx.to_snapshot()`.
 - `StageContext` is derived internally per stage from snapshot + validated inputs.
-- Interceptors in legacy `StageGraph` flows still receive `PipelineContext` directly and can:
+- Interceptors in deprecated `StageGraph` flows still receive `PipelineContext` directly and can:
   - Read IDs, topology, execution_mode, and shared `data`
   - Attach transient flags into `ctx.data` (e.g. rate limiting, caching hints)
 - Tools and agents can consume `PipelineContext.to_dict()` when needed.
 
 ## ContextSnapshot
+
+This section is primarily for advanced orchestration, replay, or testing flows.
 
 `ContextSnapshot` is an **immutable**, **serializable** execution view derived from `PipelineContext`.
 

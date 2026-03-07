@@ -6,6 +6,8 @@ stage pipelines with parallel execution, cancellation, and interceptors.
 Core Components:
 - Stage: Protocol for pipeline stage implementations
 - Pipeline: Fluent builder for composing stages into DAGs
+- stageflow.api: Curated, beginner-friendly import surface
+- stageflow.advanced: Advanced/runtime-oriented import surface
 - StageGraph: DAG executor with parallel execution
 - Interceptors: Middleware for cross-cutting concerns
 - EventSink: Protocol for event persistence
@@ -29,8 +31,10 @@ Example:
             return StageOutput.ok(result="done")
 
     pipeline = Pipeline().with_stage("my", MyStage, StageKind.TRANSFORM)
-    graph = pipeline.build()
-    results = await graph.run(ctx)
+    results = await pipeline.run(ctx)
+
+    # Or use the curated simple API:
+    # from stageflow.api import Pipeline, PipelineContext, stage
 
 Extension System:
 Stageflow provides a generic extension system for application-specific data.
@@ -61,8 +65,10 @@ from stageflow.core import (
     StageEvent,
     StageKind,
     StageOutput,
+    StageReturn,
     StageStatus,
     create_stage_context,
+    stage_metadata,
 )
 
 # Events
@@ -103,6 +109,7 @@ from stageflow.pipeline.dag import (
     StageGraph,
     StageSpec,
     UnifiedStageExecutionError,
+    UnifiedStageGraph,
 )
 
 # Interceptors
@@ -125,11 +132,14 @@ from stageflow.pipeline.interceptors import (
 from stageflow.pipeline.pipeline import (
     Pipeline,
     UnifiedStageSpec,
+    run_stage,
+    stage,
 )
 from stageflow.pipeline.registry import (
     PipelineRegistry,
     pipeline_registry,
 )
+from stageflow.pipeline.results import PipelineResults
 from stageflow.pipeline.spec import (
     CycleDetectedError,
     PipelineValidationError,
@@ -201,6 +211,7 @@ __all__ = [
     "StageKind",
     "StageStatus",
     "StageOutput",
+    "StageReturn",
     "StageContext",
     "StageArtifact",
     "StageEvent",
@@ -215,10 +226,15 @@ __all__ = [
     "PipelineBuilder",
     "LinearPipeline",
     "UnifiedStageSpec",
+    "PipelineResults",
+    "stage",
+    "stage_metadata",
+    "run_stage",
     # DAG types
     "StageExecutionError",
     "UnifiedStageExecutionError",
     "StageGraph",
+    "UnifiedStageGraph",
     "StageSpec",
     # Registry
     "PipelineRegistry",

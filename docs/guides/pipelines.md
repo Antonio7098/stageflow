@@ -153,6 +153,7 @@ from stageflow.pipeline import (
     with_duplex_system,
 )
 
+# `with_duplex_system(...)` currently targets the deprecated PipelineBuilder API.
 builder = (
     PipelineBuilder("duplex_chat")
     .with_stage("ingress_a", IngressAStage())
@@ -332,7 +333,7 @@ def create_chat_pipeline() -> Pipeline:
 
 ### Build the Graph
 
-Convert the pipeline to an executable `StageGraph`:
+Convert the pipeline to an executable `UnifiedStageGraph`:
 
 ```python
 graph = pipeline.build()
@@ -348,23 +349,16 @@ This validates:
 Execute with a `PipelineContext`:
 
 ```python
-from uuid import uuid4
 from stageflow import PipelineContext
 from stageflow.helpers import ChunkQueue
 
 pipeline_ctx = PipelineContext(
-    pipeline_run_id=uuid4(),
-    request_id=uuid4(),
-    session_id=uuid4(),
-    user_id=uuid4(),
-    org_id=None,
-    interaction_id=uuid4(),
     input_text="Hello",
     topology="pipeline",
     execution_mode="practice",
 )
 
-results = await graph.run(pipeline_ctx)
+results = await pipeline.run(pipeline_ctx)
 
 # Emit basic streaming telemetry while running
 queue = ChunkQueue(event_emitter=pipeline_ctx.try_emit_event)
@@ -377,7 +371,7 @@ await queue.close()
 Results are a dict mapping stage name to `StageOutput`:
 
 ```python
-results = await graph.run(pipeline_ctx)
+results = await pipeline.run(pipeline_ctx)
 
 # Access specific stage output
 llm_output = results["llm"]
@@ -444,7 +438,7 @@ When a stage fails, the pipeline stops and raises `StageExecutionError`:
 from stageflow import StageExecutionError
 
 try:
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
 except StageExecutionError as e:
     print(f"Stage '{e.stage}' failed: {e.original}")
 ```
@@ -457,7 +451,7 @@ When a stage returns `StageOutput.cancel()`, the pipeline stops gracefully:
 from stageflow.pipeline.dag import UnifiedPipelineCancelled
 
 try:
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
 except UnifiedPipelineCancelled as e:
     print(f"Pipeline cancelled by '{e.stage}': {e.reason}")
     # Access partial results

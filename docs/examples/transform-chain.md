@@ -16,7 +16,7 @@ Three TRANSFORM stages in sequence, each modifying the text.
 
 ```python
 import asyncio
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 class UppercaseStage:
@@ -115,7 +115,7 @@ class SummarizeStage:
 ## The Pipeline
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 
 def create_transform_pipeline() -> Pipeline:
@@ -157,7 +157,7 @@ def create_transform_pipeline() -> Pipeline:
 ```python
 import asyncio
 
-from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
+from stageflow.api import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 
 
 class UppercaseStage:
@@ -226,9 +226,7 @@ async def main():
         .with_stage("summarize", SummarizeStage, StageKind.TRANSFORM, dependencies=("reverse",))
     )
     
-    # Build and create context
-    graph = pipeline.build()
-    
+    # Create context
     pipeline_ctx = PipelineContext(
         topology="transform_chain",
         execution_mode="default",
@@ -236,7 +234,7 @@ async def main():
     )
     
     # Run
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
     
     # Show transformation at each step
     print("Input:", pipeline_ctx.input_text)

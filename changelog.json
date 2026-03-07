@@ -19,6 +19,42 @@
   },
   "entries": [
     {
+      "version": "v1.0.0",
+      "date": "2026-03-07",
+      "changes": [
+        {
+          "type": "added",
+          "area": "public-api",
+          "description": "Introduced curated public entrypoints via `stageflow.api` and `stageflow.advanced`, including canonical Pipeline helpers such as `run(...)`, `from_stages(...)`, `stage(...)`, and `run_stage(...)` for lower-ceremony application code.",
+          "commit": "c4797e4",
+          "files_affected": [
+            "stageflow/api.py",
+            "stageflow/advanced.py",
+            "stageflow/pipeline/pipeline.py",
+            "stageflow/pipeline/results.py",
+            "stageflow/core/stage_metadata.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "docs",
+          "description": "Refreshed README, getting-started, guides, examples, and API reference pages to present `stageflow.api` as the default app-facing surface and `stageflow.advanced` as the advanced/runtime surface, while documenting the new PipelineContext and stage return patterns.",
+          "commit": "c4797e4",
+          "files_affected": [
+            "README.md",
+            "docs/index.md",
+            "docs/getting-started",
+            "docs/guides",
+            "docs/examples",
+            "docs/api",
+            "docs/advanced"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v0.9.6",
       "date": "2026-03-03",
       "changes": [

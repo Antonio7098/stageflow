@@ -34,15 +34,13 @@ A **Stage** is the fundamental unit of work. Every stage:
 3. Implements an **execute** method
 
 ```python
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, stage_metadata
 
+@stage_metadata(name="my_stage", kind=StageKind.TRANSFORM)
 class MyStage:
-    name = "my_stage"
-    kind = StageKind.TRANSFORM
-
-    async def execute(self, ctx: StageContext) -> StageOutput:
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
         # Do work here
-        return StageOutput.ok(result="done")
+        return {"result": "done"}
 ```
 
 ### Stage Kinds
@@ -60,11 +58,18 @@ Stages are categorized by their purpose:
 
 ### Stage Output
 
-Every stage returns a `StageOutput`:
+The runtime accepts a `StageOutput`, a plain `dict`, or `None`.
+
+For the happy path, a plain `dict` is the lightest beginner option:
 
 ```python
-# Success with data
-return StageOutput.ok(key="value", another="data")
+return {"key": "value", "another": "data"}
+```
+
+Use `StageOutput` when you need explicit status control:
+
+```python
+from stageflow import StageOutput
 
 # Skip this stage (conditional execution)
 return StageOutput.skip(reason="condition not met")
@@ -105,20 +110,19 @@ Use `STTResponse` and `TTSResponse` to capture speech metadata (confidence, dura
 A **Pipeline** is a collection of stages with their dependencies. Use the fluent builder API:
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, stage
 
-pipeline = (
-    Pipeline()
-    .with_stage("stage_a", StageA, StageKind.TRANSFORM)
-    .with_stage("stage_b", StageB, StageKind.TRANSFORM)
-    .with_stage(
-        "stage_c",
-        StageC,
-        StageKind.TRANSFORM,
-        dependencies=("stage_a", "stage_b"),  # Waits for both
-    )
+pipeline = Pipeline.from_stages(
+    stage("stage_a", StageA),
+    stage("stage_b", StageB, after="stage_a"),
+    stage("stage_c", StageC, dependencies=("stage_a", "stage_b")),
 )
 ```
+
+Guideline:
+
+- use `after=` for simple single-edge chains
+- use `dependencies=` for multi-edge joins or explicit DAG-heavy code
 
 ### Dependency Rules
 
@@ -128,16 +132,21 @@ pipeline = (
 
 ### Building the Graph
 
-Call `build()` to create an executable `UnifiedStageGraph`:
+The simplest way to execute a pipeline is `pipeline.run(...)`:
 
 ```python
-graph = pipeline.build()
-pipeline_ctx = PipelineContext(input_text="hello")
-results = await graph.run(pipeline_ctx)
+results = await pipeline.run(input_text="hello")
 ```
 
+Use `pipeline.build()` when you want to keep the reusable graph object or pass
+build-time options such as interceptors or wide-event emitters.
+
+If you like a slightly more app-like alias in a small script,
+`await pipeline.invoke("hello")` does the same thing. `run(...)` remains the
+canonical verb for docs and reusable app code.
+
 `UnifiedStageGraph` is the default for modern stageflow usage.
-The legacy `StageGraph` path is compatibility-only and uses a different context
+The deprecated `StageGraph` path is compatibility-only and uses a different context
 shape for stage execution.
 
 ## Context
@@ -146,28 +155,26 @@ Context carries data through the pipeline.
 
 ### PipelineContext (Entry Point)
 
-`PipelineContext` is the canonical context you pass to `graph.run(...)`.
+`PipelineContext` is the canonical context you pass to `pipeline.run(...)` when
+you want explicit control over metadata, ports, or correlation IDs.
 
 ```python
-from uuid import uuid4
-from stageflow import PipelineContext
+from stageflow.api import PipelineContext
 
 pipeline_ctx = PipelineContext(
-    pipeline_run_id=uuid4(),
-    request_id=uuid4(),
-    session_id=uuid4(),
-    user_id=uuid4(),
-    org_id=uuid4(),
-    interaction_id=uuid4(),
     topology="chat_fast",
     execution_mode="practice",
     input_text="Hello!",
 )
 ```
 
-### ContextSnapshot (Derived)
+The ID fields are optional here; provide them only when you need explicit
+correlation identifiers.
 
-An **immutable** view derived from `PipelineContext` for stage execution:
+### ContextSnapshot (Advanced / Derived)
+
+Most applications can ignore this type. `ContextSnapshot` is the immutable view
+the runtime derives from `PipelineContext` for stage execution:
 
 - **RunIdentity**: `pipeline_run_id`, `request_id`, `session_id`, `user_id`, `org_id`, `interaction_id`
 - **Conversation**: `messages`, `routing_decision`
@@ -178,7 +185,7 @@ An **immutable** view derived from `PipelineContext` for stage execution:
 snapshot = pipeline_ctx.to_snapshot()
 ```
 
-### StageContext
+### StageContext (Inside stages)
 
 The **per-stage execution wrapper** that stages receive. Provides:
 

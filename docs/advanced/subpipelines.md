@@ -82,7 +82,7 @@ parent_value = child_ctx.get_parent_data("some_key", default=None)
 
 ```python
 from uuid import uuid4
-from stageflow import StageContext, StageKind, StageOutput, Pipeline
+from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 
 class ToolDispatcher(Stage):
     """Stage that executes tools via subpipelines."""
@@ -92,7 +92,12 @@ class ToolDispatcher(Stage):
 
     async def execute(self, ctx: StageContext) -> StageOutput:
         tool_calls = ctx.inputs.get("tool_calls", [])
-        pipeline_ctx = ctx.as_pipeline_context()
+        pipeline_ctx = PipelineContext.from_snapshot(
+            ctx.snapshot,
+            event_sink=ctx.event_sink,
+            data={"invoked_by": ctx.stage_name},
+            ports=ctx.inputs.ports,
+        )
         
         results = []
         for call in tool_calls:
@@ -162,8 +167,8 @@ signature `async def runner(child_ctx: PipelineContext) -> dict[str, Any]`.
 This runner is responsible for:
 
 1. Building or reusing the child pipeline graph.
-2. Converting the provided `PipelineContext` into a `StageContext`.
-3. Running the graph and returning a plain `dict` payload (the framework wraps
+2. Running the graph directly with the provided `PipelineContext`.
+3. Returning a plain `dict` payload (the framework wraps
    it into `SubpipelineResult.data`).
 
 `ToolExecutor.spawn_subpipeline()` wires this runner up automatically, so most
@@ -183,7 +188,11 @@ for call in unresolved:
     ctx.emit_event("tools.unresolved", {"call_id": call.call_id, "error": call.error})
 
 for call in resolved:
-    pipeline_ctx = ctx.as_pipeline_context()
+    pipeline_ctx = PipelineContext.from_snapshot(
+        ctx.snapshot,
+        event_sink=ctx.event_sink,
+        ports=ctx.inputs.ports,
+    )
     child_ctx = pipeline_ctx.fork(
         child_run_id=uuid4(),
         parent_stage_id=self.name,
@@ -346,7 +355,12 @@ Parent cancellation should cascade to children:
 ```python
 async def execute(self, ctx: StageContext) -> StageOutput:
     # Check for cancellation before spawning children
-    if ctx.as_pipeline_context().canceled:
+    pipeline_ctx = PipelineContext.from_snapshot(
+        ctx.snapshot,
+        event_sink=ctx.event_sink,
+        ports=ctx.inputs.ports,
+    )
+    if pipeline_ctx.canceled:
         return StageOutput.cancel(reason="Parent cancelled")
     
     # Track child tasks for cancellation
@@ -513,19 +527,22 @@ else:
 - `KeyError`: Pipeline name not found in registry
 - `MaxDepthExceededError`: Nesting depth limit exceeded
 
-### Converting StageContext to PipelineContext
+### Bridging StageContext Back to PipelineContext
 
-Stages are executed with immutable `StageContext` instances derived from the
-mutable `PipelineContext` by the orchestrator. When a stage needs to call APIs
-that expect the richer pipeline-level context (for example,
-`ToolExecutor.spawn_subpipeline()`), use the helper:
+Most application code never needs this. But if a stage must call an API that
+expects `PipelineContext` (for example `ToolExecutor.spawn_subpipeline()`),
+rebuild it from the stage snapshot instead of using the deprecated helper:
 
 ```python
+from stageflow import PipelineContext
 from stageflow.core import StageContext
 
 async def execute(self, ctx: StageContext) -> StageOutput:
-    pipeline_ctx = ctx.as_pipeline_context(
+    pipeline_ctx = PipelineContext.from_snapshot(
+        ctx.snapshot,
         data={"invoked_by": ctx.stage_name},
+        event_sink=ctx.event_sink,
+        ports=ctx.inputs.ports,
     )
     pipeline_ctx.topology = "subpipeline_general"
 
@@ -538,10 +555,8 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     return StageOutput.ok(child=result.data)
 ```
 
-`StageContext.as_pipeline_context()` copies the identifiers (run, request,
-session, etc.), topology, execution mode, and event sink from the snapshot so
-that stages can safely bridge back to the orchestration context without having
-to manually re-create the dataclass.
+`PipelineContext.from_snapshot(...)` preserves event sinks, shared data, and
+injected ports while rebuilding a caller-facing context from `StageContext`.
 
 ### Dependency Injection
 

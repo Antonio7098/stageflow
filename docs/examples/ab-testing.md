@@ -121,8 +121,7 @@ class ConsistentBucketer:
 ## A/B Test Router Stage
 
 ```python
-from stageflow.core import StageKind, StageOutput
-from stageflow.stages.context import StageContext
+from stageflow.api import StageKind, StageOutput, StageContext
 
 
 class ABTestRouterStage:
@@ -172,7 +171,7 @@ class ABTestRouterStage:
 ## Building Experiment Pipelines
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 
 def build_llm_experiment_pipeline() -> Pipeline:

@@ -17,7 +17,7 @@ Two ENRICH stages run in parallel, then a TRANSFORM stage aggregates their outpu
 ### ProfileEnrichStage
 
 ```python
-from stageflow import StageContext, StageKind, StageOutput
+from stageflow.api import StageContext, StageKind, StageOutput
 
 
 class ProfileEnrichmentStage:
@@ -130,7 +130,7 @@ class SummarizeStage:
 ## The Pipeline
 
 ```python
-from stageflow import Pipeline, StageKind
+from stageflow.api import Pipeline, StageKind
 
 
 def create_parallel_pipeline() -> Pipeline:
@@ -179,7 +179,7 @@ import asyncio
 from dataclasses import dataclass
 from uuid import UUID
 
-from stageflow import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
+from stageflow.api import Pipeline, PipelineContext, StageContext, StageKind, StageOutput
 
 
 # Mock services
@@ -289,8 +289,6 @@ async def main():
         )
     )
     
-    graph = pipeline.build()
-    
     pipeline_ctx = PipelineContext(
         topology="parallel",
         execution_mode="default",
@@ -298,7 +296,7 @@ async def main():
     
     # Time the execution
     start = time.time()
-    results = await graph.run(pipeline_ctx)
+    results = await pipeline.run(pipeline_ctx)
     elapsed = time.time() - start
     
     # Results

@@ -13,6 +13,7 @@ from stageflow.stages.context import (
     PipelineContext,
     extract_service,
 )
+from stageflow.stages.ports import create_core_ports
 
 # === Test extract_service ===
 
@@ -83,6 +84,49 @@ class TestPipelineContext:
         assert ctx.canceled is False
         assert ctx.artifacts == []
         assert ctx._stage_metadata == {}
+
+    def test_default_initialization_without_ids(self):
+        """PipelineContext should be ergonomic for common entrypoint usage."""
+        ctx = PipelineContext(
+            input_text="hello world",
+            topology="quickstart",
+            execution_mode="default",
+        )
+
+        assert ctx.pipeline_run_id is None
+        assert ctx.request_id is None
+        assert ctx.session_id is None
+        assert ctx.user_id is None
+        assert ctx.org_id is None
+        assert ctx.interaction_id is None
+        assert ctx.input_text == "hello world"
+        assert ctx.topology == "quickstart"
+        assert ctx.execution_mode == "default"
+
+    def test_create_classmethod(self):
+        """PipelineContext.create should offer the same ergonomic path explicitly."""
+        config = {"mode": "demo"}
+        data = {"k": "v"}
+        metadata = {"source": "test"}
+
+        ctx = PipelineContext.create(
+            input_text="hello world",
+            topology="quickstart",
+            execution_mode="default",
+            configuration=config,
+            data=data,
+            metadata=metadata,
+        )
+
+        assert ctx.input_text == "hello world"
+        assert ctx.topology == "quickstart"
+        assert ctx.execution_mode == "default"
+        assert ctx.configuration == config
+        assert ctx.data == data
+        assert ctx.metadata == metadata
+        assert ctx.configuration is not config
+        assert ctx.data is not data
+        assert ctx.metadata is not metadata
 
     def test_with_topology(self):
         """Test with topology."""
@@ -163,6 +207,63 @@ class TestPipelineContext:
             db=db,
         )
         assert ctx.db == db
+
+    def test_derive_root_stage_context_uses_explicit_ports(self):
+        """Root StageContext should inherit explicit ports from PipelineContext."""
+        db = object()
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            ports=create_core_ports(db=db),
+        )
+
+        root = ctx.derive_root_stage_context()
+
+        assert root.inputs.ports is not None
+        assert root.inputs.ports.db is db
+
+    def test_derive_root_stage_context_falls_back_to_db(self):
+        """Legacy db values should still be exposed via derived ports."""
+        db = object()
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            db=db,
+        )
+
+        root = ctx.derive_root_stage_context()
+
+        assert root.inputs.ports is not None
+        assert root.inputs.ports.db is db
+
+    def test_fork_preserves_ports(self):
+        """Child PipelineContext should retain the parent ports bundle."""
+        ports = create_core_ports(db=object())
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            ports=ports,
+        )
+
+        child = ctx.fork(
+            child_run_id=uuid4(),
+            parent_stage_id="stage.parent",
+            correlation_id=uuid4(),
+        )
+
+        assert child.ports is ports
 
     def test_canceled_flag(self):
         """Test canceled flag."""
