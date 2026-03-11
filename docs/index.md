@@ -42,11 +42,11 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
-> **New in Stageflow 1.0.0**
+> **New in Stageflow 1.1.0**
 
-> - **Curated Public API Surfaces**: `stageflow.api` is now the primary happy-path import surface for application code, while `stageflow.advanced` groups advanced orchestration and interceptor utilities.
-> - **Canonical Pipeline Ergonomics**: `Pipeline.run(...)`, `Pipeline.from_stages(...)`, `stage(...)`, `run_stage(...)`, `stage_metadata`, and plain-dict stage returns now define the recommended low-ceremony workflow.
-> - **Docs & Migration Refresh**: README, guides, API reference, examples, and external migration samples were updated to consistently present the new public API split and runtime semantics.
+> - **Reusable Agent Runtime**: Added `stageflow.agent.Agent` and `AgentStage` for prompt-driven tool loops with typed turn contracts and stage-friendly integration.
+> - **Prompt Safety & Validation**: Added versioned prompt templates, prompt-injection hardening, and Pydantic-backed structured-output retries for more reliable LLM execution.
+> - **OpenRouter Response Robustness**: Normalization now handles nested OpenAI/OpenRouter envelopes, null/list content variants, and tool-call extraction across real provider response shapes.
 
 > **New in Stageflow 0.9.5**
 >
@@ -70,6 +70,7 @@ The docs are organized into the following sections:
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
 - [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
+- [**Agent Runtime & Prompt Safety**](guides/agents.md) — Version prompts, harden prompts against injection, validate outputs, and run tool loops
 - [**Real-Time Streaming**](guides/realtime-streaming.md) — Stream chunks directly between running stages (LLM -> TTS)
 - [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters
 
@@ -87,6 +88,7 @@ The docs are organized into the following sections:
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
 - [**Tools & Agents**](guides/tools.md) — Build agent capabilities with tools and parse LLM tool calls safely
+- [**Agent Runtime & Prompt Safety**](guides/agents.md) — Reusable agent runtime with versioned prompts, security, retries, and tool loops
 - [**Real-Time Streaming**](guides/realtime-streaming.md) — Stage-to-stage streaming patterns using RealtimeStageBus
 - [**Tools & Approval Workflows**](guides/tools-approval.md) — Implement HITL approval flows for tools
 - [**Observability**](guides/observability.md) — Monitor and debug your pipelines with telemetry streams and analytics exporters

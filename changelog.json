@@ -19,6 +19,51 @@
   },
   "entries": [
     {
+      "version": "v1.1.0",
+      "date": "2026-03-11",
+      "changes": [
+        {
+          "type": "added",
+          "area": "agent.runtime",
+          "description": "Introduced a reusable agent runtime with versioned prompt templates, prompt-injection hardening, typed Pydantic output validation with retries, and a functional tool-execution loop via `stageflow.agent.Agent` and `AgentStage`.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/agent/__init__.py",
+            "stageflow/agent/prompts.py",
+            "stageflow/agent/security.py",
+            "stageflow/agent/validation.py",
+            "stageflow/agent/runtime.py",
+            "stageflow/agent/stage.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "tests.agent",
+          "description": "Added unit and integration coverage for prompt versioning, guard behavior, structured-output retries, agent tool loops, and OpenAI/OpenRouter-style response normalization.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/unit/test_agent_runtime.py",
+            "tests/integration/test_agent_stage.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "docs.agent",
+          "description": "Published agent runtime guidance and updated docs navigation/examples to document versioned prompts, prompt safety, output validation, and tool-loop usage.",
+          "commit": "pending",
+          "files_affected": [
+            "README.md",
+            "docs/index.md",
+            "docs/guides/agents.md",
+            "docs/examples/agent-tools.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v1.0.0",
       "date": "2026-03-07",
       "changes": [

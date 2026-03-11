@@ -2,6 +2,8 @@
 
 This example demonstrates an agent stage that can execute tools based on user input, including tool registration, execution, and response generation.
 
+> **Prefer the reusable runtime for new code:** `stageflow.agent.Agent` and `stageflow.agent.AgentStage` now provide a production-oriented loop with versioned prompts, prompt-injection hardening, typed JSON validation with retries, and tool execution. See [../guides/agents.md](../guides/agents.md).
+
 ## Overview
 
 ```
