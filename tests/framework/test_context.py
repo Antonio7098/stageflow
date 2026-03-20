@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from stageflow.events import NoOpEventSink
+from stageflow.observability import EVENT_VERSION, EventKind
 from stageflow.stages.context import (
     PipelineContext,
     extract_service,
@@ -454,6 +455,43 @@ class TestPipelineContext:
         data = emitted[0]
         assert data["request_id"] is None
         assert data["session_id"] is None
+
+    def test_try_emit_event_adds_canonical_envelope(self):
+        """Test try_emit_event emits canonical telemetry envelope fields."""
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=uuid4(),
+            interaction_id=uuid4(),
+            topology="chat_fast",
+            execution_mode="practice",
+            metadata={"source": "test"},
+        )
+
+        emitted = []
+
+        class MockEventSink:
+            def try_emit(self, *, type, data):  # noqa: ARG002
+                emitted.append(data)
+
+        ctx.event_sink = MockEventSink()
+
+        ctx.try_emit_event("tool.completed", {"status": "ok", "metadata": {"provider": "openai"}})
+
+        data = emitted[0]
+        assert data["event_name"] == "tool.completed"
+        assert data["event_kind"] == EventKind.TOOL.value
+        assert data["event_version"] == EVENT_VERSION
+        assert data["pipeline_run_id"] == str(ctx.pipeline_run_id)
+        assert data["request_id"] == str(ctx.request_id)
+        assert data["session_id"] == str(ctx.session_id)
+        assert data["user_id"] == str(ctx.user_id)
+        assert data["org_id"] == str(ctx.org_id)
+        assert data["interaction_id"] == str(ctx.interaction_id)
+        assert data["status"] == "ok"
+        assert data["metadata"] == {"source": "test", "provider": "openai"}
 
     # === set_stage_metadata tests ===
 

@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from stageflow.observability.envelope import build_payload
+
 logger = logging.getLogger("stageflow.tools.adapters")
 
 
@@ -71,12 +73,7 @@ class DictContextAdapter:
         For dict contexts, events are logged at debug level since
         there's no event sink available.
         """
-        enriched_data = {
-            "pipeline_run_id": str(self.pipeline_run_id) if self.pipeline_run_id else None,
-            "request_id": str(self.request_id) if self.request_id else None,
-            "execution_mode": self.execution_mode,
-            **data,
-        }
+        enriched_data = build_payload(event_type=type, ctx=self, data=data)
         logger.debug(f"Event (dict context): {type}", extra=enriched_data)
 
 

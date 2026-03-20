@@ -10,6 +10,7 @@ from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import StageContext
 from stageflow.core.timer import PipelineTimer
 from stageflow.events import NoOpEventSink
+from stageflow.observability import EVENT_VERSION, EventKind
 from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs
 from stageflow.tools import (
@@ -228,6 +229,44 @@ class TestAdvancedToolExecutorWithPipelineContext:
 
         with pytest.raises(ToolDeniedError):
             await executor.execute(action, pipeline_context)
+
+    @pytest.mark.asyncio
+    async def test_execute_emits_canonical_tool_event(self, pipeline_context):
+        """Tool lifecycle events should use the execution context envelope."""
+        emitted: list[tuple[str, dict[str, Any]]] = []
+
+        class CapturingSink:
+            def try_emit(self, *, type: str, data: dict[str, Any]) -> None:
+                emitted.append((type, data))
+
+        pipeline_context.event_sink = CapturingSink()
+        executor = AdvancedToolExecutor(config=ToolExecutorConfig(emit_events=True))
+        executor.register(ToolDefinition(
+            name="test_tool",
+            action_type="TEST_ACTION",
+            handler=mock_handler,
+        ))
+
+        action = MockAction(
+            id=uuid4(),
+            type="TEST_ACTION",
+            payload={"key": "value"},
+        )
+
+        await executor.execute(action, pipeline_context)
+
+        assert [event_type for event_type, _ in emitted[:3]] == [
+            "tool.invoked",
+            "tool.started",
+            "tool.completed",
+        ]
+        completed = emitted[-1][1]
+        assert completed["event_name"] == "tool.completed"
+        assert completed["event_kind"] == EventKind.TOOL.value
+        assert completed["event_version"] == EVENT_VERSION
+        assert completed["pipeline_run_id"] == str(pipeline_context.pipeline_run_id)
+        assert completed["request_id"] == str(pipeline_context.request_id)
+        assert completed["artifacts_count"] == 0
 
 
 class TestAdvancedToolExecutorWithDictContext:

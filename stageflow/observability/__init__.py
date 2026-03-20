@@ -10,6 +10,19 @@ from __future__ import annotations
 from typing import Any, Protocol
 from uuid import UUID
 
+from stageflow.observability.dashboard import ObservabilityDashboard, build_graph_availability
+from stageflow.observability.envelope import build_metadata, build_payload, infer_event_kind
+from stageflow.observability.ingestion import TelemetryIngestionService
+from stageflow.observability.repository import (
+    AgentGraphNode,
+    InMemoryTelemetryRepository,
+    TelemetryEvent,
+    TelemetryRepository,
+    UserMetric,
+    serialize_agent_graph,
+    serialize_user_metrics,
+)
+from stageflow.observability.taxonomy import EVENT_VERSION, EventKind
 from stageflow.observability.tracing import (
     OTEL_AVAILABLE,
     NoOpSpan,
@@ -210,17 +223,29 @@ def get_circuit_breaker() -> CircuitBreaker:
 
 
 __all__ = [
+    "AgentGraphNode",
+    "EVENT_VERSION",
     "CircuitBreaker",
     "CircuitBreakerOpenError",
+    "EventKind",
+    "InMemoryTelemetryRepository",
     "NoOpPipelineRunLogger",
     "NoOpProviderCallLogger",
     "NoOpSpan",
+    "ObservabilityDashboard",
     "OTEL_AVAILABLE",
     "PipelineRunLogger",
     "ProviderCallLogger",
     "StageflowTracer",
+    "TelemetryEvent",
+    "TelemetryIngestionService",
+    "TelemetryRepository",
     "TraceContext",
+    "UserMetric",
     "WideEventEmitter",
+    "build_graph_availability",
+    "build_metadata",
+    "build_payload",
     "clear_correlation_id",
     "emit_pipeline_wide_event",
     "emit_stage_wide_event",
@@ -232,8 +257,11 @@ __all__ = [
     "get_span_id",
     "get_trace_context_dict",
     "get_trace_id",
+    "infer_event_kind",
     "pipeline_run_logger",
     "provider_call_logger",
+    "serialize_agent_graph",
+    "serialize_user_metrics",
     "set_correlation_id",
     "summarize_pipeline_error",
 ]

@@ -14,16 +14,16 @@ from uuid import UUID
 from stageflow.core import StageArtifact as Artifact
 from stageflow.core import StageContext
 from stageflow.events import EventSink, get_event_sink
+from stageflow.observability.envelope import build_payload
+from stageflow.protocols import AudioPorts, CorePorts, LLMPorts
+from stageflow.stages.outputs import OutputBag
+from stageflow.utils.frozen import FrozenDict
 
 if TYPE_CHECKING:
     from stageflow.context import ContextSnapshot
     from stageflow.context.conversation import Conversation
     from stageflow.context.enrichments import Enrichments
     from stageflow.context.extensions import ExtensionBundle
-    from stageflow.context.output_bag import OutputBag
-    from stageflow.core import StageContext
-    from stageflow.stages.ports import AudioPorts, CorePorts, LLMPorts
-    from stageflow.utils.frozen import FrozenDict
 
 
 def extract_service(topology: str | None) -> str | None:
@@ -115,21 +115,12 @@ class PipelineContext:
             "topology": self.topology,
             "execution_mode": self.execution_mode,
         }
+        stage_metadata = self.get_stage_metadata(stage)
+        if isinstance(stage_metadata, dict) and stage_metadata:
+            event_payload["metadata"] = stage_metadata
         if payload:
             event_payload.update(payload)
-
-        data = {
-            "request_id": str(self.request_id) if self.request_id else None,
-            "session_id": str(self.session_id) if self.session_id else None,
-            "user_id": str(self.user_id) if self.user_id else None,
-            "org_id": str(self.org_id) if self.org_id else None,
-            "service": self.service,
-            **event_payload,
-        }
-        if self.pipeline_run_id:
-            data["pipeline_run_id"] = str(self.pipeline_run_id)
-
-        self.event_sink.try_emit(type=f"stage.{stage}.{status}", data=data)
+        self.try_emit_event(type=f"stage.{stage}.{status}", data=event_payload)
 
     def set_stage_metadata(self, stage: str, metadata: dict[str, Any]) -> None:
         """Set metadata for a stage."""
@@ -421,15 +412,7 @@ class PipelineContext:
             type: Event type string (e.g., "tool.completed")
             data: Event payload data
         """
-        # Add correlation IDs to event data
-        enriched_data = {
-            "pipeline_run_id": str(self.pipeline_run_id) if self.pipeline_run_id else None,
-            "request_id": str(self.request_id) if self.request_id else None,
-            "execution_mode": self.execution_mode,
-            "topology": self.topology,
-            "service": self.service,
-            **data,
-        }
+        enriched_data = build_payload(event_type=type, ctx=self, data=data)
         self.event_sink.try_emit(type=type, data=enriched_data)
 
     def derive_for_stage(

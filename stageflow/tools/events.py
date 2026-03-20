@@ -20,6 +20,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from stageflow.observability.taxonomy import EVENT_VERSION, EventKind
+
 
 @dataclass(frozen=True)
 class ToolEventBase:
@@ -29,6 +31,8 @@ class ToolEventBase:
     action_id: UUID
     pipeline_run_id: UUID | None = None
     request_id: UUID | None = None
+    event_kind: str = EventKind.TOOL.value
+    event_version: str = EVENT_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def _base_dict(self) -> dict[str, Any]:
@@ -38,6 +42,8 @@ class ToolEventBase:
             "action_id": str(self.action_id),
             "pipeline_run_id": str(self.pipeline_run_id) if self.pipeline_run_id else None,
             "request_id": str(self.request_id) if self.request_id else None,
+            "event_kind": self.event_kind,
+            "event_version": self.event_version,
             "timestamp": self.timestamp,
         }
 
@@ -156,6 +162,8 @@ class ApprovalRequestedEvent:
     action_id: UUID
     pipeline_run_id: UUID | None = None
     approval_message: str = ""
+    event_kind: str = EventKind.TOOL.value
+    event_version: str = EVENT_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -165,6 +173,8 @@ class ApprovalRequestedEvent:
             "action_id": str(self.action_id),
             "pipeline_run_id": str(self.pipeline_run_id) if self.pipeline_run_id else None,
             "approval_message": self.approval_message,
+            "event_kind": self.event_kind,
+            "event_version": self.event_version,
             "timestamp": self.timestamp,
         }
 
@@ -179,6 +189,8 @@ class ApprovalDecidedEvent:
     decision: str  # "approved" or "denied"
     decided_by: UUID | None = None
     pipeline_run_id: UUID | None = None
+    event_kind: str = EventKind.TOOL.value
+    event_version: str = EVENT_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -189,6 +201,8 @@ class ApprovalDecidedEvent:
             "decision": self.decision,
             "decided_by": str(self.decided_by) if self.decided_by else None,
             "pipeline_run_id": str(self.pipeline_run_id) if self.pipeline_run_id else None,
+            "event_kind": self.event_kind,
+            "event_version": self.event_version,
             "timestamp": self.timestamp,
         }
 

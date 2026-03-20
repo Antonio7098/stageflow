@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from stageflow.observability.envelope import build_payload
+from stageflow.observability.taxonomy import EventKind
 from stageflow.stages.result import StageResult
 
 try:  # pragma: no cover - typing import
@@ -59,6 +61,52 @@ def _stage_counts(stage_results: Mapping[str, StageResult]) -> dict[str, int]:
     return dict(counts)
 
 
+def _graph_fields_for_stage(ctx: PipelineContext, result: StageResult) -> dict[str, Any]:
+    stage_metadata: dict[str, Any] = {}
+    getter = getattr(ctx, "get_stage_metadata", None)
+    if callable(getter):
+        current = getter(result.name)
+        if isinstance(current, dict):
+            stage_metadata = current
+
+    pipeline_run_id = str(ctx.pipeline_run_id) if getattr(ctx, "pipeline_run_id", None) else "unknown"
+    observation_id = stage_metadata.get(
+        "observation_id",
+        f"{pipeline_run_id}:{result.name}:{result.started_at.isoformat()}",
+    )
+    return {
+        "id": observation_id,
+        "parent_observation_id": stage_metadata.get("parent_observation_id"),
+        "type": EventKind.SPAN.value.upper(),
+        "name": result.name,
+        "start_time": result.started_at.isoformat(),
+        "end_time": result.ended_at.isoformat(),
+        "node": stage_metadata.get("langgraph_node", result.name),
+        "step": stage_metadata.get("langgraph_step"),
+        "metadata": stage_metadata,
+    }
+
+
+def _graph_fields_for_pipeline(
+    ctx: PipelineContext,
+    *,
+    pipeline_name: str,
+    started_at: datetime | None,
+    ended_at: datetime | None,
+) -> dict[str, Any]:
+    pipeline_run_id = str(ctx.pipeline_run_id) if getattr(ctx, "pipeline_run_id", None) else None
+    return {
+        "id": pipeline_run_id or f"pipeline:{pipeline_name}",
+        "parent_observation_id": str(ctx.parent_run_id) if getattr(ctx, "parent_run_id", None) else None,
+        "type": EventKind.TRACE.value.upper(),
+        "name": pipeline_name,
+        "start_time": started_at.isoformat() if started_at else None,
+        "end_time": ended_at.isoformat() if ended_at else None,
+        "node": pipeline_name,
+        "step": 0,
+    }
+
+
 @dataclass(slots=True)
 class WideEventEmitter:
     """Helper for emitting structured pipeline/stage-wide events.
@@ -79,7 +127,7 @@ class WideEventEmitter:
     ) -> None:
         """Emit a wide event describing a single stage result."""
         payload = self.build_stage_payload(ctx=ctx, result=result, extra=extra)
-        ctx.event_sink.try_emit(type=self.stage_event_type, data=payload)
+        ctx.try_emit_event(self.stage_event_type, payload)
 
     def emit_pipeline_event(
         self,
@@ -102,7 +150,7 @@ class WideEventEmitter:
             started_at=started_at,
             extra=extra,
         )
-        ctx.event_sink.try_emit(type=self.pipeline_event_type, data=payload)
+        ctx.try_emit_event(self.pipeline_event_type, payload)
 
     @staticmethod
     def build_stage_payload(
@@ -111,13 +159,19 @@ class WideEventEmitter:
         result: StageResult,
         extra: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        payload = {
-            **_context_metadata(ctx),
+        data = {
             **_stage_result_summary(result),
+            **_graph_fields_for_stage(ctx, result),
         }
         if extra:
-            payload["extra"] = dict(extra)
-        return payload
+            data["extra"] = dict(extra)
+        return build_payload(
+            event_type="stage.wide",
+            ctx=ctx,
+            data=data,
+            event_kind=EventKind.SPAN,
+            timestamp=result.ended_at.isoformat(),
+        )
 
     @staticmethod
     def build_pipeline_payload(
@@ -136,18 +190,30 @@ class WideEventEmitter:
 
         details = [_stage_result_summary(result) for result in stage_results.values()]
         status = status or ("failed" if any(r["status"] == "failed" for r in details) else "completed")
+        ended_at = datetime.now(UTC) if started_at is not None else None
 
-        payload: dict[str, Any] = {
-            **_context_metadata(ctx),
+        data: dict[str, Any] = {
             "pipeline_name": pipeline_name,
             "status": status,
             "duration_ms": duration_ms,
             "stage_counts": _stage_counts(stage_results),
             "stage_details": details,
+            **_graph_fields_for_pipeline(
+                ctx,
+                pipeline_name=pipeline_name,
+                started_at=started_at,
+                ended_at=ended_at,
+            ),
         }
         if extra:
-            payload["extra"] = dict(extra)
-        return payload
+            data["extra"] = dict(extra)
+        return build_payload(
+            event_type="pipeline.wide",
+            ctx=ctx,
+            data=data,
+            event_kind=EventKind.TRACE,
+            timestamp=ended_at.isoformat() if ended_at else None,
+        )
 
 
 def emit_stage_wide_event(

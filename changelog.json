@@ -19,6 +19,97 @@
   },
   "entries": [
     {
+      "version": "v1.2.0",
+      "date": "2026-03-20",
+      "changes": [
+        {
+          "type": "added",
+          "area": "observability.telemetry",
+          "description": "Implemented canonical telemetry contract and envelope builder (`build_payload`, `build_metadata`, `infer_event_kind`) that standardizes metadata across all event emitters (contexts, wide events, tool lifecycle).",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/observability/taxonomy.py",
+            "stageflow/observability/envelope.py",
+            "stageflow/observability/wide_events.py",
+            "stageflow/stages/context.py",
+            "stageflow/core/stage_context.py",
+            "stageflow/tools/adapters.py",
+            "stageflow/tools/events.py",
+            "stageflow/tools/executor_v2.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "observability.ingestion",
+          "description": "Added `TelemetryIngestionService` (EventSink) with async batching, configurable sampling, queue backpressure, and graceful shutdown draining. Normalizes events into `TelemetryEvent` Pydantic models.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/observability/ingestion/service.py",
+            "stageflow/observability/ingestion/__init__.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "observability.repository",
+          "description": "Introduced `TelemetryRepository` protocol and `InMemoryTelemetryRepository` implementation for event storage, agent graph queries, and user metrics. Provides Langfuse-compatible node shapes.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/observability/repository.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "observability.dashboard",
+          "description": "Added `ObservabilityDashboard` helper class with agent graph view, pipeline timeline, provider metrics, and user insights. Includes `build_graph_availability` and serialization utilities.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/observability/dashboard.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "tests.observability",
+          "description": "Added comprehensive unit tests for envelope, wide events, ingestion service, repository/dashboard queries, and regression tests for context and tool lifecycle event emission.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/unit/observability/test_envelope.py",
+            "tests/unit/observability/test_wide_events.py",
+            "tests/unit/observability/test_repository_dashboard.py",
+            "tests/unit/observability/test_ingestion_service.py",
+            "tests/framework/test_context.py",
+            "tests/unit/test_advanced_tool_executor.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "public_api",
+          "description": "Exported new observability primitives from `stageflow.observability` and top-level `stageflow` packages, including taxonomy, envelope, ingestion, repository, and dashboard utilities.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/observability/__init__.py",
+            "stageflow/__init__.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "docs.observability",
+          "description": "Updated observability guide and API reference to document the canonical envelope, telemetry ingestion, repository protocol, and dashboard helpers.",
+          "commit": "pending",
+          "files_affected": [
+            "docs/guides/observability.md",
+            "docs/api/observability.md"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v1.1.0",
       "date": "2026-03-11",
       "changes": [

@@ -22,8 +22,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from stageflow.events import get_event_sink
-
 from .approval import ApprovalService, get_approval_service
 from .definitions import Action, ToolDefinition, ToolInput, ToolOutput, UndoMetadata
 from .errors import (
@@ -346,7 +344,7 @@ class AdvancedToolExecutor:
             payload_summary=_summarize_payload(tool_input.payload),
             behavior=ctx.execution_mode,
         )
-        await self._emit_event("tool.invoked", event.to_dict())
+        await self._emit_event(ctx, "tool.invoked", event.to_dict())
 
     async def _emit_tool_started(
         self,
@@ -364,7 +362,7 @@ class AdvancedToolExecutor:
             pipeline_run_id=ctx.pipeline_run_id,
             request_id=ctx.request_id,
         )
-        await self._emit_event("tool.started", event.to_dict())
+        await self._emit_event(ctx, "tool.started", event.to_dict())
 
     async def _emit_tool_completed(
         self,
@@ -387,7 +385,7 @@ class AdvancedToolExecutor:
             output_summary=_summarize_output(output),
             artifacts_count=len(output.artifacts) if output.artifacts else 0,
         )
-        await self._emit_event("tool.completed", event.to_dict())
+        await self._emit_event(ctx, "tool.completed", event.to_dict())
 
     async def _emit_tool_failed(
         self,
@@ -410,7 +408,7 @@ class AdvancedToolExecutor:
             error_code=type(error).__name__,
             error_message=str(error),
         )
-        await self._emit_event("tool.failed", event.to_dict())
+        await self._emit_event(ctx, "tool.failed", event.to_dict())
 
     async def _emit_tool_denied(
         self,
@@ -432,7 +430,7 @@ class AdvancedToolExecutor:
             behavior=ctx.execution_mode,
             allowed_behaviors=tool.allowed_behaviors,
         )
-        await self._emit_event("tool.denied", event.to_dict())
+        await self._emit_event(ctx, "tool.denied", event.to_dict())
 
     async def _emit_tool_undone(
         self,
@@ -454,7 +452,7 @@ class AdvancedToolExecutor:
             duration_ms=duration_ms,
             original_action_timestamp=metadata.created_at,
         )
-        await self._emit_event("tool.undone", event.to_dict())
+        await self._emit_event(ctx, "tool.undone", event.to_dict())
 
     async def _emit_tool_undo_failed(
         self,
@@ -475,7 +473,7 @@ class AdvancedToolExecutor:
             error_message=str(error),
             reason=type(error).__name__,
         )
-        await self._emit_event("tool.undo_failed", event.to_dict())
+        await self._emit_event(ctx, "tool.undo_failed", event.to_dict())
 
     async def _emit_approval_requested(
         self,
@@ -495,7 +493,7 @@ class AdvancedToolExecutor:
             pipeline_run_id=ctx.pipeline_run_id,
             approval_message=tool.approval_message or f"Approve {tool.name}?",
         )
-        await self._emit_event("approval.requested", event.to_dict())
+        await self._emit_event(ctx, "approval.requested", event.to_dict())
 
     async def _emit_approval_decided(
         self,
@@ -516,13 +514,17 @@ class AdvancedToolExecutor:
             pipeline_run_id=ctx.pipeline_run_id,
             decision="approved" if granted else "denied",
         )
-        await self._emit_event("approval.decided", event.to_dict())
+        await self._emit_event(ctx, "approval.decided", event.to_dict())
 
-    async def _emit_event(self, event_type: str, data: dict[str, Any]) -> None:
+    async def _emit_event(
+        self,
+        ctx: ExecutionContext,
+        event_type: str,
+        data: dict[str, Any],
+    ) -> None:
         """Emit an event through the event sink."""
-        sink = get_event_sink()
         try:
-            await sink.emit(type=event_type, data=data)
+            ctx.try_emit_event(event_type, data)
         except Exception as e:
             logger.warning(f"Failed to emit event {event_type}: {e}")
 

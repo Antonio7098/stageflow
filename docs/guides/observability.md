@@ -255,6 +255,93 @@ class MyPipelineRunLogger(PipelineRunLogger):
         )
 ```
 
+## Canonical telemetry envelope
+
+Stageflow v1.2.0 routes every observability event through a canonical metadata envelope so traces, spans, tool events, and dashboard payloads align.
+
+```python
+from stageflow.observability import build_payload
+
+payload = build_payload(
+    event_type="tool.completed",
+    ctx=ctx,
+    data={"status": "completed", "metadata": {"provider": "openai"}},
+)
+
+payload["event_name"]  # "tool.completed"
+payload["event_kind"]  # "tool"
+payload["event_version"]  # "v1"
+payload["trace_id"], payload["span_id"], payload["correlation_id"]
+```
+
+The helper automatically injects:
+
+- Event taxonomy (`event_kind`, `event_version`) inferred via `infer_event_kind`
+- Pipeline/correlation IDs (pipeline run, request, session, user, org, interaction)
+- Trace context (trace/span IDs, parent span, correlation ID)
+- Context metadata defaults merged with per-event `metadata`
+
+Use this helper directly if you emit custom events from your own sinks or services.
+
+## Telemetry ingestion and repository
+
+For Phase 0 persistence, Stageflow ships an optional batching sink that writes `TelemetryEvent` objects into a repository:
+
+```python
+from stageflow.observability import TelemetryIngestionService
+
+sink = TelemetryIngestionService(max_batch_size=200, sample_rate=0.5)
+await sink.start()
+set_event_sink(sink)
+
+# ... run pipelines ...
+
+await sink.stop()  # drains remaining events before shutting down
+```
+
+Repositories implement a tiny protocol:
+
+```python
+from stageflow.observability import TelemetryRepository, TelemetryEvent
+
+class MyRepo(TelemetryRepository):
+    def store(self, event: TelemetryEvent) -> None:
+        ...
+
+    def store_batch(self, events: Sequence[TelemetryEvent]) -> int:
+        ...
+
+    def list_events(self, *, event_name: str | None = None) -> list[TelemetryEvent]:
+        ...
+
+    def get_agent_graph_data(self, *, trace_id: str) -> list[AgentGraphNode]:
+        ...
+
+    def get_user_metrics(self) -> list[UserMetric]:
+        ...
+```
+
+The built-in `InMemoryTelemetryRepository` is great for demos/tests; swap in your own persistence layer later.
+
+## Dashboard helpers
+
+To quickly light up dashboards or Langfuse-style graph views, use the new helper class:
+
+```python
+from stageflow.observability import ObservabilityDashboard, build_graph_availability
+
+dashboard = ObservabilityDashboard(repository)
+graph = dashboard.get_agent_graph_view(trace_id="trace-123")
+timeline = dashboard.get_pipeline_timeline(trace_id="trace-123")
+providers = dashboard.get_provider_metrics()
+insights = dashboard.get_user_insights()
+
+if build_graph_availability(repository.get_agent_graph_data(trace_id="trace-123")):
+    render_graph(graph)
+```
+
+All helpers return plain dictionaries (Langfuse AgentGraph-compatible), so you can render them directly in a UI or feed them to another analytics system.
+
 ## Distributed Tracing
 
 ### Correlation ID Propagation

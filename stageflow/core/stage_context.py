@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 from warnings import warn
 
+from stageflow.observability.envelope import build_payload
+
 from .timer import PipelineTimer
 
 if TYPE_CHECKING:
@@ -96,12 +98,7 @@ class StageContext:
             type: Event type string (e.g., "tool.completed")
             data: Event payload data
         """
-        enriched_data = {
-            "pipeline_run_id": str(self.pipeline_run_id) if self.pipeline_run_id else None,
-            "request_id": str(self.request_id) if self.request_id else None,
-            "execution_mode": self.execution_mode,
-            **data,
-        }
+        enriched_data = build_payload(event_type=type, ctx=self, data=data)
 
         if self.event_sink is not None:
             try:
