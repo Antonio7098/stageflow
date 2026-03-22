@@ -419,18 +419,18 @@ class SubpipelineSpawner:
         parent_stage_id: str,
         runner: Any,  # Pipeline runner callable
         *,
-        topology: str | None = None,
+        pipeline_name_override: str | None = None,
         execution_mode: str | None = None,
     ) -> SubpipelineResult:
         """Spawn a child pipeline run.
 
         Args:
-            pipeline_name: Name of the pipeline to run
-            ctx: Parent context
+            pipeline_name: Name of the pipeline to spawn
+            ctx: Parent pipeline context
             correlation_id: Action ID that triggered spawn
             parent_stage_id: Stage spawning the child
             runner: Async callable that executes the pipeline
-            topology: Optional different topology for child
+            pipeline_name_override: Optional different pipeline for child (defaults to parent)
             execution_mode: Optional different execution mode
 
         Returns:
@@ -469,7 +469,7 @@ class SubpipelineSpawner:
             child_run_id=child_run_id,
             parent_stage_id=parent_stage_id,
             correlation_id=correlation_id,
-            topology=topology,
+            pipeline_name=pipeline_name_override,
             execution_mode=execution_mode,
         )
 

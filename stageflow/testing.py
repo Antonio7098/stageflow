@@ -27,7 +27,7 @@ def create_test_snapshot(
     user_id: UUID | None = None,
     org_id: UUID | None = None,
     interaction_id: UUID | None = None,
-    topology: str | None = "test",
+    pipeline_name: str | None = "test",
     execution_mode: str | None = "test",
     input_text: str | None = None,
     messages: list[Message] | None = None,
@@ -45,7 +45,7 @@ def create_test_snapshot(
         user_id: User ID (default: new UUID)
         org_id: Organization ID (default: None)
         interaction_id: Interaction ID (default: new UUID)
-        topology: Pipeline topology name (default: "test")
+        pipeline_name: Pipeline name (default: "test")
         execution_mode: Execution mode (default: "test")
         input_text: Input text for the pipeline
         messages: Message history
@@ -90,7 +90,7 @@ def create_test_snapshot(
     return ContextSnapshot(
         run_id=run_id,
         conversation=conversation,
-        topology=topology,
+        pipeline_name=pipeline_name,
         execution_mode=execution_mode,
         input_text=input_text,
         extensions=extensions,
@@ -170,7 +170,7 @@ def create_test_pipeline_context(
     user_id: UUID | None = None,
     org_id: UUID | None = None,
     interaction_id: UUID | None = None,
-    topology: str | None = "test",
+    pipeline_name: str | None = "test",
     execution_mode: str | None = "test",
     service: str = "test",
     data: dict[str, Any] | None = None,
@@ -187,7 +187,7 @@ def create_test_pipeline_context(
         user_id: User ID (default: new UUID)
         org_id: Organization ID (default: None)
         interaction_id: Interaction ID (default: new UUID)
-        topology: Pipeline topology name (default: "test")
+        pipeline_name: Pipeline name (default: "test")
         execution_mode: Execution mode (default: "test")
         service: Service name (default: "test")
         data: Context data dict
@@ -210,7 +210,7 @@ def create_test_pipeline_context(
         user_id=user_id or uuid4(),
         org_id=org_id,
         interaction_id=interaction_id or uuid4(),
-        topology=topology,
+        pipeline_name=pipeline_name,
         execution_mode=execution_mode,
         service=service,
         data=data or {},
@@ -316,11 +316,11 @@ def validate_snapshot(
                     value=msg,
                 ))
 
-    # Topology/execution_mode consistency warnings
-    if snapshot.topology is None and snapshot.execution_mode is not None:
+    # Pipeline/execution_mode consistency warnings
+    if snapshot.pipeline_name is None and snapshot.execution_mode is not None:
         warnings.append(SnapshotValidationError(
-            field="topology",
-            message="execution_mode is set but topology is None",
+            field="pipeline_name",
+            message="execution_mode is set but pipeline_name is None",
         ))
 
     # Extensions type check

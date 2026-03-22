@@ -404,7 +404,7 @@ class PipelineRunner:
         *,
         input_text: str | None = None,
         execution_mode: str = "practice",
-        topology: str = "pipeline",
+        pipeline_name: str = "pipeline",
         pipeline_run_id: UUID | None = None,
         request_id: UUID | None = None,
         session_id: UUID | None = None,
@@ -419,7 +419,7 @@ class PipelineRunner:
         Args:
             input_text: User input text.
             execution_mode: Pipeline execution mode.
-            topology: Pipeline topology name.
+            pipeline_name: Pipeline name.
             pipeline_run_id: Pipeline run ID (default: new UUID).
             request_id: Request ID (default: new UUID).
             session_id: Session ID (default: new UUID).
@@ -443,7 +443,7 @@ class PipelineRunner:
 
         return ContextSnapshot(
             run_id=run_id,
-            topology=topology,
+            pipeline_name=pipeline_name,
             execution_mode=execution_mode,
             input_text=input_text,
             metadata={"channel": channel},
@@ -553,7 +553,7 @@ class PipelineRunner:
         # Print header
         if self._verbose:
             print("\n" + "=" * 60)
-            print(f"RUNNING PIPELINE: {pipeline_ctx.topology}")
+            print(f"RUNNING PIPELINE: {pipeline_ctx.pipeline_name}")
             print("=" * 60)
             if pipeline_ctx.input_text:
                 display_text = (

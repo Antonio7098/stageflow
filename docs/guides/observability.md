@@ -84,10 +84,9 @@ print(f"Drop rate: {metrics.drop_rate}%")
 await sink.stop(drain=True)
 ```
 
-### 4. Monitor Event Sinks
+### Monitor Event Sinks
 
 Use production-grade sinks (Kafka, Pub/Sub, OTLP) for critical telemetry. Default sinks (`NoOpEventSink`, `LoggingEventSink`) are fire-and-forget; combine them with streaming telemetry events and buffered exporters to avoid silent drops.
-```
 
 ### Custom Event Sink
 
@@ -288,15 +287,57 @@ Use this helper directly if you emit custom events from your own sinks or servic
 For Phase 0 persistence, Stageflow ships an optional batching sink that writes `TelemetryEvent` objects into a repository:
 
 ```python
-from stageflow.observability import TelemetryIngestionService
+from stageflow.observability import TelemetryIngestionService, InMemoryTelemetryRepository
 
-sink = TelemetryIngestionService(max_batch_size=200, sample_rate=0.5)
+repository = InMemoryTelemetryRepository()
+
+sink = TelemetryIngestionService(
+    repository=repository,
+    max_batch_size=200,
+    flush_interval_seconds=1.0,
+    sample_rate=0.5,
+)
 await sink.start()
 set_event_sink(sink)
 
 # ... run pipelines ...
 
 await sink.stop()  # drains remaining events before shutting down
+```
+
+### Ingestion Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `repository` | required | TelemetryRepository for persistence |
+| `max_batch_size` | 100 | Events per batch before flush |
+| `flush_interval_seconds` | 1.0 | Maximum time between flushes |
+| `sample_rate` | 1.0 | Fraction of events to sample (0.0-1.0) |
+| `fail_fast` | False | Raise on errors vs log and continue |
+| `delay_policy` | exponential | Backoff policy for retries |
+
+### Health and Error States
+
+The ingestion service provides explicit health tracking:
+
+```python
+from stageflow.observability.ingestion import IngestionHealthState
+
+# Check health
+health = ingestion_service.health
+# HEALTHY | DEGRADED | UNHEALTHY | UNKNOWN
+
+# Get metrics
+metrics = ingestion_service.get_health_metrics()
+print(f"Events processed: {metrics['events_processed']}")
+print(f"Errors: {metrics['error_count']}")
+print(f"Queue depth: {metrics['queue_depth']}")
+
+# Manual flush
+await ingestion_service.flush()
+
+# Drain and stop
+await ingestion_service.stop(drain=True)
 ```
 
 Repositories implement a tiny protocol:
@@ -325,7 +366,7 @@ The built-in `InMemoryTelemetryRepository` is great for demos/tests; swap in you
 
 ## Dashboard helpers
 
-To quickly light up dashboards or Langfuse-style graph views, use the new helper class:
+To quickly light up dashboards and graph views, use the new helper class:
 
 ```python
 from stageflow.observability import ObservabilityDashboard, build_graph_availability
@@ -340,9 +381,219 @@ if build_graph_availability(repository.get_agent_graph_data(trace_id="trace-123"
     render_graph(graph)
 ```
 
-All helpers return plain dictionaries (Langfuse AgentGraph-compatible), so you can render them directly in a UI or feed them to another analytics system.
+All helpers return plain dictionaries (compatible with standard graph formats), so you can render them directly in a UI or feed them to another analytics system.
 
-## Distributed Tracing
+### Dashboard View Details
+
+**Agent Graph View** - Returns a standard graph view with nodes and edges:
+```python
+graph = dashboard.get_agent_graph_view(trace_id="trace-123")
+# Returns: {
+#   "trace_id": "trace-123",
+#   "nodes": [{"id": "...", "type": "AGENT", "name": "...", ...}],
+#   "edges": [{"from": "...", "to": "..."}]
+# }
+```
+
+**Pipeline Timeline** - Returns stage execution timeline with durations:
+```python
+timeline = dashboard.get_pipeline_timeline(trace_id="trace-123")
+# Returns chronological list of stage executions with timing
+```
+
+**Provider Metrics** - Aggregated metrics by provider and model:
+```python
+providers = dashboard.get_provider_metrics()
+# Returns: [{"provider": "openai", "model_id": "gpt-4", "calls": 100, ...}]
+```
+
+**User Insights** - Per-user activity metrics:
+```python
+insights = dashboard.get_user_insights()
+# Returns aggregated user activity, costs, latency percentiles
+```
+
+## Observability API
+
+Expose telemetry data via a RESTful API for external dashboards:
+
+```python
+from stageflow.observability import ObservabilityAPI
+from stageflow.observability.repository import InMemoryTelemetryRepository
+
+# Create API instance
+repository = InMemoryTelemetryRepository()
+api = ObservabilityAPI(repository)
+
+# Get FastAPI router
+from fastapi import FastAPI
+app = FastAPI()
+app.include_router(api.get_router(), prefix="/observability")
+```
+
+### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /observability/traces` | List all traces with filtering options |
+| `GET /observability/traces/{trace_id}` | Get detailed trace information |
+| `GET /observability/traces/{trace_id}/graph` | Get agent graph view |
+| `GET /observability/traces/{trace_id}/timeline` | Get pipeline timeline |
+| `GET /observability/metrics/providers` | Get provider call metrics |
+| `GET /observability/metrics/users` | Get user insights |
+| `GET /observability/events` | List telemetry events |
+| `GET /observability/alerts` | Get active alerts |
+| `GET /observability/health` | Service health check |
+
+### Query Parameters
+
+Most endpoints support time-range filtering:
+```
+GET /observability/traces?start_time=2024-01-01T00:00:00Z&end_time=2024-01-31T23:59:59Z
+GET /observability/metrics/providers?provider=openai&model_id=gpt-4
+GET /observability/events?event_name=tool.completed&limit=100
+```
+
+## Telemetry Exporter
+
+Export telemetry to external observability platforms:
+
+```python
+from stageflow.observability import TelemetryExporter
+
+exporter = TelemetryExporter(
+    destination="https://otel-collector.example.com/v1/traces",
+    headers={"Authorization": "Bearer token"},
+    batch_size=100,
+    flush_interval_seconds=5.0,
+)
+
+await exporter.start()
+
+# Export events
+await exporter.emit(event_type="stage.completed", data={...})
+
+# Graceful shutdown
+await exporter.stop()
+```
+
+### Supported Destinations
+
+- **OTLP** - OpenTelemetry Protocol collectors
+- **Custom HTTP** - Any HTTP endpoint accepting JSON
+- **File** - Local file export for debugging
+
+## Alerting
+
+Set up threshold-based alerts for pipeline monitoring:
+
+```python
+from stageflow.observability import AlertThresholds, build_alerts
+
+thresholds = AlertThresholds(
+    p95_latency_ms=5000,      # Alert if P95 latency exceeds 5s
+    error_rate=0.01,          # Alert if error rate exceeds 1%
+    cost_per_user_usd=10.0,   # Alert if user spends more than $10
+)
+
+# Build alerts from repository
+alerts = build_alerts(repository, thresholds=thresholds)
+
+for alert in alerts:
+    print(f"{alert.severity}: {alert.message}")
+    # Send to PagerDuty, Slack, etc.
+```
+
+### Alert Types
+
+| Alert | Trigger |
+|-------|---------|
+| `HighLatencyAlert` | P95 latency exceeds threshold |
+| `HighErrorRateAlert` | Error rate exceeds threshold |
+| `CostThresholdAlert` | Per-user cost exceeds threshold |
+| `ProviderDegradationAlert` | Provider success rate drops |
+| `CircuitBreakerAlert` | Circuit breaker opens |
+
+## Replay
+
+Replay pipeline runs from telemetry for debugging:
+
+```python
+from stageflow.observability import Replay
+
+# Load a trace
+replay = Replay.from_repository(repository, trace_id="trace-123")
+
+# Get inputs and tool calls
+inputs = replay.get_inputs()
+tool_calls = replay.get_tool_calls()
+
+# Re-execute with same context (for debugging)
+result = await replay.reexecute(pipeline)
+
+# Compare with original
+comparison = replay.compare(result)
+```
+
+### Replay Scenarios
+
+1. **Debug Failures** - Replay failed runs to identify root cause
+2. **Regression Testing** - Replay production traces in staging
+3. **Cost Analysis** - Replay with different models/providers
+4. **Audit** - Verify tool execution and responses
+
+## Event Kind Contract
+
+The canonical telemetry system uses `EventKind` for taxonomy:
+
+```python
+from stageflow.observability import EventKind, infer_event_kind
+
+# Infer kind from event name
+kind = infer_event_kind("tool.completed")  # EventKind.TOOL
+kind = infer_event_kind("stage.started")  # EventKind.STAGE
+kind = infer_event_kind("custom.metric")    # EventKind.UNKNOWN
+```
+
+### Event Kind Values
+
+| Kind | Description | Examples |
+|------|-------------|----------|
+| `STAGE` | Stage execution | `stage.started`, `stage.completed` |
+| `TOOL` | Tool invocation | `tool.invoked`, `tool.completed` |
+| `PIPELINE` | Pipeline lifecycle | `pipeline.started`, `pipeline.failed` |
+| `METRIC` | Metric events | `metric.latency`, `metric.cost` |
+| `SPAN` | Tracing spans | `span.start`, `span.end` |
+| `LOG` | Log entries | `log.info`, `log.error` |
+| `UNKNOWN` | Uncategorized | Custom events |
+
+## Health States
+
+The ingestion service tracks explicit health states:
+
+```python
+from stageflow.observability.ingestion import IngestionHealthState
+
+# Check ingestion health
+health = ingestion_service.health  # IngestionHealthState
+
+# States:
+# - HEALTHY: Operating normally
+# - DEGRADED: Experiencing issues but functional
+# - UNHEALTHY: Critical issues, may drop events
+# - UNKNOWN: Health not yet determined
+```
+
+### Health Monitoring
+
+```python
+# Get health metrics
+metrics = ingestion_service.get_health_metrics()
+print(f"Events processed: {metrics['events_processed']}")
+print(f"Errors: {metrics['error_count']}")
+print(f"Queue depth: {metrics['queue_depth']}")
+print(f"Last flush: {metrics['last_flush_time']}")
+```
 
 ### Correlation ID Propagation
 
@@ -895,6 +1146,99 @@ for name, output in results.items():
 # After execution, check context data for interceptor info
 print(ctx.data.get("_interceptor.metrics"))
 print(ctx.data.get("_interceptor.tracing"))
+```
+
+## Developer Troubleshooting
+
+### Common Issues
+
+**Issue: `TelemetryIngestionService` not ingesting events**
+
+Make sure you're using the correct parameter names:
+```python
+# Correct
+sink = TelemetryIngestionService(
+    repository=repository,
+    max_batch_size=100,        # Not 'batch_size'
+    flush_interval_seconds=1.0, # Not 'flush_interval_ms'
+)
+```
+
+**Issue: Events not appearing in repository**
+
+Remember to `await sink.start()` before running pipelines and `await sink.stop()` after to drain events.
+
+**Issue: Pipeline not producing telemetry**
+
+Ensure you're using `AgentStage` wrapper when adding agents to pipelines:
+```python
+from stageflow.agent import AgentStage
+
+# Correct - wrap agent in AgentStage
+pipeline = Pipeline().with_stage("agent", AgentStage(agent))
+
+# Incorrect - passing agent directly
+# pipeline = Pipeline().with_stage("agent", agent)  # Don't do this
+```
+
+**Issue: Import errors**
+
+The correct import paths are:
+```python
+# Correct
+from stageflow.agent import Agent, AgentConfig, AgentStage
+from stageflow.tools.registry import ToolRegistry
+from stageflow import (
+    TelemetryIngestionService,
+    ObservabilityAPI,
+    ObservabilityDashboard,
+    InMemoryTelemetryRepository,
+)
+```
+
+### Testing Observability
+
+For unit tests, use the test utilities:
+
+```python
+from stageflow.testing import create_test_context
+from stageflow.observability import InMemoryTelemetryRepository
+
+# Create isolated test repository
+repository = InMemoryTelemetryRepository()
+sink = TelemetryIngestionService(repository=repository)
+
+# Run pipeline with test context
+ctx = create_test_context()
+await pipeline.run(ctx)
+
+# Query events
+events = repository.list_events()
+assert len(events) > 0
+```
+
+### Performance Tuning
+
+**Sampling for high-volume scenarios:**
+```python
+# Only capture 10% of events in production
+sink = TelemetryIngestionService(
+    repository=repository,
+    sample_rate=0.1,
+    max_batch_size=500,
+    flush_interval_seconds=2.0,
+)
+```
+
+**Memory management:**
+```python
+# Set max queue size to prevent memory exhaustion
+from stageflow import BackpressureAwareEventSink
+
+buffered_sink = BackpressureAwareEventSink(
+    downstream=sink,
+    max_queue_size=10_000,
+)
 ```
 
 ## Best Practices

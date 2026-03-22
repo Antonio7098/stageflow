@@ -10,16 +10,28 @@ from __future__ import annotations
 from typing import Any, Protocol
 from uuid import UUID
 
-from stageflow.observability.dashboard import ObservabilityDashboard, build_graph_availability
+from stageflow.observability.api import ObservabilityAPI, ObservabilityAPIError, ObservabilityQueryWindow, create_fastapi_router
+from stageflow.observability.dashboard import AlertRecord, AlertThresholds, ObservabilityDashboard, build_graph_availability
 from stageflow.observability.envelope import build_metadata, build_payload, infer_event_kind
-from stageflow.observability.ingestion import TelemetryIngestionService
+from stageflow.observability.exporter import TelemetryExporter
+from stageflow.observability.ingestion import (
+    TelemetryBackpressureError,
+    TelemetryIngestionError,
+    TelemetryIngestionMetrics,
+    TelemetryIngestionService,
+    compute_ingestion_delay_ms,
+)
 from stageflow.observability.repository import (
     AgentGraphNode,
     InMemoryTelemetryRepository,
+    ProviderMetric,
+    ReplayRecord,
     TelemetryEvent,
     TelemetryRepository,
     UserMetric,
     serialize_agent_graph,
+    serialize_provider_metrics,
+    serialize_replay_records,
     serialize_user_metrics,
 )
 from stageflow.observability.taxonomy import EVENT_VERSION, EventKind
@@ -55,7 +67,6 @@ class PipelineRunLogger(Protocol):
         *,
         pipeline_run_id: UUID,
         pipeline_name: str,
-        topology: str | None,
         execution_mode: str | None,
         user_id: UUID | None,
         **kwargs: Any,
@@ -105,7 +116,7 @@ class ProviderCallLogger(Protocol):
         *,
         success: bool,
         latency_ms: int,
-        error: str | None = None,
+        pipeline_name: str | None = None,
         **metrics: Any,
     ) -> None: ...
 
@@ -223,6 +234,8 @@ def get_circuit_breaker() -> CircuitBreaker:
 
 
 __all__ = [
+    "AlertRecord",
+    "AlertThresholds",
     "AgentGraphNode",
     "EVENT_VERSION",
     "CircuitBreaker",
@@ -232,12 +245,21 @@ __all__ = [
     "NoOpPipelineRunLogger",
     "NoOpProviderCallLogger",
     "NoOpSpan",
+    "ObservabilityAPI",
+    "ObservabilityAPIError",
     "ObservabilityDashboard",
+    "ObservabilityQueryWindow",
     "OTEL_AVAILABLE",
     "PipelineRunLogger",
+    "ProviderMetric",
     "ProviderCallLogger",
+    "ReplayRecord",
     "StageflowTracer",
     "TelemetryEvent",
+    "TelemetryBackpressureError",
+    "TelemetryExporter",
+    "TelemetryIngestionError",
+    "TelemetryIngestionMetrics",
     "TelemetryIngestionService",
     "TelemetryRepository",
     "TraceContext",
@@ -247,6 +269,8 @@ __all__ = [
     "build_metadata",
     "build_payload",
     "clear_correlation_id",
+    "compute_ingestion_delay_ms",
+    "create_fastapi_router",
     "emit_pipeline_wide_event",
     "emit_stage_wide_event",
     "ensure_correlation_id",
@@ -261,6 +285,8 @@ __all__ = [
     "pipeline_run_logger",
     "provider_call_logger",
     "serialize_agent_graph",
+    "serialize_provider_metrics",
+    "serialize_replay_records",
     "serialize_user_metrics",
     "set_correlation_id",
     "summarize_pipeline_error",

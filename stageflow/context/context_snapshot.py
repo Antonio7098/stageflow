@@ -83,8 +83,8 @@ class ContextSnapshot(Generic[T]):
     input_text: str | None = None  # Raw user input (text or STT transcript)
     input_audio_duration_ms: int | None = None
 
-    # === Topology / Configuration ===
-    topology: str | None = None  # e.g., "fast_kernel", "accurate_kernel"
+    # === Pipeline / Configuration ===
+    pipeline_name: str | None = None  # e.g., "chat_fast", "voice_accurate"
     execution_mode: str | None = None  # e.g., "practice", "roleplay", "doc_edit"
 
     # === Metadata ===
@@ -185,8 +185,8 @@ class ContextSnapshot(Generic[T]):
             # Input context
             "input_text": self.input_text,
             "input_audio_duration_ms": self.input_audio_duration_ms,
-            # Topology
-            "topology": self.topology,
+            # Pipeline
+            "pipeline_name": self.pipeline_name,
             "execution_mode": self.execution_mode,
             # Metadata
             "created_at": self.created_at.isoformat(),
@@ -227,7 +227,7 @@ class ContextSnapshot(Generic[T]):
                 {
                     "agent_id": self.routing_decision.agent_id,
                     "pipeline_name": self.routing_decision.pipeline_name,
-                    "topology": self.routing_decision.topology,
+                    "target_pipeline": self.routing_decision.target_pipeline,
                     "reason": self.routing_decision.reason,
                 }
                 if self.routing_decision
@@ -328,7 +328,7 @@ class ContextSnapshot(Generic[T]):
                 routing_decision = RoutingDecision(
                     agent_id=routing.get("agent_id"),
                     pipeline_name=routing.get("pipeline_name"),
-                    topology=routing.get("topology"),
+                    target_pipeline=routing.get("target_pipeline"),
                     reason=routing.get("reason"),
                 )
 
@@ -363,7 +363,7 @@ class ContextSnapshot(Generic[T]):
             extensions=extensions,
             input_text=data.get("input_text"),
             input_audio_duration_ms=data.get("input_audio_duration_ms"),
-            topology=data.get("topology"),
+            pipeline_name=data.get("pipeline_name"),
             execution_mode=data.get("execution_mode"),
             created_at=created_at,
             metadata=data.get("metadata", {}),
@@ -387,7 +387,7 @@ class ContextSnapshot(Generic[T]):
             extensions=self.extensions,
             input_text=self.input_text,
             input_audio_duration_ms=self.input_audio_duration_ms,
-            topology=self.topology,
+            pipeline_name=self.pipeline_name,
             execution_mode=self.execution_mode,
             created_at=self.created_at,
             metadata=self.metadata,
@@ -409,7 +409,7 @@ class ContextSnapshot(Generic[T]):
             extensions=self.extensions,
             input_text=self.input_text,
             input_audio_duration_ms=self.input_audio_duration_ms,
-            topology=self.topology,
+            pipeline_name=self.pipeline_name,
             execution_mode=self.execution_mode,
             created_at=self.created_at,
             metadata=self.metadata,
@@ -431,7 +431,7 @@ class ContextSnapshot(Generic[T]):
             extensions=self.extensions,
             input_text=self.input_text,
             input_audio_duration_ms=self.input_audio_duration_ms,
-            topology=self.topology,
+            pipeline_name=self.pipeline_name,
             execution_mode=self.execution_mode,
             created_at=self.created_at,
             metadata=self.metadata,
@@ -453,7 +453,7 @@ class ContextSnapshot(Generic[T]):
             extensions=extensions,
             input_text=self.input_text,
             input_audio_duration_ms=self.input_audio_duration_ms,
-            topology=self.topology,
+            pipeline_name=self.pipeline_name,
             execution_mode=self.execution_mode,
             created_at=self.created_at,
             metadata=self.metadata,

@@ -174,7 +174,7 @@ class ToolExecutor:
         ctx: PipelineContext,
         correlation_id: UUID,
         *,
-        topology_override: str | None = None,
+        pipeline_name_override: str | None = None,
         execution_mode_override: str | None = None,
     ) -> SubpipelineResult:
         """Spawn a child pipeline run.
@@ -191,7 +191,7 @@ class ToolExecutor:
             pipeline_name: Name of the registered pipeline to run.
             ctx: Parent PipelineContext (will be forked for the child).
             correlation_id: Action ID that triggered this spawn (for tracing).
-            topology_override: Optional different topology for child pipeline.
+            pipeline_name_override: Optional different pipeline for child.
             execution_mode_override: Optional different execution mode for child.
 
         Returns:
@@ -235,7 +235,7 @@ class ToolExecutor:
                 "parent_run_id": str(parent_run_id) if parent_run_id else None,
                 "correlation_id": str(correlation_id),
                 "parent_stage_id": self.id,
-                "topology_override": topology_override,
+                "pipeline_name_override": pipeline_name_override,
                 "execution_mode_override": execution_mode_override,
             },
         )
@@ -273,12 +273,13 @@ class ToolExecutor:
         try:
             result = await self.spawner.spawn(
                 pipeline_name=pipeline_name,
-                ctx=ctx,
-                correlation_id=correlation_id,
-                parent_stage_id=self.id,
-                runner=runner,
-                topology=topology_override,
-                execution_mode=execution_mode_override,
+                child_ctx=ctx.fork(
+                    child_run_id=None,
+                    parent_stage_id=self.id,
+                    correlation_id=correlation_id,
+                    pipeline_name=pipeline_name_override,
+                    execution_mode=execution_mode_override,
+                ),
             )
 
             duration_ms = (time.perf_counter() - start_time) * 1000

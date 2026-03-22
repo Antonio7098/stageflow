@@ -133,7 +133,7 @@ class RunStore(Protocol):
         run_id: UUID,
         *,
         service: str,
-        topology: str | None = None,
+        pipeline_name: str | None = None,
         execution_mode: str | None = None,
         status: str = "created",
         **metadata: Any,
@@ -143,7 +143,7 @@ class RunStore(Protocol):
         Args:
             run_id: Unique identifier for the run
             service: Service name (e.g., "voice", "chat")
-            topology: Pipeline topology name
+            pipeline_name: Pipeline name
             execution_mode: Execution mode
             status: Initial status
             **metadata: Additional metadata

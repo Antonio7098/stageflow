@@ -225,7 +225,7 @@ class StageGraph:
             self._wide_event_emitter.emit_pipeline_event(
                 ctx=ctx,
                 stage_results=completed,
-                pipeline_name=ctx.topology,
+                pipeline_name=ctx.pipeline_name,
                 status=None,
                 duration_ms=duration_ms,
                 started_at=graph_started_at,
@@ -445,7 +445,7 @@ class UnifiedStageGraph:
         self._wide_event_emitter.emit_pipeline_event(
             ctx=ctx,
             stage_results=stage_results,
-            pipeline_name=self._pipeline_name or ctx.topology,
+            pipeline_name=self._pipeline_name or ctx.pipeline_name,
             status=status,
             duration_ms=self._duration_ms(started_at, datetime.now(UTC)),
             started_at=started_at,

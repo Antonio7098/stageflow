@@ -1,3 +1,15 @@
-from .service import TelemetryIngestionService
+from .service import (
+    TelemetryBackpressureError,
+    TelemetryIngestionError,
+    TelemetryIngestionMetrics,
+    TelemetryIngestionService,
+    compute_ingestion_delay_ms,
+)
 
-__all__ = ["TelemetryIngestionService"]
+__all__ = [
+    "TelemetryBackpressureError",
+    "TelemetryIngestionError",
+    "TelemetryIngestionMetrics",
+    "TelemetryIngestionService",
+    "compute_ingestion_delay_ms",
+]

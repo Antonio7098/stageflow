@@ -34,7 +34,7 @@ class Conversation:
             routing_decision=RoutingDecision(
                 agent_id="coach",
                 pipeline_name="practice",
-                topology="fast_kernel",
+                target_pipeline="chat_fast",
             ),
         )
     """
@@ -58,7 +58,7 @@ class Conversation:
                 {
                     "agent_id": self.routing_decision.agent_id,
                     "pipeline_name": self.routing_decision.pipeline_name,
-                    "topology": self.routing_decision.topology,
+                    "target_pipeline": self.routing_decision.target_pipeline,
                     "reason": self.routing_decision.reason,
                 }
                 if self.routing_decision
@@ -89,7 +89,7 @@ class Conversation:
             routing_decision = RoutingDecision(
                 agent_id=rd["agent_id"],
                 pipeline_name=rd["pipeline_name"],
-                topology=rd["topology"],
+                target_pipeline=rd["target_pipeline"],
                 reason=rd.get("reason"),
             )
 

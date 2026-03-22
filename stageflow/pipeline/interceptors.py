@@ -100,9 +100,9 @@ class InterceptorContext:
         return self._ctx.org_id
 
     @property
-    def topology(self):
-        """Access topology."""
-        return self._ctx.topology
+    def pipeline_name(self):
+        """Access pipeline name."""
+        return self._ctx.pipeline_name
 
     @property
     def execution_mode(self):
@@ -212,7 +212,7 @@ class LoggingInterceptor(BaseInterceptor):
             extra={
                 "stage": stage_name,
                 "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
-                "topology": ctx.topology,
+                "pipeline_name": ctx.pipeline_name,
             },
         )
 

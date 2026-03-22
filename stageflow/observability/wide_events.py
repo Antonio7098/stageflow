@@ -6,35 +6,24 @@ from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from stageflow.stages.context import PipelineContext
+    from stageflow.stages.result import StageResult
 
 from stageflow.observability.envelope import build_payload
 from stageflow.observability.taxonomy import EventKind
-from stageflow.stages.result import StageResult
-
-try:  # pragma: no cover - typing import
-    from stageflow.stages.context import PipelineContext
-except Exception:  # pragma: no cover - fallback for typing
-    class PipelineContext(Protocol):  # type: ignore[misc]
-        pipeline_run_id: Any
-        request_id: Any
-        session_id: Any
-        user_id: Any
-        org_id: Any
-        topology: str | None
-        execution_mode: str | None
-        service: str
-        event_sink: Any
 
 
-def _context_metadata(ctx: PipelineContext) -> dict[str, Any]:
+def _context_metadata(ctx: "PipelineContext") -> dict[str, Any]:
     return {
         "pipeline_run_id": str(ctx.pipeline_run_id) if ctx.pipeline_run_id else None,
         "request_id": str(ctx.request_id) if ctx.request_id else None,
         "session_id": str(ctx.session_id) if ctx.session_id else None,
         "user_id": str(ctx.user_id) if ctx.user_id else None,
         "org_id": str(ctx.org_id) if ctx.org_id else None,
-        "topology": ctx.topology,
+        "pipeline_name": ctx.pipeline_name,
         "execution_mode": ctx.execution_mode,
         "service": ctx.service,
     }
@@ -184,7 +173,7 @@ class WideEventEmitter:
         started_at: datetime | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        pipeline_name = pipeline_name or ctx.topology or "pipeline"
+        pipeline_name = pipeline_name or ctx.pipeline_name or "pipeline"
         if duration_ms is None and started_at is not None:
             duration_ms = _duration_ms(started_at, datetime.now(UTC))
 

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from typing import Any
 
 from stageflow.observability.repository import (
     AgentGraphNode,
-    TelemetryEvent,
     TelemetryRepository,
     serialize_agent_graph,
+    serialize_provider_metrics,
+    serialize_replay_records,
     serialize_user_metrics,
 )
 
@@ -26,23 +26,52 @@ class TimelineEntry:
 
 
 @dataclass(frozen=True, slots=True)
-class ProviderMetric:
-    provider: str
-    model_id: str | None
-    call_count: int
-    error_count: int
+class AlertThresholds:
+    max_error_count: int = 0
+    max_queue_depth: int = 0
+    max_drop_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class AlertRecord:
+    severity: str
+    code: str
+    message: str
+    context: dict[str, Any]
 
 
 class ObservabilityDashboard:
     def __init__(self, repository: TelemetryRepository) -> None:
         self._repository = repository
 
-    def get_agent_graph_view(self, *, trace_id: str) -> list[dict[str, Any]]:
-        return serialize_agent_graph(self._repository.get_agent_graph_data(trace_id=trace_id))
+    def get_agent_graph_view(
+        self,
+        *,
+        trace_id: str,
+        min_start_time: str | None = None,
+        max_start_time: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return serialize_agent_graph(
+            self._repository.get_agent_graph_data(
+                trace_id=trace_id,
+                min_start_time=min_start_time,
+                max_start_time=max_start_time,
+            )
+        )
 
-    def get_pipeline_timeline(self, *, trace_id: str) -> list[dict[str, Any]]:
+    def get_pipeline_timeline(
+        self,
+        *,
+        trace_id: str,
+        min_start_time: str | None = None,
+        max_start_time: str | None = None,
+    ) -> list[dict[str, Any]]:
         entries: list[TimelineEntry] = []
-        for node in self._repository.get_agent_graph_data(trace_id=trace_id):
+        for node in self._repository.get_agent_graph_data(
+            trace_id=trace_id,
+            min_start_time=min_start_time,
+            max_start_time=max_start_time,
+        ):
             if node.observation_type == "TRACE":
                 continue
             entries.append(
@@ -59,31 +88,56 @@ class ObservabilityDashboard:
         entries.sort(key=lambda item: item.started_at)
         return [asdict(entry) for entry in entries]
 
-    def get_user_insights(self) -> list[dict[str, Any]]:
-        return serialize_user_metrics(self._repository.get_user_metrics())
+    def get_user_insights(self, *, user_ids: list[str] | None = None) -> list[dict[str, Any]]:
+        return serialize_user_metrics(self._repository.get_user_metrics(user_ids=user_ids))
 
-    def get_provider_metrics(self) -> list[dict[str, Any]]:
-        buckets: dict[tuple[str, str | None], list[TelemetryEvent]] = defaultdict(list)
-        for event in self._repository.list_events():
-            provider = event.metadata.get("provider")
-            if not isinstance(provider, str):
-                continue
-            model_id = event.metadata.get("model_id")
-            model_name = model_id if isinstance(model_id, str) else None
-            buckets[(provider, model_name)].append(event)
+    def get_provider_metrics(self, *, trace_id: str | None = None) -> list[dict[str, Any]]:
+        return serialize_provider_metrics(self._repository.get_provider_metrics(trace_id=trace_id))
 
-        metrics: list[ProviderMetric] = []
-        for (provider, model_id), events in buckets.items():
-            metrics.append(
-                ProviderMetric(
-                    provider=provider,
-                    model_id=model_id,
-                    call_count=len(events),
-                    error_count=sum(1 for event in events if "failed" in event.event_name),
+    def get_replay_view(self, *, trace_id: str) -> list[dict[str, Any]]:
+        return serialize_replay_records(self._repository.get_replay_records(trace_id=trace_id))
+
+    def build_alerts(
+        self,
+        *,
+        trace_id: str | None = None,
+        queue_depth: int = 0,
+        dropped_events: int = 0,
+        thresholds: AlertThresholds | None = None,
+    ) -> list[dict[str, Any]]:
+        limits = thresholds or AlertThresholds()
+        alerts: list[AlertRecord] = []
+
+        provider_metrics = self._repository.get_provider_metrics(trace_id=trace_id)
+        total_errors = sum(metric.error_count for metric in provider_metrics)
+        if total_errors > limits.max_error_count:
+            alerts.append(
+                AlertRecord(
+                    severity="error",
+                    code="provider_errors_exceeded",
+                    message="Provider error count exceeded configured threshold",
+                    context={"trace_id": trace_id, "error_count": total_errors},
                 )
             )
-        metrics.sort(key=lambda item: (item.provider, item.model_id or ""))
-        return [asdict(metric) for metric in metrics]
+        if queue_depth > limits.max_queue_depth:
+            alerts.append(
+                AlertRecord(
+                    severity="warning",
+                    code="queue_depth_exceeded",
+                    message="Telemetry queue depth exceeded configured threshold",
+                    context={"trace_id": trace_id, "queue_depth": queue_depth},
+                )
+            )
+        if dropped_events > limits.max_drop_count:
+            alerts.append(
+                AlertRecord(
+                    severity="error",
+                    code="dropped_events_detected",
+                    message="Telemetry events were dropped",
+                    context={"trace_id": trace_id, "dropped_events": dropped_events},
+                )
+            )
+        return [asdict(alert) for alert in alerts]
 
 
 def build_graph_availability(nodes: Iterable[AgentGraphNode]) -> bool:
@@ -95,4 +149,10 @@ def build_graph_availability(nodes: Iterable[AgentGraphNode]) -> bool:
     return has_graphable_observations or has_steps
 
 
-__all__ = ["ObservabilityDashboard", "TimelineEntry", "ProviderMetric", "build_graph_availability"]
+__all__ = [
+    "AlertRecord",
+    "AlertThresholds",
+    "ObservabilityDashboard",
+    "TimelineEntry",
+    "build_graph_availability",
+]

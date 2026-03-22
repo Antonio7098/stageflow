@@ -15,8 +15,7 @@ from stageflow.core import StageArtifact as Artifact
 from stageflow.core import StageContext
 from stageflow.events import EventSink, get_event_sink
 from stageflow.observability.envelope import build_payload
-from stageflow.protocols import AudioPorts, CorePorts, LLMPorts
-from stageflow.stages.outputs import OutputBag
+from stageflow.stages.ports import AudioPorts, CorePorts, LLMPorts
 from stageflow.utils.frozen import FrozenDict
 
 if TYPE_CHECKING:
@@ -26,27 +25,23 @@ if TYPE_CHECKING:
     from stageflow.context.extensions import ExtensionBundle
 
 
-def extract_service(topology: str | None) -> str | None:
-    """Extract service from topology string.
+def extract_service(pipeline_name: str | None) -> str | None:
+    """Extract service from pipeline name.
 
     For pipeline names like "chat_fast", returns "chat".
-    For kernel names (e.g., "fast_kernel"), returns None since kernel is service-agnostic.
 
     Args:
-        topology: The topology string (e.g., "chat_fast")
+        pipeline_name: The pipeline name (e.g., "chat_fast")
 
     Returns:
-        Service name (e.g., "chat", "voice") or None if topology is None or is a kernel name
+        Service name (e.g., "chat", "voice") or None if pipeline_name is None
     """
-    if topology is None:
-        return None
-    # Kernel names don't encode service
-    if topology.endswith("_kernel"):
+    if pipeline_name is None:
         return None
     # Handle pipeline names like "chat_fast", "voice_accurate"
     # Return everything before the last underscore
-    parts = topology.rsplit("_", 1)
-    return parts[0] if parts[0] else topology
+    parts = pipeline_name.rsplit("_", 1)
+    return parts[0] if parts[0] else pipeline_name
 
 
 @dataclass(slots=True, kw_only=True)
@@ -64,10 +59,10 @@ class PipelineContext:
     user_id: UUID | None = None
     org_id: UUID | None = None
     interaction_id: UUID | None = None
-    # Topology / Configuration / Execution Mode
-    # topology: the named pipeline topology (e.g. "chat_fast", "voice_accurate")
-    topology: str | None = None
-    # configuration: static wiring/configuration for this topology (optional snapshot)
+    # Pipeline / Configuration / Execution Mode
+    # pipeline_name: the named pipeline (e.g., "chat_fast", "voice_accurate")
+    pipeline_name: str | None = None
+    # configuration: static wiring/configuration for this pipeline (optional snapshot)
     configuration: dict[str, Any] = field(default_factory=dict)
     # execution_mode: high-level execution mode label (e.g. "practice", "roleplay", "doc_edit")
     execution_mode: str | None = None
@@ -112,7 +107,7 @@ class PipelineContext:
             "stage": stage,
             "status": status,
             "timestamp": timestamp,
-            "topology": self.topology,
+            "pipeline_name": self.pipeline_name,
             "execution_mode": self.execution_mode,
         }
         stage_metadata = self.get_stage_metadata(stage)
@@ -139,7 +134,7 @@ class PipelineContext:
             "user_id": str(self.user_id) if self.user_id else None,
             "org_id": str(self.org_id) if self.org_id else None,
             "interaction_id": str(self.interaction_id) if self.interaction_id else None,
-            "topology": self.topology,
+            "pipeline_name": self.pipeline_name,
             "execution_mode": self.execution_mode,
             "input_text": self.input_text,
             "input_audio_duration_ms": self.input_audio_duration_ms,
@@ -179,7 +174,7 @@ class PipelineContext:
             extensions=self.extensions,
             input_text=self.input_text,
             input_audio_duration_ms=self.input_audio_duration_ms,
-            topology=self.topology,
+            pipeline_name=self.pipeline_name,
             execution_mode=self.execution_mode,
             created_at=self.created_at,
             metadata=self.metadata.copy(),
@@ -200,7 +195,7 @@ class PipelineContext:
         user_id: UUID | None = None,
         org_id: UUID | None = None,
         interaction_id: UUID | None = None,
-        topology: str | None = None,
+        pipeline_name: str | None = None,
         configuration: dict[str, Any] | None = None,
         execution_mode: str | None = None,
         input_text: str | None = None,
@@ -237,7 +232,7 @@ class PipelineContext:
             user_id=user_id,
             org_id=org_id,
             interaction_id=interaction_id,
-            topology=topology,
+            pipeline_name=pipeline_name,
             configuration=configuration.copy() if configuration else {},
             execution_mode=execution_mode,
             input_text=input_text,
@@ -277,7 +272,7 @@ class PipelineContext:
             user_id=snapshot.user_id,
             org_id=snapshot.org_id,
             interaction_id=snapshot.interaction_id,
-            topology=snapshot.topology,
+            pipeline_name=snapshot.pipeline_name,
             configuration=configuration.copy() if configuration else {},
             execution_mode=snapshot.execution_mode,
             input_text=snapshot.input_text,
@@ -336,7 +331,7 @@ class PipelineContext:
         parent_stage_id: str,
         correlation_id: UUID,
         *,
-        topology: str | None = None,
+        pipeline_name: str | None = None,
         execution_mode: str | None = None,
     ) -> PipelineContext:
         """Create a child context for a subpipeline run.
@@ -352,7 +347,7 @@ class PipelineContext:
             child_run_id: New pipeline run ID for the child
             parent_stage_id: The stage that is spawning this child
             correlation_id: Action ID that triggered the spawn
-            topology: Optional different topology for child
+            pipeline_name: Optional different pipeline for child
             execution_mode: Optional different execution mode
 
         Returns:
@@ -367,7 +362,7 @@ class PipelineContext:
             user_id=self.user_id,
             org_id=self.org_id,
             interaction_id=self.interaction_id,
-            topology=topology or self.topology,
+            pipeline_name=pipeline_name or self.pipeline_name,
             configuration=self.configuration.copy(),
             execution_mode=execution_mode or self.execution_mode,
             input_text=self.input_text,

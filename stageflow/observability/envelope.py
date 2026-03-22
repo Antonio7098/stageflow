@@ -26,7 +26,7 @@ _RESERVED_FIELDS = frozenset(
         "session_id",
         "span_id",
         "timestamp",
-        "topology",
+        "pipeline_name",
         "trace_id",
         "user_id",
     }
@@ -91,7 +91,7 @@ def build_metadata(
         "org_id": _stringify(getattr(ctx, "org_id", context_data.get("org_id"))),
         "interaction_id": _stringify(getattr(ctx, "interaction_id", context_data.get("interaction_id"))),
         "execution_mode": getattr(ctx, "execution_mode", context_data.get("execution_mode")),
-        "topology": getattr(ctx, "topology", context_data.get("topology")),
+        "pipeline_name": getattr(ctx, "pipeline_name", context_data.get("pipeline_name")),
         "service": getattr(ctx, "service", context_data.get("service")),
         "trace_id": trace_context.get("trace_id"),
         "span_id": trace_context.get("span_id"),

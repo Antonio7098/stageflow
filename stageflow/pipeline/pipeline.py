@@ -347,8 +347,8 @@ class Pipeline:
         if ctx is None:
             from stageflow.stages.context import PipelineContext
 
-            if "topology" not in context_kwargs:
-                context_kwargs["topology"] = self.name
+            if "pipeline_name" not in context_kwargs:
+                context_kwargs["pipeline_name"] = self.name
             ctx = PipelineContext.create(**context_kwargs)
 
         graph = self.build(
@@ -425,7 +425,7 @@ async def run_stage(
     **context_kwargs: Any,
 ) -> StageOutput:
     """Execute a single stage through the unified pipeline runtime."""
-    pipeline_name = str(context_kwargs.get("topology") or f"{name}_pipeline")
+    pipeline_name = str(context_kwargs.get("pipeline_name") or f"{name}_pipeline")
     pipeline = Pipeline(name=pipeline_name).with_stage(
         name,
         runner,
