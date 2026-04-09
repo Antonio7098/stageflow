@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from stageflow import PipelineContext
 from stageflow.pipeline.subpipeline import (
     ChildRunTracker,
     PipelineCanceledEvent,
@@ -13,6 +14,7 @@ from stageflow.pipeline.subpipeline import (
     PipelineChildFailedEvent,
     PipelineSpawnedChildEvent,
     SubpipelineResult,
+    SubpipelineSpawner,
     clear_child_tracker,
     get_child_tracker,
 )
@@ -247,3 +249,41 @@ class TestSubpipelineEvents:
         d = event.to_dict()
         assert d["reason"] == "user_requested"
         assert d["cascade_depth"] == 2
+
+
+class TestSubpipelineSpawner:
+    """Tests for child context creation in SubpipelineSpawner."""
+
+    @pytest.mark.asyncio
+    async def test_spawn_can_inherit_selected_parent_data(self) -> None:
+        spawner = SubpipelineSpawner(emit_events=False)
+        parent_ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            session_id=uuid4(),
+            user_id=uuid4(),
+            org_id=None,
+            interaction_id=uuid4(),
+            topology="parent",
+            execution_mode="test",
+            data={"timeout_ms": 5000, "secret": "keep-out"},
+        )
+        captured_data: dict[str, object] = {}
+
+        async def runner(child_ctx: PipelineContext) -> dict[str, object]:
+            captured_data.update(child_ctx.data)
+            return {"ok": True}
+
+        result = await spawner.spawn(
+            pipeline_name="child",
+            ctx=parent_ctx,
+            correlation_id=uuid4(),
+            parent_stage_id="worker",
+            runner=runner,
+            inherit_data=("timeout_ms",),
+            data_overrides={"worker_id": "a"},
+        )
+
+        assert result.success is True
+        assert captured_data == {"timeout_ms": 5000, "worker_id": "a"}
+        assert parent_ctx.data == {"timeout_ms": 5000, "secret": "keep-out"}

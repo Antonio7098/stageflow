@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from stageflow import PipelineContext
+from stageflow.core import StageCancellationRequested
 
 
 class TestPipelineContextFork:
@@ -105,6 +106,51 @@ class TestPipelineContextFork:
         assert child.data == {}
         assert child.data is not parent_context.data
 
+    def test_fork_can_inherit_all_parent_data(self, parent_context: PipelineContext) -> None:
+        """Fork can opt in to inheriting the full mutable data bag."""
+        child = parent_context.fork(
+            child_run_id=uuid4(),
+            parent_stage_id="stage",
+            correlation_id=uuid4(),
+            inherit_data=True,
+        )
+
+        assert child.data == parent_context.data
+        assert child.data is not parent_context.data
+
+    def test_fork_can_inherit_selected_parent_data(self, parent_context: PipelineContext) -> None:
+        """Fork can opt in to inheriting only selected data keys."""
+        child = parent_context.fork(
+            child_run_id=uuid4(),
+            parent_stage_id="stage",
+            correlation_id=uuid4(),
+            inherit_data=("shared",),
+        )
+
+        assert child.data == {"shared": "data"}
+
+    def test_fork_can_apply_data_overrides(self, parent_context: PipelineContext) -> None:
+        """Fork can merge child-specific overrides onto inherited data."""
+        child = parent_context.fork(
+            child_run_id=uuid4(),
+            parent_stage_id="stage",
+            correlation_id=uuid4(),
+            inherit_data=("shared",),
+            data_overrides={"shared": "child", "child_only": True},
+        )
+
+        assert child.data == {"shared": "child", "child_only": True}
+
+    def test_fork_rejects_string_inherit_data(self, parent_context: PipelineContext) -> None:
+        """Fork should not treat a bare string as an iterable of keys."""
+        with pytest.raises(TypeError, match="inherit_data"):
+            parent_context.fork(
+                child_run_id=uuid4(),
+                parent_stage_id="stage",
+                correlation_id=uuid4(),
+                inherit_data="shared",
+            )
+
     def test_fork_has_fresh_artifacts_list(self, parent_context: PipelineContext) -> None:
         """Fork has empty artifacts list."""
         parent_context.artifacts.append({"type": "test"})
@@ -172,9 +218,43 @@ class TestPipelineContextCancellation:
         )
 
         assert ctx.is_canceled is False
-        ctx.mark_canceled()
+        ctx.mark_canceled("manual stop")
         assert ctx.is_canceled is True
         assert ctx.canceled is True
+        assert ctx.cancellation_reason == "manual stop"
+
+    def test_raise_if_cancelled(self) -> None:
+        """raise_if_cancelled() raises the public cancellation signal."""
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=None,
+            session_id=None,
+            user_id=None,
+            org_id=None,
+            interaction_id=None,
+        )
+
+        ctx.mark_canceled("user requested")
+
+        with pytest.raises(StageCancellationRequested, match="user requested"):
+            ctx.raise_if_cancelled()
+
+    @pytest.mark.asyncio
+    async def test_cancellation_checkpoint(self) -> None:
+        """cancellation_checkpoint() yields and then raises when cancelled."""
+        ctx = PipelineContext(
+            pipeline_run_id=uuid4(),
+            request_id=None,
+            session_id=None,
+            user_id=None,
+            org_id=None,
+            interaction_id=None,
+        )
+
+        ctx.mark_canceled("checkpoint stop")
+
+        with pytest.raises(StageCancellationRequested, match="checkpoint stop"):
+            await ctx.cancellation_checkpoint()
 
 
 class TestPipelineContextToDict:

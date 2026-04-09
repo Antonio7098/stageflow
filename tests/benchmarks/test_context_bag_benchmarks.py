@@ -28,10 +28,8 @@ class TestContextBagBenchmarks:
                 await bag.write(f"key_{i}", f"value_{i}", f"stage_{i}")
             return bag
 
-        def run():
-            return asyncio.get_event_loop().run_until_complete(write_many())
-
-        result = benchmark(run)
+        with asyncio.Runner() as runner:
+            result = benchmark(lambda: runner.run(write_many()))
         assert len(result.keys()) == 1000
 
     @pytest.mark.benchmark(group="context_bag")
@@ -44,7 +42,8 @@ class TestContextBagBenchmarks:
                 await bag.write(f"key_{i}", f"value_{i}", f"stage_{i}")
             return bag
 
-        bag = asyncio.get_event_loop().run_until_complete(setup())
+        with asyncio.Runner() as runner:
+            bag = runner.run(setup())
 
         def read_many():
             for i in range(1000):
@@ -62,7 +61,8 @@ class TestContextBagBenchmarks:
                 await bag.write(f"key_{i}", f"value_{i}", f"stage_{i}")
             return bag
 
-        bag = asyncio.get_event_loop().run_until_complete(setup())
+        with asyncio.Runner() as runner:
+            bag = runner.run(setup())
 
         def check_many():
             for i in range(1000):
@@ -80,7 +80,8 @@ class TestContextBagBenchmarks:
                 await bag.write(f"key_{i}", f"value_{i}", f"stage_{i}")
             return bag
 
-        bag = asyncio.get_event_loop().run_until_complete(setup())
+        with asyncio.Runner() as runner:
+            bag = runner.run(setup())
 
         def to_dict_many():
             for _ in range(100):
@@ -107,8 +108,6 @@ class TestContextBagConcurrency:
             await asyncio.gather(*tasks)
             return bag
 
-        def run():
-            return asyncio.get_event_loop().run_until_complete(concurrent_writes())
-
-        result = benchmark(run)
+        with asyncio.Runner() as runner:
+            result = benchmark(lambda: runner.run(concurrent_writes()))
         assert len(result.keys()) == 1000

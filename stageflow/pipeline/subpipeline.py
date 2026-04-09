@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -421,6 +422,8 @@ class SubpipelineSpawner:
         *,
         topology: str | None = None,
         execution_mode: str | None = None,
+        inherit_data: bool | Iterable[str] = False,
+        data_overrides: dict[str, Any] | None = None,
     ) -> SubpipelineResult:
         """Spawn a child pipeline run.
 
@@ -432,6 +435,9 @@ class SubpipelineSpawner:
             runner: Async callable that executes the pipeline
             topology: Optional different topology for child
             execution_mode: Optional different execution mode
+            inherit_data: Whether to copy all parent data or selected keys into
+                the child context's mutable ``data`` dict.
+            data_overrides: Extra child data to merge after inherited data.
 
         Returns:
             SubpipelineResult with child run outcome
@@ -471,6 +477,8 @@ class SubpipelineSpawner:
             correlation_id=correlation_id,
             topology=topology,
             execution_mode=execution_mode,
+            inherit_data=inherit_data,
+            data_overrides=data_overrides,
         )
 
         # Register for cancellation tracking

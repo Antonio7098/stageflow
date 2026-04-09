@@ -27,6 +27,19 @@ from stageflow.api import StageReturn
 - return `StageOutput` when you need explicit status, error, artifact, or event semantics
 - return `None` when an empty successful payload is enough
 
+For the common typed payload pattern, prefer the exported helpers:
+
+```python
+from stageflow.api import StagePayloadResult, ok_output
+
+return ok_output(
+    StagePayloadResult(
+        payload={"message": "done"},
+        summary={"item_count": 1},
+    )
+)
+```
+
 ## StageKind
 
 ```python
@@ -75,6 +88,15 @@ StageOutput.retry(error: str, data: dict[str, Any] | None = None, *, version: st
 from stageflow.api import StageContext
 ```
 
+## StageCancellationRequested
+
+```python
+from stageflow.api import StageCancellationRequested
+```
+
+Raised by `ctx.raise_if_cancelled()` and `await ctx.cancellation_checkpoint()`
+when cooperative cancellation has been requested.
+
 ### Constructor
 
 ```python
@@ -98,6 +120,8 @@ StageContext(
 - `pipeline_run_id`
 - `request_id`
 - `execution_mode`
+- `is_cancelled`
+- `cancellation_reason`
 
 ### Methods
 
@@ -105,6 +129,8 @@ StageContext(
 - `try_emit_event(type: str, data: dict[str, Any]) -> None`
 - `emit_event(type: str, data: dict[str, Any]) -> None` (alias)
 - `record_stage_event(stage: str, status: str, **kwargs) -> None`
+- `raise_if_cancelled() -> None`
+- `cancellation_checkpoint() -> Awaitable[None]`
 - `as_pipeline_context(...) -> PipelineContext` (deprecated; prefer `PipelineContext.from_snapshot(...)` when bridging back to orchestration code)
 - `now() -> datetime` (classmethod)
 

@@ -20,6 +20,22 @@ Use a plain `dict` return for the common success path. Switch to
 `StageOutput.ok(...)`, `.skip(...)`, `.cancel(...)`, or `.fail(...)` when you
 need explicit status semantics.
 
+For typed application code, Stageflow also ships a payload helper layer:
+
+```python
+from stageflow.api import StagePayloadResult, ok_output
+
+@stage_metadata(name="my_stage", kind=StageKind.TRANSFORM)
+class MyStage:
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        return ok_output(
+            StagePayloadResult(
+                payload={"result": "done"},
+                summary={"item_count": 1},
+            )
+        )
+```
+
 ## Stage Kinds
 
 Choose the appropriate kind based on what your stage does:
@@ -259,6 +275,78 @@ async def execute(self, ctx: StageContext) -> StageOutput:
         )
         return StageOutput.ok(message=llm.content, llm=llm.to_dict())
 ```
+
+## Typed Payload Helpers
+
+When stages are passing typed domain payloads to each other, prefer the payload
+helpers over ad hoc `output.data[...]` keys.
+
+```python
+from stageflow.api import (
+    StagePayloadResult,
+    ok_output,
+    payload_from_inputs,
+    payload_from_results,
+)
+
+class BuildPlanStage:
+    name = "build_plan"
+    kind = StageKind.TRANSFORM
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        return ok_output(
+            StagePayloadResult(
+                payload={"plan": "draft"},
+                summary={"source": "planner"},
+            )
+        )
+
+
+class PersistStage:
+    name = "persist"
+    kind = StageKind.WORK
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        payload = payload_from_inputs(ctx, "build_plan", expected_type=dict)
+        ...
+```
+
+Available helpers:
+
+- `StagePayloadResult(payload=..., summary=...)`
+- `ok_output(...)`
+- `cancel_output(...)`
+- `fail_output(...)`
+- `payload_from_inputs(ctx, stage_name, expected_type=...)`
+- `payload_from_results(results, stage_name, expected_type=...)`
+- `summary_from_output(output)`
+
+This keeps the wire shape consistent: `{"payload": ..., "summary": ...}`.
+
+## Cooperative Cancellation
+
+Long-running stages should use the stage-level cancellation helpers instead of
+manual polling patterns:
+
+```python
+from stageflow.api import StageCancellationRequested
+
+class LongStage:
+    name = "long_stage"
+    kind = StageKind.WORK
+
+    async def execute(self, ctx: StageContext) -> StageOutput:
+        for chunk in range(10):
+            await ctx.cancellation_checkpoint()
+            ...
+        return StageOutput.ok(done=True)
+```
+
+Notes:
+
+- `await ctx.cancellation_checkpoint()` yields control and then raises if the run is cancelled.
+- `ctx.raise_if_cancelled()` performs the same check without yielding.
+- The runtime converts `StageCancellationRequested` into pipeline cancellation rather than stage failure.
 
 #### Key Validation and Error Handling
 

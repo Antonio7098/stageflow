@@ -18,6 +18,7 @@ from stageflow.pipeline.spec import (
     CycleDetectedError,
     PipelineSpec,
     StageRunner,
+    StageRunnerCallable,
 )
 from stageflow.pipeline.validation import (
     ensure_compatible_stage_specs,
@@ -135,7 +136,7 @@ class PipelineBuilder:
     def with_stage(
         self,
         name: str,
-        runner: type[StageRunner] | StageRunner,
+        runner: type[StageRunner] | StageRunner | StageRunnerCallable,
         dependencies: tuple[str, ...] | list[str] | None = None,
         inputs: tuple[str, ...] | list[str] | None = None,
         outputs: tuple[str, ...] | list[str] | None = None,

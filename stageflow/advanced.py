@@ -13,6 +13,7 @@ from stageflow.context import (
 )
 from stageflow.core import (
     Stage,
+    StageCancellationRequested,
     StageContext,
     StageKind,
     StageOutput,
@@ -60,6 +61,15 @@ from stageflow.pipeline.interceptors_hardening import (
 from stageflow.pipeline.pipeline import Pipeline, UnifiedStageSpec, run_stage, stage
 from stageflow.pipeline.spec import CycleDetectedError, PipelineValidationError
 from stageflow.stages.context import PipelineContext
+from stageflow.stages.payloads import (
+    StagePayloadResult,
+    cancel_output,
+    fail_output,
+    ok_output,
+    payload_from_inputs,
+    payload_from_results,
+    summary_from_output,
+)
 from stageflow.stages.result import StageError, StageResult
 
 __all__ = [
@@ -87,13 +97,21 @@ __all__ = [
     "PipelineContext",
     "PipelineResults",
     "PipelineValidationError",
+    "StagePayloadResult",
     "run_stage",
     "run_with_interceptors",
     "RunIdentity",
+    "cancel_output",
+    "fail_output",
+    "ok_output",
+    "payload_from_inputs",
+    "payload_from_results",
+    "summary_from_output",
     "stage",
     "Stage",
     "stage_metadata",
     "StageContext",
+    "StageCancellationRequested",
     "StageError",
     "StageExecutionError",
     "StageGraph",

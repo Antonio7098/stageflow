@@ -12,6 +12,7 @@ from warnings import warn
 
 from stageflow.core import (
     PipelineTimer,
+    StageCancellationRequested,
     StageContext,
     StageKind,
     StageOutput,
@@ -551,12 +552,19 @@ class UnifiedStageGraph:
 
             while len(finalized) < len(self._specs):
                 # Check for cooperative cancellation
-                if self._cancel_token and self._cancel_token.is_cancelled:
+                if interceptor_ctx.is_canceled or (
+                    self._cancel_token and self._cancel_token.is_cancelled
+                ):
+                    reason = (
+                        interceptor_ctx.cancellation_reason
+                        or (self._cancel_token.reason if self._cancel_token else None)
+                        or "Cancelled"
+                    )
                     logger.info(
-                        f"Pipeline cancelled via token: {self._cancel_token.reason}",
+                        f"Pipeline cancelled via token: {reason}",
                         extra={
                             "event": "pipeline_cancelled_token",
-                            "reason": self._cancel_token.reason,
+                            "reason": reason,
                         },
                     )
                     for t in active_tasks:
@@ -565,7 +573,7 @@ class UnifiedStageGraph:
                         await asyncio.gather(*active_tasks, return_exceptions=True)
                     raise UnifiedPipelineCancelled(
                         stage="<external>",
-                        reason=self._cancel_token.reason or "Cancelled via token",
+                        reason=reason,
                         results=PipelineResults(completed),
                     )
 
@@ -860,6 +868,10 @@ class UnifiedStageGraph:
             stage_name=name,
             timer=shared_timer,
             event_sink=ctx.event_sink,
+            _cancellation_probe=lambda: interceptor_ctx.is_canceled
+            or (self._cancel_token is not None and self._cancel_token.is_cancelled),
+            _cancellation_reason_provider=lambda: interceptor_ctx.cancellation_reason
+            or (self._cancel_token.reason if self._cancel_token else None),
         )
 
         stage_output, stage_result = await self._run_stage(spec, stage_ctx, interceptor_ctx)
@@ -882,6 +894,20 @@ class UnifiedStageGraph:
                 "kind": spec.kind.value if spec.kind else None,
             },
         )
+
+        try:
+            await interceptor_ctx.run_before_stage_start_hooks(
+                stage_name=spec.name,
+                stage_kind=spec.kind,
+                stage_ctx=ctx,
+            )
+            ctx.raise_if_cancelled()
+        except StageCancellationRequested as exc:
+            ended_at = datetime.now(UTC)
+            output = StageOutput.cancel(reason=exc.reason)
+            output = output.with_duration(self._duration_ms(started_at, ended_at))
+            result = self._stage_output_to_result(spec.name, output, started_at, ended_at)
+            return output, result
 
         # Handle conditional stages
         if spec.conditional:
@@ -922,6 +948,17 @@ class UnifiedStageGraph:
 
             try:
                 raw_output = await spec.runner(ctx)
+            except StageCancellationRequested as exc:
+                ended_at = datetime.now(UTC)
+                normalized_output = StageOutput.cancel(reason=exc.reason).with_duration(
+                    self._duration_ms(started_at, ended_at)
+                )
+                return self._stage_output_to_result(
+                    spec.name,
+                    normalized_output,
+                    started_at,
+                    ended_at,
+                )
             except Exception as exc:
                 # Preserve original stage exception so unified error paths can
                 # keep original exception types instead of coercing to RuntimeError.

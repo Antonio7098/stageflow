@@ -19,6 +19,85 @@
   },
   "entries": [
     {
+      "version": "v1.2.0",
+      "date": "2026-04-09",
+      "changes": [
+        {
+          "type": "added",
+          "area": "stage.payloads",
+          "description": "Added first-class typed payload helpers including `StagePayloadResult`, `ok_output(...)`, `cancel_output(...)`, `fail_output(...)`, `payload_from_inputs(...)`, `payload_from_results(...)`, and `summary_from_output(...)` to reduce repeated ad hoc `StageOutput` parsing in application pipelines.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/stages/payloads.py",
+            "stageflow/api.py",
+            "stageflow/advanced.py",
+            "stageflow/__init__.py",
+            "tests/unit/test_stage_payloads.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "added",
+          "area": "pipeline.cancellation",
+          "description": "Added cooperative cancellation helpers on `PipelineContext` and `StageContext`, before-stage-start hooks, and child-context data inheritance controls for subpipeline execution.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/core/stage_context.py",
+            "stageflow/stages/context.py",
+            "stageflow/pipeline/dag.py",
+            "stageflow/pipeline/subpipeline.py",
+            "tests/unit/test_context_fork.py",
+            "tests/unit/test_subpipeline.py",
+            "tests/execution/test_unified_graph.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "pipeline.typing",
+          "description": "Widened pipeline runner typing so plain async callable stage runners work cleanly in builder helpers and `run_stage(...)` without cast-based workarounds.",
+          "commit": "pending",
+          "files_affected": [
+            "stageflow/pipeline/pipeline.py",
+            "stageflow/pipeline/spec.py",
+            "stageflow/pipeline/builder.py",
+            "tests/configuration/test_pipeline.py",
+            "tests/unit/pipeline/test_builder.py",
+            "tests/unit/pipeline/test_spec.py"
+          ],
+          "issues": []
+        },
+        {
+          "type": "changed",
+          "area": "docs.runtime",
+          "description": "Updated API and guide docs to document typed payload helpers, cancellation checkpoints, before-stage-start hooks, subpipeline data inheritance, and callable runner support. Refreshed the backend usage review with an implementation status update.",
+          "commit": "pending",
+          "files_affected": [
+            "README.md",
+            "docs/index.md",
+            "docs/api/context.md",
+            "docs/api/core.md",
+            "docs/api/pipeline.md",
+            "docs/guides/context.md",
+            "docs/guides/pipelines.md",
+            "docs/guides/stages.md",
+            "ops/stageflow-backend-usage-review-2026-04-08.md"
+          ],
+          "issues": []
+        },
+        {
+          "type": "fixed",
+          "area": "tests.benchmarks",
+          "description": "Updated benchmark tests to use `asyncio.Runner()` so the suite passes on Python 3.14 where `asyncio.get_event_loop()` no longer creates a default loop.",
+          "commit": "pending",
+          "files_affected": [
+            "tests/benchmarks/test_context_bag_benchmarks.py"
+          ],
+          "issues": []
+        }
+      ]
+    },
+    {
       "version": "v1.1.0",
       "date": "2026-03-11",
       "changes": [

@@ -24,9 +24,19 @@ pipeline = (
 ```python
 pipeline.with_stage(
     name="my_stage",           # Unique name within pipeline
-    runner=MyStage,            # Stage class or instance
+    runner=MyStage,            # Stage class, instance, or async callable
     kind=StageKind.TRANSFORM,  # Stage categorization
 )
+```
+
+Plain async callable runners are supported when a dedicated stage class would be
+unnecessary:
+
+```python
+async def echo_stage(ctx: StageContext) -> StageOutput:
+    return StageOutput.ok(data={"echo": ctx.snapshot.input_text})
+
+pipeline = Pipeline().with_stage("echo", echo_stage, StageKind.TRANSFORM)
 ```
 
 ### With Dependencies

@@ -261,6 +261,16 @@ class TestPipeline:
 
         assert pipeline.stages["simple"].kind == StageKind.TRANSFORM
 
+    def test_with_stage_accepts_async_callable_runner(self):
+        """Pipeline should accept plain async callables as stage runners."""
+
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"callable": True})
+
+        pipeline = Pipeline().with_stage("callable", runner, StageKind.TRANSFORM)
+
+        assert pipeline.stages["callable"].runner is runner
+
     def test_with_stage_infers_kind_from_stage_instance(self):
         """with_stage should infer StageKind from stage instances when omitted."""
         pipeline = Pipeline().with_stage("simple", SimpleStage())
@@ -546,6 +556,18 @@ class TestPipeline:
 
         assert output.status == StageStatus.OK
         assert output.data["input_text"] == "hello"
+
+    @pytest.mark.asyncio
+    async def test_run_stage_executes_async_callable_fast_path(self):
+        """run_stage should execute plain async callables without extra wrappers."""
+
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"callable": True})
+
+        output = await run_stage("callable", runner, StageKind.TRANSFORM)
+
+        assert output.status == StageStatus.OK
+        assert output.data["callable"] is True
 
     @pytest.mark.asyncio
     async def test_run_normalizes_plain_dict_stage_returns(self):

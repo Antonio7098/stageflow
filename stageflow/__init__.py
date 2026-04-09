@@ -61,6 +61,7 @@ from stageflow.core import (
     PipelineTimer,
     Stage,
     StageArtifact,
+    StageCancellationRequested,
     StageContext,
     StageEvent,
     StageKind,
@@ -181,6 +182,15 @@ from stageflow.stages.inputs import (
     StageInputs,
     create_stage_inputs,
 )
+from stageflow.stages.payloads import (
+    StagePayloadResult,
+    cancel_output,
+    fail_output,
+    ok_output,
+    payload_from_inputs,
+    payload_from_results,
+    summary_from_output,
+)
 from stageflow.stages.ports import (
     AudioPorts,
     CorePorts,
@@ -213,10 +223,12 @@ __all__ = [
     "StageOutput",
     "StageReturn",
     "StageContext",
+    "StageCancellationRequested",
     "StageArtifact",
     "StageEvent",
     "StageError",
     "StageResult",
+    "StagePayloadResult",
     # Context utilities
     "create_stage_context",
     # Timer
@@ -241,6 +253,12 @@ __all__ = [
     "pipeline_registry",
     # Context types
     "PipelineContext",
+    "cancel_output",
+    "fail_output",
+    "ok_output",
+    "payload_from_inputs",
+    "payload_from_results",
+    "summary_from_output",
     # Testing utilities
     "create_test_snapshot",
     "create_test_stage_context",
