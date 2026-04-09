@@ -95,6 +95,65 @@ build-time options. In the normal path, stages still execute with
   - Attach transient flags into `ctx.data` (e.g. rate limiting, caching hints)
 - Tools and agents can consume `PipelineContext.to_dict()` when needed.
 
+### Cooperative Cancellation
+
+`PipelineContext` is also the runtime cancellation boundary for a pipeline run.
+
+```python
+pipeline_ctx.mark_canceled("user requested stop")
+```
+
+Inside a stage, use the derived `StageContext` helpers:
+
+```python
+async def execute(self, ctx: StageContext) -> StageOutput:
+    await ctx.cancellation_checkpoint()
+    ctx.raise_if_cancelled()
+    ...
+```
+
+These helpers raise `StageCancellationRequested`, which the unified runtime
+converts into pipeline cancellation rather than a hard stage failure.
+
+### Before-Stage-Start Hooks
+
+Applications can register lightweight hooks on `PipelineContext` that run before
+each stage begins:
+
+```python
+def publish_stage_start(stage_name, stage_kind, stage_ctx, pipeline_ctx):
+    pipeline_ctx.try_emit_event(
+        type="stage.starting",
+        data={"stage": stage_name, "kind": stage_kind.value if stage_kind else None},
+    )
+
+pipeline_ctx.add_before_stage_start_hook(publish_stage_start)
+```
+
+Use this for observability, progress publication, or cheap orchestration-level
+checks that should happen before stage logic executes.
+
+### Subpipeline Data Inheritance
+
+`PipelineContext.fork(...)` supports explicit child `data` inheritance:
+
+```python
+child_ctx = parent_ctx.fork(
+    child_run_id=uuid4(),
+    parent_stage_id="collection_fanout",
+    correlation_id=uuid4(),
+    inherit_data=("timeout_ms", "idempotency_key"),
+    data_overrides={"worker_id": "b"},
+)
+```
+
+Guidance:
+
+- Keep `inherit_data=False` when child stages should start with a clean mutable `data` bag.
+- Use a tuple of keys when only a few operational controls should flow to the child.
+- Use `inherit_data=True` only when the whole parent `data` bag is intentionally safe to copy.
+- Use `get_parent_data(...)` when the child only needs read-only access to parent values.
+
 ## ContextSnapshot
 
 This section is primarily for advanced orchestration, replay, or testing flows.
@@ -219,6 +278,16 @@ async def execute(self, ctx: StageContext) -> StageOutput:
     
     # Shared timer for consistent timing
     elapsed = ctx.timer.elapsed_ms()
+```
+
+### Cancellation State Inside Stages
+
+`StageContext` exposes runtime cancellation state:
+
+```python
+async def execute(self, ctx: StageContext) -> StageOutput:
+    if ctx.is_cancelled:
+        return StageOutput.cancel(reason=ctx.cancellation_reason or "cancelled")
 ```
 
 ### Accessing Upstream Outputs via StageInputs

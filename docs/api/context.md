@@ -35,7 +35,11 @@ Important APIs:
 - `create(...) -> PipelineContext`
 - `from_snapshot(snapshot, ...) -> PipelineContext`
 - `derive_root_stage_context(stage_name="__pipeline_root__") -> StageContext` (advanced/internal)
-- `fork(...) -> PipelineContext`
+- `fork(..., inherit_data=False, data_overrides=None) -> PipelineContext`
+- `mark_canceled(reason="Cancellation requested") -> None`
+- `raise_if_cancelled() -> None`
+- `cancellation_checkpoint() -> Awaitable[None]`
+- `add_before_stage_start_hook(hook) -> None`
 
 `PipelineContext` is the context users should create and pass into pipeline entrypoints.
 For normal application code, `await pipeline.run(input_text=..., topology=...)`
@@ -47,6 +51,29 @@ In the recommended `UnifiedStageGraph` path, stage `execute()` methods receive
 
 Use `ports=` on `PipelineContext` when you want the root graph entrypoint to pass
 shared runtime capabilities into derived `StageContext.inputs.ports` values.
+
+### Subpipeline Forking
+
+`PipelineContext.fork(...)` now supports explicit child `data` propagation:
+
+```python
+child = parent_ctx.fork(
+    child_run_id=uuid4(),
+    parent_stage_id="fanout_worker",
+    correlation_id=uuid4(),
+    inherit_data=("timeout_ms", "idempotency_key"),
+    data_overrides={"worker_id": "a"},
+)
+```
+
+Rules:
+
+- `inherit_data=False` keeps the child `data` dict empty.
+- `inherit_data=True` copies the full parent `data` dict.
+- `inherit_data=("key_a", "key_b")` copies only selected keys.
+- `data_overrides=` is applied after inheritance.
+
+Parent data is still available read-only through `get_parent_data(...)`.
 
 ## RunIdentity (Advanced)
 
@@ -158,3 +185,16 @@ StageContext(
 
 `StageContext` is usually created internally by `UnifiedStageGraph`. Construct it
 directly only in tests or advanced orchestration code.
+
+Additional runtime properties:
+
+- `is_cancelled: bool`
+- `cancellation_reason: str | None`
+
+Additional runtime methods:
+
+- `raise_if_cancelled() -> None`
+- `cancellation_checkpoint() -> Awaitable[None]`
+
+`StageContext` uses these helpers for cooperative cancellation inside long-running
+stages. The raised exception type is `StageCancellationRequested`.

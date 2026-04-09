@@ -6,14 +6,18 @@ for defining pipeline stages with typed composition.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from stageflow.contracts import ContractErrorInfo
+from stageflow.core import StageOutput
+from stageflow.stages.context import PipelineContext
 
-if TYPE_CHECKING:
-    from stageflow.core import StageOutput
-    from stageflow.stages.context import PipelineContext
+StageRunnerCallable = Callable[
+    [PipelineContext],
+    Awaitable[StageOutput | dict[str, Any] | None],
+]
 
 
 class PipelineValidationError(Exception):
@@ -113,7 +117,7 @@ class PipelineSpec:
     """
 
     name: str
-    runner: type[StageRunner] | StageRunner
+    runner: type[StageRunner] | StageRunner | StageRunnerCallable
     dependencies: tuple[str, ...] = field(default_factory=tuple)
     inputs: tuple[str, ...] = field(default_factory=tuple)
     outputs: tuple[str, ...] = field(default_factory=tuple)
@@ -148,4 +152,5 @@ __all__ = [
     "PipelineSpec",
     "PipelineValidationError",
     "StageRunner",
+    "StageRunnerCallable",
 ]

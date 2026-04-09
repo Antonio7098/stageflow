@@ -6,13 +6,16 @@ including support for forking child contexts for subpipeline runs.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from stageflow.core import StageArtifact as Artifact
-from stageflow.core import StageContext
+from stageflow.core import StageCancellationRequested, StageContext
 from stageflow.events import EventSink, get_event_sink
 
 if TYPE_CHECKING:
@@ -88,6 +91,7 @@ class PipelineContext:
     db: Any = None
     # Cancellation support
     canceled: bool = False
+    cancellation_reason: str | None = None
     # Artifacts produced by stages
     artifacts: list[Artifact] = field(default_factory=list)
     # Per-stage metadata for observability
@@ -98,6 +102,9 @@ class PipelineContext:
     correlation_id: UUID | None = None
     # Read-only parent data for child contexts
     _parent_data: FrozenDict[str, Any] | None = None
+    _before_stage_start_hooks: list[
+        Callable[[str, Any, StageContext, PipelineContext], Awaitable[None] | None]
+    ] = field(default_factory=list)
 
     def record_stage_event(
         self,
@@ -156,6 +163,7 @@ class PipelineContext:
             "service": self.service,
             "data": self.data,
             "canceled": self.canceled,
+            "cancellation_reason": self.cancellation_reason,
             "artifacts_count": len(self.artifacts),
         }
         # Add parent correlation for child contexts
@@ -347,6 +355,8 @@ class PipelineContext:
         *,
         topology: str | None = None,
         execution_mode: str | None = None,
+        inherit_data: bool | Iterable[str] = False,
+        data_overrides: dict[str, Any] | None = None,
     ) -> PipelineContext:
         """Create a child context for a subpipeline run.
 
@@ -369,6 +379,19 @@ class PipelineContext:
         """
         from stageflow.utils.frozen import FrozenDict
 
+        if isinstance(inherit_data, str):
+            raise TypeError("inherit_data must be a bool or iterable of keys")
+
+        child_data: dict[str, Any]
+        if inherit_data is True:
+            child_data = self.data.copy()
+        elif inherit_data:
+            child_data = {key: self.data[key] for key in inherit_data if key in self.data}
+        else:
+            child_data = {}
+        if data_overrides:
+            child_data.update(data_overrides)
+
         return PipelineContext(
             pipeline_run_id=child_run_id,
             request_id=self.request_id,
@@ -388,26 +411,61 @@ class PipelineContext:
             created_at=self.created_at,
             service=self.service,
             event_sink=self.event_sink,
-            data={},  # Fresh data dict for child
+            data=child_data,
             ports=self.ports,
             db=self.db,
             canceled=False,
+            cancellation_reason=None,
             artifacts=[],  # Fresh artifacts list
             _stage_metadata={},
             parent_run_id=self.pipeline_run_id,
             parent_stage_id=parent_stage_id,
             correlation_id=correlation_id,
             _parent_data=FrozenDict(self.data),
+            _before_stage_start_hooks=list(self._before_stage_start_hooks),
         )
 
-    def mark_canceled(self) -> None:
+    def mark_canceled(self, reason: str = "Cancellation requested") -> None:
         """Mark this context as canceled."""
         self.canceled = True
+        if self.cancellation_reason is None:
+            self.cancellation_reason = reason
 
     @property
     def is_canceled(self) -> bool:
         """Check if this context has been canceled."""
         return self.canceled
+
+    def raise_if_cancelled(self) -> None:
+        """Raise when cooperative cancellation has been requested."""
+        if not self.is_canceled:
+            return
+        raise StageCancellationRequested(self.cancellation_reason or "Pipeline cancelled")
+
+    async def cancellation_checkpoint(self) -> None:
+        """Yield once and then raise if cancellation has been requested."""
+        await asyncio.sleep(0)
+        self.raise_if_cancelled()
+
+    def add_before_stage_start_hook(
+        self,
+        hook: Callable[[str, Any, StageContext, PipelineContext], Awaitable[None] | None],
+    ) -> None:
+        """Register a hook that runs before each stage begins execution."""
+        self._before_stage_start_hooks.append(hook)
+
+    async def run_before_stage_start_hooks(
+        self,
+        *,
+        stage_name: str,
+        stage_kind: Any,
+        stage_ctx: StageContext,
+    ) -> None:
+        """Run registered before-stage-start hooks in registration order."""
+        for hook in self._before_stage_start_hooks:
+            outcome = hook(stage_name, stage_kind, stage_ctx, self)
+            if inspect.isawaitable(outcome):
+                await outcome
 
     # === ExecutionContext protocol implementation ===
 
@@ -496,6 +554,8 @@ class PipelineContext:
             stage_name=stage_name,
             timer=PipelineTimer(),
             event_sink=self.event_sink,
+            _cancellation_probe=lambda: self.is_canceled,
+            _cancellation_reason_provider=lambda: self.cancellation_reason,
         )
 
     def derive_root_stage_context(self, *, stage_name: str = "__pipeline_root__") -> StageContext:
@@ -517,6 +577,8 @@ class PipelineContext:
             stage_name=stage_name,
             timer=PipelineTimer(),
             event_sink=self.event_sink,
+            _cancellation_probe=lambda: self.is_canceled,
+            _cancellation_reason_provider=lambda: self.cancellation_reason,
         )
 
 

@@ -20,6 +20,7 @@ import pytest
 from stageflow.context import ContextSnapshot, RunIdentity
 from stageflow.core import (
     PipelineTimer,
+    StageCancellationRequested,
     StageContext,
     StageKind,
     StageOutput,
@@ -278,6 +279,73 @@ class TestUnifiedStageGraphExecution:
         assert "test" in results
         assert results["test"].status == StageStatus.OK
         assert results["test"].data == {"result": "success"}
+
+    @pytest.mark.asyncio
+    async def test_before_stage_start_hook_runs(self):
+        """PipelineContext hooks should run before stage execution begins."""
+        hook_calls: list[tuple[str, str | None]] = []
+
+        async def runner(_ctx: StageContext) -> StageOutput:
+            return StageOutput.ok(data={"result": "success"})
+
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)]
+        )
+        pipeline_ctx = create_pipeline_context()
+
+        def hook(stage_name: str, stage_kind: StageKind | None, _stage_ctx: StageContext, _ctx: PipelineContext) -> None:
+            hook_calls.append((stage_name, stage_kind.value if stage_kind else None))
+
+        pipeline_ctx.add_before_stage_start_hook(hook)
+
+        results = await graph.run(pipeline_ctx)
+
+        assert results["test"].status == StageStatus.OK
+        assert hook_calls == [("test", "transform")]
+
+    @pytest.mark.asyncio
+    async def test_stage_cancellation_checkpoint_cancels_pipeline(self):
+        """Stage checkpoints should convert cooperative cancellation into pipeline cancel."""
+        pipeline_ctx = create_pipeline_context()
+
+        async def runner(ctx: StageContext) -> StageOutput:
+            await ctx.cancellation_checkpoint()
+            return StageOutput.ok(data={"unreachable": True})
+
+        graph = UnifiedStageGraph(
+            specs=[UnifiedStageSpec(name="test", runner=runner, kind=StageKind.TRANSFORM)]
+        )
+
+        def cancel_before_stage(
+            _stage_name: str,
+            _stage_kind: StageKind | None,
+            _stage_ctx: StageContext,
+            ctx: PipelineContext,
+        ) -> None:
+            ctx.mark_canceled("hook cancelled run")
+
+        pipeline_ctx.add_before_stage_start_hook(cancel_before_stage)
+
+        with pytest.raises(UnifiedPipelineCancelled) as exc_info:
+            await graph.run(pipeline_ctx)
+
+        assert exc_info.value.stage == "test"
+        assert exc_info.value.reason == "hook cancelled run"
+
+    def test_stage_context_raise_if_cancelled_uses_public_exception(self):
+        """StageContext helper should raise StageCancellationRequested."""
+        snapshot = create_snapshot()
+        ctx = StageContext(
+            snapshot=snapshot,
+            inputs=StageInputs(snapshot=snapshot),
+            stage_name="test",
+            timer=PipelineTimer(),
+            _cancellation_probe=lambda: True,
+            _cancellation_reason_provider=lambda: "stop now",
+        )
+
+        with pytest.raises(StageCancellationRequested, match="stop now"):
+            ctx.raise_if_cancelled()
 
     @pytest.mark.asyncio
     async def test_run_single_stage_with_stage_context_warns(self):

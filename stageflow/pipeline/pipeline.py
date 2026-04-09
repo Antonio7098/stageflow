@@ -13,10 +13,11 @@ Usage:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
+from stageflow.core import Stage, StageContext, StageOutput
 from stageflow.observability.wide_events import WideEventEmitter
 from stageflow.pipeline.results import PipelineResults
 from stageflow.pipeline.validation import (
@@ -27,10 +28,14 @@ from stageflow.pipeline.validation import (
 )
 
 if TYPE_CHECKING:
-    from stageflow.core import Stage, StageContext, StageKind, StageOutput
+    from stageflow.core import StageKind
     from stageflow.pipeline.guard_retry import GuardRetryStrategy
     from stageflow.pipeline.interceptors import BaseInterceptor
     from stageflow.stages.context import PipelineContext
+
+
+StageCallable = Callable[[StageContext], Awaitable[StageOutput | dict[str, Any] | None]]
+StageRunnerLike = type[Stage] | Stage | StageCallable
 
 
 def _normalize_dependencies(
@@ -73,7 +78,7 @@ def _resolve_stage_kind(runner: Any, kind: StageKind | str | None) -> StageKind:
 
 def stage(
     name: str,
-    runner: type[Stage] | Stage,
+    runner: StageRunnerLike,
     kind: StageKind | str | None = None,
     dependencies: tuple[str, ...] | list[str] | None = None,
     *,
@@ -113,7 +118,7 @@ class UnifiedStageSpec:
     """
 
     name: str
-    runner: type[Stage] | Stage
+    runner: StageRunnerLike
     kind: StageKind
     dependencies: tuple[str, ...] = field(default_factory=tuple)
     conditional: bool = False
@@ -147,7 +152,7 @@ class Pipeline:
     def with_stage(
         self,
         name: str,
-        runner: type[Stage] | Stage,
+        runner: StageRunnerLike,
         kind: StageKind | str | None = None,
         dependencies: tuple[str, ...] | list[str] | None = None,
         *,
@@ -277,7 +282,7 @@ class Pipeline:
                     return await stage_instance.execute(ctx)
 
                 callable_runner = runner_wrapper
-            elif hasattr(spec.runner, 'execute'):
+            elif hasattr(spec.runner, "execute"):
                 # It's a stage instance with an execute method
                 stage_instance = spec.runner
 
@@ -411,7 +416,7 @@ class Pipeline:
 
 async def run_stage(
     name: str,
-    runner: type[Stage] | Stage,
+    runner: StageRunnerLike,
     kind: StageKind | str | None = None,
     /,
     *,

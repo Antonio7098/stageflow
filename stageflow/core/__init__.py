@@ -1,6 +1,6 @@
 """Stageflow core module - exports core stage types."""
 
-from .stage_context import StageContext, create_stage_context
+from .stage_context import StageCancellationRequested, StageContext, create_stage_context
 from .stage_enums import StageKind, StageStatus
 from .stage_metadata import stage_metadata
 from .stage_output import StageArtifact, StageEvent, StageOutput, StageReturn
@@ -14,6 +14,7 @@ __all__ = [
     "StageOutput",
     "StageReturn",
     "StageContext",
+    "StageCancellationRequested",
     "StageArtifact",
     "StageEvent",
     "PipelineTimer",

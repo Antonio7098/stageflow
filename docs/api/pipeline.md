@@ -23,7 +23,7 @@ Pipeline(name: str = "pipeline", stages: dict[str, UnifiedStageSpec] = {})
 ```python
 with_stage(
     name: str,
-    runner: type[Stage] | Stage,
+    runner: type[Stage] | Stage | Callable[[StageContext], Awaitable[StageOutput | dict[str, Any] | None]],
     kind: StageKind | str | None = None,
     dependencies: tuple[str, ...] | list[str] | None = None,
     *,
@@ -35,6 +35,12 @@ with_stage(
 
 If `kind` is omitted, Stageflow infers it from `runner.kind`.
 
+`runner` may be:
+
+- a stage class
+- a stage instance
+- a plain async callable accepting `StageContext`
+
 Dependency syntax guidance:
 
 - use `after=` for simple single-edge tutorial/script pipelines
@@ -43,7 +49,7 @@ Dependency syntax guidance:
 ### with_stages / from_stages / stage
 
 ```python
-stage(name: str, runner: type[Stage] | Stage, kind: StageKind | str | None = None, *, after: str | Sequence[str] | None = None, ...) -> UnifiedStageSpec
+stage(name: str, runner: type[Stage] | Stage | Callable[[StageContext], Awaitable[StageOutput | dict[str, Any] | None]], kind: StageKind | str | None = None, *, after: str | Sequence[str] | None = None, ...) -> UnifiedStageSpec
 with_stages(*specs: UnifiedStageSpec) -> Pipeline
 from_stages(*specs: UnifiedStageSpec, name: str = "pipeline") -> Pipeline
 ```
@@ -152,13 +158,22 @@ results = await pipeline.invoke("hello")
 ```python
 run_stage(
     name: str,
-    runner: type[Stage] | Stage,
+    runner: type[Stage] | Stage | Callable[[StageContext], Awaitable[StageOutput | dict[str, Any] | None]],
     kind: StageKind | str | None = None,
     **context_kwargs: Any,
 ) -> StageOutput
 ```
 
 Use `run_stage(...)` for quick single-stage smoke tests or tiny scripts.
+
+Callable example:
+
+```python
+async def echo(ctx: StageContext) -> StageOutput:
+    return StageOutput.ok(data={"input": ctx.snapshot.input_text})
+
+output = await run_stage("echo", echo, StageKind.TRANSFORM, input_text="hello")
+```
 
 ### Additional helpers
 

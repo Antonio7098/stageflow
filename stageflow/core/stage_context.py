@@ -14,7 +14,9 @@ tools and other components that need a common context interface.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -30,6 +32,14 @@ if TYPE_CHECKING:
     from stageflow.stages.inputs import StageInputs
 
 logger = logging.getLogger("stageflow.core.stage_context")
+
+
+class StageCancellationRequested(Exception):
+    """Raised when cooperative stage cancellation has been requested."""
+
+    def __init__(self, reason: str = "Stage execution cancelled") -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +61,8 @@ class StageContext:
     stage_name: str
     timer: PipelineTimer
     event_sink: EventSink | None = None
+    _cancellation_probe: Callable[[], bool] | None = None
+    _cancellation_reason_provider: Callable[[], str | None] | None = None
 
     @property
     def pipeline_run_id(self) -> UUID | None:
@@ -71,6 +83,20 @@ class StageContext:
     def started_at(self) -> datetime:
         """When this context's timer was initialized."""
         return self.timer.started_at
+
+    @property
+    def is_cancelled(self) -> bool:
+        """Whether cancellation has been requested for this stage."""
+        if self._cancellation_probe is None:
+            return False
+        return self._cancellation_probe()
+
+    @property
+    def cancellation_reason(self) -> str | None:
+        """Human-readable cancellation reason when available."""
+        if self._cancellation_reason_provider is None:
+            return None
+        return self._cancellation_reason_provider()
 
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for serialization.
@@ -114,6 +140,18 @@ class StageContext:
     def emit_event(self, type: str, data: dict[str, Any]) -> None:
         """Backward-compatible alias for try_emit_event()."""
         self.try_emit_event(type=type, data=data)
+
+    def raise_if_cancelled(self) -> None:
+        """Raise when cooperative cancellation has been requested."""
+        if not self.is_cancelled:
+            return
+        reason = self.cancellation_reason or f"Stage '{self.stage_name}' was cancelled"
+        raise StageCancellationRequested(reason)
+
+    async def cancellation_checkpoint(self) -> None:
+        """Yield once and then raise if cancellation has been requested."""
+        await asyncio.sleep(0)
+        self.raise_if_cancelled()
 
     def record_stage_event(self, stage: str, status: str, **kwargs) -> None:
         """Record a stage execution event.

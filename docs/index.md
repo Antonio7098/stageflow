@@ -42,6 +42,12 @@ The docs are organized into the following sections:
 - [API Reference](api/) - core types, pipeline, context, interceptors, events, protocols, observability, extensions
 - [Advanced Topics](advanced/) - pipeline composition, subpipeline runs, custom interceptors, error handling, testing strategies, extensions
 
+> **New in Stageflow 1.2.0**
+>
+> - **Typed Payload Helpers**: Added `StagePayloadResult`, `ok_output(...)`, `cancel_output(...)`, `fail_output(...)`, `payload_from_inputs(...)`, `payload_from_results(...)`, and `summary_from_output(...)` for a consistent typed stage wire format.
+> - **Cooperative Cancellation & Hooks**: Added `raise_if_cancelled()`, `cancellation_checkpoint()`, and before-stage-start hooks so long-running workflows can publish progress and stop cleanly.
+> - **Child Context Ergonomics**: `PipelineContext.fork(...)` and `SubpipelineSpawner.spawn(...)` now support explicit child `data` inheritance and overrides, and async callable stage runners no longer need cast-based typing workarounds.
+
 > **New in Stageflow 1.1.0**
 
 > - **Reusable Agent Runtime**: Added `stageflow.agent.Agent` and `AgentStage` for prompt-driven tool loops with typed turn contracts and stage-friendly integration.
