@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Callable, Protocol
 from uuid import UUID, uuid4
 
+from .lifecycle import ToolLifecycleEvent, ToolLifecycleSink
 from stageflow.pipeline.registry import pipeline_registry
 
 if TYPE_CHECKING:
@@ -103,6 +104,7 @@ class StageflowToolRuntimeIO:
         call_id: str,
         parent_stage_id: str,
         on_update: Callable[..., None] | None = None,
+        lifecycle_sink: ToolLifecycleSink | None = None,
         spawner: SubpipelineSpawner | None = None,
     ) -> None:
         self._stage_context = stage_context
@@ -110,6 +112,7 @@ class StageflowToolRuntimeIO:
         self._call_id = call_id
         self._parent_stage_id = parent_stage_id
         self._on_update = on_update
+        self._lifecycle_sink = lifecycle_sink
         self._spawner = spawner
 
     async def publish_update(self, payload: dict[str, Any]) -> None:
@@ -122,6 +125,18 @@ class StageflowToolRuntimeIO:
             "update": update.to_dict(),
         }
         _emit(self._stage_context, "tool.updated", event_payload)
+        if self._lifecycle_sink is not None:
+            await self._lifecycle_sink.emit(
+                ToolLifecycleEvent(
+                    event_type="tool.updated",
+                    tool_name=self._tool_name,
+                    call_id=self._call_id,
+                    pipeline_run_id=_coerce_uuid_str(getattr(self._stage_context, "pipeline_run_id", None)),
+                    request_id=_coerce_uuid_str(getattr(self._stage_context, "request_id", None)),
+                    parent_stage_id=self._parent_stage_id,
+                    payload=event_payload,
+                )
+            )
         if self._on_update is not None:
             self._on_update(
                 stage_context=self._stage_context,
@@ -198,6 +213,12 @@ def _emit(stage_context: Any, event_type: str, data: dict[str, Any]) -> None:
         stage_context.try_emit_event(event_type, data)
     else:
         logger.debug("Tool runtime update without stage context", extra={"event_type": event_type, **data})
+
+
+def _coerce_uuid_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
 
 
 __all__ = [

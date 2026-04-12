@@ -181,9 +181,9 @@ need to reimplement run logging or lineage reconstruction from scratch.
 
 The main remaining orchestration-shaped gaps are now:
 
-- durable persistence-aware hooks around tool lifecycle state
 - ordered projection and event sink support for UI-facing workflows
 - reusable prompt-render and typed-LLM stage builders
+- stage-scoped idempotency and event naming/queryability improvements
 
 ### Real Verification Completed
 
@@ -573,29 +573,30 @@ The strongest evidence is simple:
 
 That is the roadmap signal. The next Stageflow gains should continue absorbing
 the operational scaffolding SoftSkills still has to build around orchestration,
-especially durable persistence hooks, ordered projection, stage-scoped
-idempotency, and prompt/LLM stage builders.
+especially ordered projection, stage-scoped idempotency, and prompt/LLM stage
+builders.
 
 ## Recommended Next Sprint (2026-04-12)
 
-The next extraction target should be durable tool lifecycle persistence and
-projection hooks.
+The next extraction target should be ordered projection and stage-scoped
+idempotency after the new lifecycle sink work.
 
 Why this should be next:
 
 - the native tool runtime boundary is now proven in real-provider-backed use
 - logged parent/child execution is now framework-native
-- the largest remaining reusable gap is still the app-owned persistence and UI
-  projection glue around tool lifecycle state
+- lifecycle persistence hooks now exist as first-class framework sinks
+- the largest remaining reusable gap is the ordering and queryability policy
+  that host apps still have to layer on top for live UI projection
 
 That sprint should aim to add:
 
-1. persistence-aware lifecycle callbacks for `tool.invoked`,
-   `tool.started`, `tool.updated`, `tool.completed`, and `tool.failed`
-2. projection and ordering hooks so UI-facing workflows can consume a
+1. projection and ordering hooks so UI-facing workflows can consume a
    framework-level event stream without restitching sequencing logic
-3. stage-scoped idempotency and event naming/queryability improvements, since
+2. stage-scoped idempotency and event naming/queryability improvements, since
    SoftSkills still carries those as framework-shaped local wrappers
+3. prompt-render and typed-LLM stage builders once the remaining runtime
+   scaffolding is out of the app layer
 
-After that, the next candidate should be prompt-render and typed-LLM stage
+After that, the next candidate should be higher-level worker and prompt stage
 builders.

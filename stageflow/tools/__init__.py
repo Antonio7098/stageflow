@@ -60,6 +60,16 @@ from .events import (
 )
 from .executor import ToolExecutor
 from .executor_v2 import AdvancedToolExecutor, ExecutionResult, ToolExecutorConfig
+from .lifecycle import (
+    CompositeToolLifecycleSink,
+    EventSinkToolLifecycleSink,
+    InMemoryToolLifecycleSink,
+    NoOpToolLifecycleSink,
+    SequencedToolLifecycleSink,
+    ToolLifecycleEvent,
+    ToolLifecycleSink,
+    ToolLifecycleSinkError,
+)
 from .registry import (
     ResolvedToolCall,
     ToolRegistry,
@@ -139,6 +149,14 @@ __all__ = [
     "AdvancedToolExecutor",
     "ToolExecutorConfig",
     "ExecutionResult",
+    "ToolLifecycleSink",
+    "ToolLifecycleEvent",
+    "ToolLifecycleSinkError",
+    "NoOpToolLifecycleSink",
+    "InMemoryToolLifecycleSink",
+    "CompositeToolLifecycleSink",
+    "SequencedToolLifecycleSink",
+    "EventSinkToolLifecycleSink",
     # Undo
     "UndoStore",
     "get_undo_store",

@@ -22,8 +22,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from stageflow.events import get_event_sink
-
 from .approval import ApprovalBackend, get_approval_service
 from .definitions import Action, ToolDefinition, ToolInput, ToolOutput, UndoMetadata
 from .errors import (
@@ -44,6 +42,13 @@ from .events import (
     ToolStartedEvent,
     ToolUndoFailedEvent,
     ToolUndoneEvent,
+)
+from .lifecycle import (
+    EventSinkToolLifecycleSink,
+    NoOpToolLifecycleSink,
+    SequencedToolLifecycleSink,
+    ToolLifecycleEvent,
+    ToolLifecycleSink,
 )
 from .undo import UndoStore, get_undo_store
 
@@ -105,11 +110,19 @@ class AdvancedToolExecutor:
         config: ToolExecutorConfig | None = None,
         undo_store: UndoStore | None = None,
         approval_service: ApprovalBackend | None = None,
+        lifecycle_sink: ToolLifecycleSink | None = None,
     ) -> None:
         self.config = config or ToolExecutorConfig()
         self._tools: dict[str, ToolDefinition] = {}
         self._undo_store = undo_store or get_undo_store()
         self._approval_service = approval_service or get_approval_service()
+        self._emit_lifecycle_events = self.config.emit_events or lifecycle_sink is not None
+        if lifecycle_sink is not None:
+            self._lifecycle_sink = lifecycle_sink
+        elif self.config.emit_events:
+            self._lifecycle_sink = SequencedToolLifecycleSink(EventSinkToolLifecycleSink())
+        else:
+            self._lifecycle_sink = NoOpToolLifecycleSink()
 
     def register(self, tool: ToolDefinition) -> None:
         """Register a tool definition.
@@ -335,7 +348,7 @@ class AdvancedToolExecutor:
         ctx: ExecutionContext,
     ) -> None:
         """Emit tool.invoked event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ToolInvokedEvent(
@@ -346,7 +359,7 @@ class AdvancedToolExecutor:
             payload_summary=_summarize_payload(tool_input.payload),
             behavior=ctx.execution_mode,
         )
-        await self._emit_event("tool.invoked", event.to_dict())
+        await self._emit_lifecycle("tool.invoked", event.to_dict())
 
     async def _emit_tool_started(
         self,
@@ -355,7 +368,7 @@ class AdvancedToolExecutor:
         ctx: ExecutionContext,
     ) -> None:
         """Emit tool.started event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ToolStartedEvent(
@@ -364,7 +377,7 @@ class AdvancedToolExecutor:
             pipeline_run_id=ctx.pipeline_run_id,
             request_id=ctx.request_id,
         )
-        await self._emit_event("tool.started", event.to_dict())
+        await self._emit_lifecycle("tool.started", event.to_dict())
 
     async def _emit_tool_completed(
         self,
@@ -375,7 +388,7 @@ class AdvancedToolExecutor:
         duration_ms: float,
     ) -> None:
         """Emit tool.completed event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ToolCompletedEvent(
@@ -387,7 +400,7 @@ class AdvancedToolExecutor:
             output_summary=_summarize_output(output),
             artifacts_count=len(output.artifacts) if output.artifacts else 0,
         )
-        await self._emit_event("tool.completed", event.to_dict())
+        await self._emit_lifecycle("tool.completed", event.to_dict())
 
     async def _emit_tool_failed(
         self,
@@ -398,7 +411,7 @@ class AdvancedToolExecutor:
         duration_ms: float,
     ) -> None:
         """Emit tool.failed event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ToolFailedEvent(
@@ -410,7 +423,7 @@ class AdvancedToolExecutor:
             error_code=type(error).__name__,
             error_message=str(error),
         )
-        await self._emit_event("tool.failed", event.to_dict())
+        await self._emit_lifecycle("tool.failed", event.to_dict())
 
     async def _emit_tool_denied(
         self,
@@ -420,7 +433,7 @@ class AdvancedToolExecutor:
         reason: str,
     ) -> None:
         """Emit tool.denied event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ToolDeniedEvent(
@@ -432,7 +445,7 @@ class AdvancedToolExecutor:
             behavior=ctx.execution_mode,
             allowed_behaviors=tool.allowed_behaviors,
         )
-        await self._emit_event("tool.denied", event.to_dict())
+        await self._emit_lifecycle("tool.denied", event.to_dict())
 
     async def _emit_tool_undone(
         self,
@@ -443,7 +456,7 @@ class AdvancedToolExecutor:
         duration_ms: float,
     ) -> None:
         """Emit tool.undone event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ToolUndoneEvent(
@@ -454,7 +467,7 @@ class AdvancedToolExecutor:
             duration_ms=duration_ms,
             original_action_timestamp=metadata.created_at,
         )
-        await self._emit_event("tool.undone", event.to_dict())
+        await self._emit_lifecycle("tool.undone", event.to_dict())
 
     async def _emit_tool_undo_failed(
         self,
@@ -464,7 +477,7 @@ class AdvancedToolExecutor:
         error: Exception,
     ) -> None:
         """Emit tool.undo_failed event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ToolUndoFailedEvent(
@@ -475,7 +488,7 @@ class AdvancedToolExecutor:
             error_message=str(error),
             reason=type(error).__name__,
         )
-        await self._emit_event("tool.undo_failed", event.to_dict())
+        await self._emit_lifecycle("tool.undo_failed", event.to_dict())
 
     async def _emit_approval_requested(
         self,
@@ -485,7 +498,7 @@ class AdvancedToolExecutor:
         request_id: UUID,
     ) -> None:
         """Emit approval.requested event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ApprovalRequestedEvent(
@@ -495,7 +508,7 @@ class AdvancedToolExecutor:
             pipeline_run_id=ctx.pipeline_run_id,
             approval_message=tool.approval_message or f"Approve {tool.name}?",
         )
-        await self._emit_event("approval.requested", event.to_dict())
+        await self._emit_lifecycle("approval.requested", event.to_dict())
 
     async def _emit_approval_decided(
         self,
@@ -506,7 +519,7 @@ class AdvancedToolExecutor:
         granted: bool,
     ) -> None:
         """Emit approval.decided event."""
-        if not self.config.emit_events:
+        if not self._emit_lifecycle_events:
             return
 
         event = ApprovalDecidedEvent(
@@ -516,15 +529,20 @@ class AdvancedToolExecutor:
             pipeline_run_id=ctx.pipeline_run_id,
             decision="approved" if granted else "denied",
         )
-        await self._emit_event("approval.decided", event.to_dict())
+        await self._emit_lifecycle("approval.decided", event.to_dict())
 
-    async def _emit_event(self, event_type: str, data: dict[str, Any]) -> None:
-        """Emit an event through the event sink."""
-        sink = get_event_sink()
-        try:
-            await sink.emit(type=event_type, data=data)
-        except Exception as e:
-            logger.warning(f"Failed to emit event {event_type}: {e}")
+    async def _emit_lifecycle(self, event_type: str, data: dict[str, Any]) -> None:
+        """Emit a lifecycle event through the configured sink."""
+        await self._lifecycle_sink.emit(
+            ToolLifecycleEvent(
+                event_type=event_type,
+                tool_name=str(data.get("tool_name") or ""),
+                action_id=str(data["action_id"]) if data.get("action_id") is not None else None,
+                pipeline_run_id=str(data["pipeline_run_id"]) if data.get("pipeline_run_id") is not None else None,
+                request_id=str(data["request_id"]) if data.get("request_id") is not None else None,
+                payload=data,
+            )
+        )
 
 
 def _summarize_payload(payload: dict[str, Any], max_length: int = 200) -> dict[str, Any]:

@@ -18,6 +18,8 @@ from stageflow.tools import (
     ApprovalDecision,
     ApprovalRequest,
     DictContextAdapter,
+    InMemoryToolLifecycleSink,
+    SequencedToolLifecycleSink,
     ToolDefinition,
     ToolDeniedError,
     ToolExecutorConfig,
@@ -444,6 +446,51 @@ def test_advanced_tool_executor_accepts_custom_approval_backend() -> None:
         assert len(backend.requests) == 1
         assert backend.requests[0].tool_name == "approved_tool"
         assert backend.requests[0].approval_message == "Approve approved_tool?"
+
+    asyncio.run(_run())
+
+
+def test_advanced_tool_executor_emits_lifecycle_events_to_custom_sink() -> None:
+    async def _run() -> None:
+        backend = _ImmediateApprovalBackend()
+        sink = InMemoryToolLifecycleSink()
+        executor = AdvancedToolExecutor(
+            config=ToolExecutorConfig(emit_events=False),
+            approval_service=backend,
+            lifecycle_sink=SequencedToolLifecycleSink(sink),
+        )
+        snapshot = _make_snapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            execution_mode="practice",
+        )
+        ctx = _make_stage_context(snapshot)
+        executor.register(
+            ToolDefinition(
+                name="approved_tool",
+                action_type="APPROVED_ACTION",
+                handler=mock_handler,
+                requires_approval=True,
+                approval_message="Approve approved_tool?",
+            )
+        )
+
+        result = await executor.execute(
+            MockAction(id=uuid4(), type="APPROVED_ACTION", payload={"key": "value"}),
+            ctx,
+        )
+
+        assert result.success
+        assert [event.event_type for event in sink.events] == [
+            "tool.invoked",
+            "approval.requested",
+            "approval.decided",
+            "tool.started",
+            "tool.completed",
+        ]
+        assert [event.sequence for event in sink.events] == [1, 2, 3, 4, 5]
+        assert sink.events[0].payload["payload_summary"] == {"key": "value"}
+        assert sink.events[1].payload["approval_message"] == "Approve approved_tool?"
 
     asyncio.run(_run())
 

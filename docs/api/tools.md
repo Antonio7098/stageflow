@@ -121,6 +121,42 @@ return ToolOutput.fail("Something went wrong")
 
 ---
 
+## ToolLifecycleSink
+
+```python
+from stageflow.tools import ToolLifecycleSink, ToolLifecycleEvent
+```
+
+Async boundary for persistence-aware tool lifecycle capture and projection.
+
+### ToolLifecycleEvent
+
+| Field | Type | Description |
+|----------|------|-------------|
+| `event_type` | `str` | Lifecycle event such as `tool.started` |
+| `tool_name` | `str` | Tool identifier |
+| `action_id` | `str \| None` | Advanced executor action identifier |
+| `call_id` | `str \| None` | Agent/native tool-call identifier |
+| `pipeline_run_id` | `str \| None` | Correlation id for the enclosing run |
+| `request_id` | `str \| None` | Request correlation id |
+| `parent_stage_id` | `str \| None` | Owning stage when available |
+| `sequence` | `int \| None` | Monotonic ordering field when sequenced |
+| `emitted_at` | `str` | ISO-8601 timestamp |
+| `payload` | `dict[str, Any]` | Event-specific payload |
+
+### Built-In Implementations
+
+- `NoOpToolLifecycleSink`
+- `InMemoryToolLifecycleSink`
+- `CompositeToolLifecycleSink`
+- `SequencedToolLifecycleSink`
+- `EventSinkToolLifecycleSink`
+
+`SequencedToolLifecycleSink` is the recommended wrapper when your host
+application needs deterministic ordering for projection or persistence.
+
+---
+
 ## ToolDefinition
 
 ```python

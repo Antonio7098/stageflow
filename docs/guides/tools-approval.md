@@ -9,6 +9,7 @@ Stageflow provides three main building blocks:
 - `ToolRegistry` for discovery and legacy tool execution
 - `AdvancedToolExecutor` for behavior gating, approvals, undo, and telemetry
 - `ApprovalBackend`/`ApprovalService` + `UndoStore` for HITL and rollback flows
+- `ToolLifecycleSink` for persistence-aware lifecycle capture and ordered projection
 
 ## Tool Registry
 
@@ -94,6 +95,44 @@ When a tool delegates substantial work to a child pipeline, prefer
 adapter layer instead of bespoke child-run wrappers. That keeps run logging,
 lineage, and failure behavior consistent across the framework.
 
+## Lifecycle Sinks
+
+Stageflow now exposes an async persistence/projection boundary for tool
+lifecycle state:
+
+- `ToolLifecycleSink`
+- `ToolLifecycleEvent`
+- `SequencedToolLifecycleSink`
+- `EventSinkToolLifecycleSink`
+- `InMemoryToolLifecycleSink`
+
+```python
+from stageflow.tools import (
+    AdvancedToolExecutor,
+    InMemoryToolLifecycleSink,
+    SequencedToolLifecycleSink,
+)
+
+sink = InMemoryToolLifecycleSink()
+executor = AdvancedToolExecutor(
+    lifecycle_sink=SequencedToolLifecycleSink(sink),
+)
+```
+
+Wrap sinks in `SequencedToolLifecycleSink` when the host application needs
+deterministic ordering for durable persistence or UI-facing projection.
+
+The runtime emits lifecycle records such as:
+
+- `tool.invoked`
+- `tool.started`
+- `tool.updated`
+- `tool.completed`
+- `tool.failed`
+- `tool.denied`
+- `approval.requested`
+- `approval.decided`
+
 ## Legacy ToolExecutor (Plan Stage)
 
 `ToolExecutor` is a stage-oriented executor that consumes a plan object (`plan.actions`) and a `PipelineContext`.
@@ -178,6 +217,10 @@ if decision.granted:
 depend on the `ApprovalBackend` protocol and provide durable storage or
 notification behavior without changing the executor contract.
 
+If the host app also needs durable lifecycle persistence or ordered projection,
+combine `ApprovalBackend` with a custom `ToolLifecycleSink` rather than
+rebuilding the execution loop locally.
+
 ## Undo Workflow
 
 ```python
@@ -243,3 +286,4 @@ assert result.output["result"] == 4
 5. Prefer `ApprovalBackend` as the dependency boundary; treat `ApprovalService` as the default adapter.
 6. Use `ToolInput.publish_update()` and `child_runs` for long-running or delegated tools.
 7. Use the logged pipeline helpers for delegated child workflow execution instead of open-coded subpipeline wrappers.
+8. Prefer `SequencedToolLifecycleSink` when projecting tool state into a live UI or append-only event log.

@@ -14,6 +14,7 @@ from stageflow.agent import (
     AgentToolDescriptor,
     AgentToolExecutionResult,
     PromptSecurityPolicy,
+    RegistryAgentToolRuntime,
 )
 from stageflow.core import StageKind, StageOutput
 from stageflow.pipeline import Pipeline
@@ -22,6 +23,7 @@ from stageflow.agent.models import AgentToolResult
 from stageflow.agent.tool_runtime import AgentToolRuntime
 from stageflow.testing import create_test_stage_context
 from stageflow.tools.base import BaseTool, ToolInput, ToolOutput
+from stageflow.tools.lifecycle import InMemoryToolLifecycleSink, SequencedToolLifecycleSink
 from stageflow.tools.registry import ToolRegistry
 from tests.utils.mocks import MockEventSink
 
@@ -411,6 +413,67 @@ def test_registry_runtime_emits_failed_tool_events() -> None:
         assert result.response == "handled"
         assert result.tool_results[0].success is False
         assert event_sink.has_event("agent.tool.failed")
+
+    import asyncio
+
+    asyncio.run(_run())
+
+
+def test_registry_runtime_persists_lifecycle_events_in_order() -> None:
+    async def _run() -> None:
+        provider = NativeProvider(
+            responses=[
+                {
+                    "model": "native-model",
+                    "choices": [
+                        {
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call_update",
+                                        "type": "function",
+                                        "function": {"name": "UPDATE", "arguments": "{}"},
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+                {
+                    "model": "native-model",
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"role": "assistant", "content": "done"},
+                        }
+                    ],
+                },
+            ]
+        )
+        registry = ToolRegistry()
+        registry.register(UpdateTool())
+        sink = InMemoryToolLifecycleSink()
+        runtime = RegistryAgentToolRuntime(
+            registry,
+            lifecycle_sink=SequencedToolLifecycleSink(sink),
+        )
+        ctx = create_test_stage_context(input_text="please update")
+        agent = Agent(llm_client=provider, config=AgentConfig(model="mock"), tool_runtime=runtime)
+
+        result = await agent.run("please update", stage_context=ctx)
+
+        assert result.response == "done"
+        assert [event.event_type for event in sink.events] == [
+            "tool.requested",
+            "tool.started",
+            "tool.updated",
+            "tool.completed",
+        ]
+        assert [event.sequence for event in sink.events] == [1, 2, 3, 4]
+        assert sink.events[2].payload["update"]["payload"] == {"progress": 0.5, "step": "halfway"}
 
     import asyncio
 

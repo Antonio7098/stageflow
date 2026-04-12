@@ -12,6 +12,7 @@ Tools are **capability units** that agents can invoke to perform actions. The to
 - **Behavior gating** to restrict tools by execution mode
 - **Undo support** for reversible actions
 - **Approval flows** for human-in-the-loop (HITL)
+- **Lifecycle sinks** for persistence-aware tool state capture and ordered projection
 
 ## Defining Tools
 
@@ -206,6 +207,23 @@ executor = AdvancedToolExecutor(config=config)
 executor.register(ToolDefinition(...))
 
 result = await executor.execute(action, stage_ctx)
+```
+
+When the host app needs durable tool state or ordered UI projection, inject a
+`ToolLifecycleSink` rather than wrapping the executor in bespoke persistence
+glue:
+
+```python
+from stageflow.tools import (
+    AdvancedToolExecutor,
+    InMemoryToolLifecycleSink,
+    SequencedToolLifecycleSink,
+)
+
+sink = InMemoryToolLifecycleSink()
+executor = AdvancedToolExecutor(
+    lifecycle_sink=SequencedToolLifecycleSink(sink),
+)
 ```
 
 ## Tool Definitions

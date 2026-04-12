@@ -7,6 +7,12 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from stageflow.tools.registry import ToolRegistry
+from stageflow.tools.lifecycle import (
+    EventSinkToolLifecycleSink,
+    SequencedToolLifecycleSink,
+    ToolLifecycleEvent,
+    ToolLifecycleSink,
+)
 from stageflow.tools.runtime_io import StageflowToolRuntimeIO
 from stageflow.tools.schema import build_tool_input_schema
 
@@ -282,9 +288,11 @@ class RegistryAgentToolRuntime:
         tool_registry: ToolRegistry,
         *,
         lifecycle_hooks: AgentLifecycleHooks | None = None,
+        lifecycle_sink: ToolLifecycleSink | None = None,
     ) -> None:
         self._tool_registry = tool_registry
         self._lifecycle_hooks = lifecycle_hooks or EventEmittingAgentLifecycleHooks()
+        self._lifecycle_sink = lifecycle_sink or SequencedToolLifecycleSink(EventSinkToolLifecycleSink())
 
     def has_tools(self) -> bool:
         return bool(self._tool_registry.list_tools())
@@ -352,6 +360,17 @@ class RegistryAgentToolRuntime:
                     call_id=call.call_id,
                     error=call.error,
                 )
+                await self._lifecycle_sink.emit(
+                    ToolLifecycleEvent(
+                        event_type="tool.unresolved",
+                        tool_name=call.name,
+                        call_id=call.call_id,
+                        pipeline_run_id=_stringify(getattr(stage_context, "pipeline_run_id", None)),
+                        request_id=_stringify(getattr(stage_context, "request_id", None)),
+                        parent_stage_id=getattr(stage_context, "stage_name", "agent"),
+                        payload={"error": call.error, "status": "unresolved"},
+                    )
+                )
 
             tool_calls = [
                 AgentToolCall(name=call.name, arguments=call.arguments, call_id=call.call_id)
@@ -366,11 +385,33 @@ class RegistryAgentToolRuntime:
                 call_id=resolved_call_id,
                 arguments=call.arguments,
             )
+            await self._lifecycle_sink.emit(
+                ToolLifecycleEvent(
+                    event_type="tool.requested",
+                    tool_name=call.name,
+                    call_id=resolved_call_id,
+                    pipeline_run_id=_stringify(getattr(stage_context, "pipeline_run_id", None)),
+                    request_id=_stringify(getattr(stage_context, "request_id", None)),
+                    parent_stage_id=getattr(stage_context, "stage_name", "agent"),
+                    payload={"arguments": call.arguments, "status": "requested"},
+                )
+            )
             self._lifecycle_hooks.on_tool_call_started(
                 stage_context=stage_context,
                 tool_name=call.name,
                 call_id=resolved_call_id,
                 arguments=call.arguments,
+            )
+            await self._lifecycle_sink.emit(
+                ToolLifecycleEvent(
+                    event_type="tool.started",
+                    tool_name=call.name,
+                    call_id=resolved_call_id,
+                    pipeline_run_id=_stringify(getattr(stage_context, "pipeline_run_id", None)),
+                    request_id=_stringify(getattr(stage_context, "request_id", None)),
+                    parent_stage_id=getattr(stage_context, "stage_name", "agent"),
+                    payload={"arguments": call.arguments, "status": "started"},
+                )
             )
             action = _ToolAction(id=uuid4(), type=call.name, payload=call.arguments)
             runtime_io = StageflowToolRuntimeIO(
@@ -379,6 +420,7 @@ class RegistryAgentToolRuntime:
                 call_id=resolved_call_id,
                 parent_stage_id=getattr(stage_context, "stage_name", "agent"),
                 on_update=self._lifecycle_hooks.on_tool_call_updated,
+                lifecycle_sink=self._lifecycle_sink,
             )
             try:
                 output = await self._tool_registry.execute(action, ctx_dict, runtime=runtime_io)
@@ -421,10 +463,42 @@ class RegistryAgentToolRuntime:
                     stage_context=stage_context,
                     result=tool_result,
                 )
+                await self._lifecycle_sink.emit(
+                    ToolLifecycleEvent(
+                        event_type="tool.completed",
+                        tool_name=tool_result.name,
+                        call_id=tool_result.call_id,
+                        pipeline_run_id=_stringify(getattr(stage_context, "pipeline_run_id", None)),
+                        request_id=_stringify(getattr(stage_context, "request_id", None)),
+                        parent_stage_id=getattr(stage_context, "stage_name", "agent"),
+                        payload={
+                            "status": "completed",
+                            "success": True,
+                            "data": tool_result.data,
+                            "child_runs": tool_result.child_runs,
+                        },
+                    )
+                )
             else:
                 self._lifecycle_hooks.on_tool_call_failed(
                     stage_context=stage_context,
                     result=tool_result,
+                )
+                await self._lifecycle_sink.emit(
+                    ToolLifecycleEvent(
+                        event_type="tool.failed",
+                        tool_name=tool_result.name,
+                        call_id=tool_result.call_id,
+                        pipeline_run_id=_stringify(getattr(stage_context, "pipeline_run_id", None)),
+                        request_id=_stringify(getattr(stage_context, "request_id", None)),
+                        parent_stage_id=getattr(stage_context, "stage_name", "agent"),
+                        payload={
+                            "status": "failed",
+                            "success": False,
+                            "error": tool_result.error,
+                            "data": tool_result.data,
+                        },
+                    )
                 )
 
         return AgentToolExecutionResult(
@@ -458,6 +532,12 @@ def _tool_result_message(
 def _emit(stage_context: Any, event_type: str, data: dict[str, Any]) -> None:
     if stage_context is not None and hasattr(stage_context, "try_emit_event"):
         stage_context.try_emit_event(event_type, data)
+
+
+def _stringify(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
 
 
 __all__ = [
