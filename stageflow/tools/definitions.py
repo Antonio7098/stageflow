@@ -15,6 +15,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 from uuid import UUID
 
+from pydantic import BaseModel
+
+from .schema import build_tool_input_schema
+
 if TYPE_CHECKING:
     from stageflow.protocols import ExecutionContext
 
@@ -203,6 +207,7 @@ class ToolDefinition:
         action_type: The action type this tool handles
         description: Human-readable description
         input_schema: JSON Schema for input validation
+        input_model: Optional Pydantic model for typed input validation
         handler: Async function to execute the tool
         allowed_behaviors: Tuple of behaviors that can use this tool
                           Empty tuple means all behaviors allowed
@@ -218,6 +223,7 @@ class ToolDefinition:
     handler: ToolHandler
     description: str = ""
     input_schema: dict[str, Any] = field(default_factory=dict)
+    input_model: type[BaseModel] | None = None
     allowed_behaviors: tuple[str, ...] = ()
     requires_approval: bool = False
     approval_message: str | None = None
@@ -244,7 +250,7 @@ class ToolDefinition:
             "name": self.name,
             "action_type": self.action_type,
             "description": self.description,
-            "input_schema": self.input_schema,
+            "input_schema": build_tool_input_schema(self),
             "allowed_behaviors": list(self.allowed_behaviors),
             "requires_approval": self.requires_approval,
             "approval_message": self.approval_message,

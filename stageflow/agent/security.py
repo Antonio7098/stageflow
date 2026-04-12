@@ -105,6 +105,21 @@ class PromptSecurityPolicy:
         payload: dict[str, Any],
     ) -> tuple[dict[str, str], PromptSecurityReport]:
         """Create a hardened tool-result message for the next model turn."""
+        message, report = self.build_native_tool_message(
+            tool_name=tool_name,
+            call_id=call_id,
+            payload=payload,
+        )
+        return {"role": "user", "content": str(message["content"])}, report
+
+    def build_native_tool_message(
+        self,
+        *,
+        tool_name: str,
+        call_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[dict[str, str], PromptSecurityReport]:
+        """Create a hardened provider-native tool-result message."""
         serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
         report = self.inspect_tool_text(serialized)
         if not report.allowed:
@@ -117,7 +132,12 @@ class PromptSecurityPolicy:
             f"{report.sanitized_text}\n"
             "</tool_result>"
         )
-        return {"role": "user", "content": content}, report
+        return {
+            "role": "tool",
+            "tool_call_id": call_id,
+            "name": tool_name,
+            "content": content,
+        }, report
 
     def _inspect(
         self,

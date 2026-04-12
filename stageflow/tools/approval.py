@@ -10,7 +10,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 
@@ -85,6 +85,57 @@ class ApprovalDecision:
             "decided_by": str(self.decided_by) if self.decided_by else None,
             "reason": self.reason,
         }
+
+
+class ApprovalBackend(Protocol):
+    """Persistence/backend contract for HITL approval flows."""
+
+    async def request_approval(
+        self,
+        action_id: UUID,
+        tool_name: str,
+        pipeline_run_id: UUID | None = None,
+        approval_message: str = "",
+        payload_summary: dict[str, Any] | None = None,
+    ) -> ApprovalRequest:
+        """Create an approval request."""
+
+    async def request(self, request: ApprovalRequest) -> ApprovalRequest:
+        """Backward-compatible request entrypoint."""
+
+    async def await_decision(
+        self,
+        request_id: UUID,
+        timeout_seconds: float | None = None,
+    ) -> ApprovalDecision:
+        """Wait for an approval decision."""
+
+    async def record_decision(
+        self,
+        request_id: UUID,
+        granted: bool,
+        decided_by: UUID | None = None,
+        reason: str | None = None,
+    ) -> ApprovalDecision:
+        """Record an approval decision."""
+
+    async def cancel_request(self, request_id: UUID) -> bool:
+        """Cancel a pending approval request."""
+
+    async def get_request(self, request_id: UUID) -> ApprovalRequest | None:
+        """Get an approval request by ID."""
+
+    async def get_status(self, request_or_action_id: UUID) -> ApprovalStatus | None:
+        """Get request status by request ID or action ID."""
+
+    async def get_pending_requests(
+        self,
+        pipeline_run_id: UUID | None = None,
+    ) -> list[ApprovalRequest]:
+        """List pending requests."""
+
+    async def cleanup(self, request_id: UUID) -> None:
+        """Clean up backend state for a request."""
 
 
 class ApprovalService:
@@ -326,10 +377,10 @@ class ApprovalService:
 
 
 # Global approval service instance
-_approval_service: ApprovalService | None = None
+_approval_service: ApprovalBackend | None = None
 
 
-def get_approval_service() -> ApprovalService:
+def get_approval_service() -> ApprovalBackend:
     """Get the global approval service instance."""
     global _approval_service
     if _approval_service is None:
@@ -337,7 +388,7 @@ def get_approval_service() -> ApprovalService:
     return _approval_service
 
 
-def set_approval_service(service: ApprovalService) -> None:
+def set_approval_service(service: ApprovalBackend) -> None:
     """Set the global approval service instance."""
     global _approval_service
     _approval_service = service
@@ -353,6 +404,7 @@ __all__ = [
     "ApprovalStatus",
     "ApprovalRequest",
     "ApprovalDecision",
+    "ApprovalBackend",
     "ApprovalService",
     "get_approval_service",
     "set_approval_service",

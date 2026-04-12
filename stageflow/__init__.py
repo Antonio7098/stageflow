@@ -136,6 +136,12 @@ from stageflow.pipeline.pipeline import (
     run_stage,
     stage,
 )
+from stageflow.pipeline.logged import (
+    LoggedSubpipelineRequest,
+    run_logged_pipeline,
+    run_logged_subpipeline,
+    run_logged_subpipelines,
+)
 from stageflow.pipeline.registry import (
     PipelineRegistry,
     pipeline_registry,
@@ -242,6 +248,10 @@ __all__ = [
     "stage",
     "stage_metadata",
     "run_stage",
+    "LoggedSubpipelineRequest",
+    "run_logged_pipeline",
+    "run_logged_subpipeline",
+    "run_logged_subpipelines",
     # DAG types
     "StageExecutionError",
     "UnifiedStageExecutionError",

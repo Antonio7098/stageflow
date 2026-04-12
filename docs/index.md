@@ -47,6 +47,7 @@ The docs are organized into the following sections:
 > - **Typed Payload Helpers**: Added `StagePayloadResult`, `ok_output(...)`, `cancel_output(...)`, `fail_output(...)`, `payload_from_inputs(...)`, `payload_from_results(...)`, and `summary_from_output(...)` for a consistent typed stage wire format.
 > - **Cooperative Cancellation & Hooks**: Added `raise_if_cancelled()`, `cancellation_checkpoint()`, and before-stage-start hooks so long-running workflows can publish progress and stop cleanly.
 > - **Child Context Ergonomics**: `PipelineContext.fork(...)` and `SubpipelineSpawner.spawn(...)` now support explicit child `data` inheritance and overrides, and async callable stage runners no longer need cast-based typing workarounds.
+> - **Native Tool Runtime & Logged Execution**: Added a native-first agent tool runtime, typed provider-tool contracts, tool runtime I/O for progress and child lineage, `run_logged_pipeline(...)`, `run_logged_subpipeline(...)`, and `run_logged_subpipelines(...)` for production-safe run logging and child orchestration.
 
 > **New in Stageflow 1.1.0**
 
@@ -72,6 +73,7 @@ The docs are organized into the following sections:
 - [GitHub Repository](https://github.com/yourorg/stageflow)
 - [Issue Tracker](https://github.com/yourorg/stageflow/issues)
 - [**Composing Pipelines**](guides/pipelines.md) — Build complex DAGs from simple stages
+- [**Subpipeline Runs**](advanced/subpipelines.md) — Child pipeline execution, lineage, and logged child-run orchestration
 - [**Duplex Systems**](guides/duplex-systems.md) — Build bidirectional A->B / B->A pipeline topologies
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
 - [**Interceptors**](guides/interceptors.md) — Add middleware for cross-cutting concerns
@@ -89,6 +91,7 @@ The docs are organized into the following sections:
 ### Guides
 - [**Building Stages**](guides/stages.md) — Create custom stages for your pipelines
 - [**Composing Pipelines**](guides/pipelines.md) — Build complex DAGs from simple stages
+- [**Subpipeline Runs**](advanced/subpipelines.md) — Run logged child pipelines with preserved lineage and bounded concurrency
 - [**Duplex Systems**](guides/duplex-systems.md) — Dedicated guide for bidirectional lane construction and sync stages
 - [**Dependency Declaration**](guides/dependencies.md) — Declare and manage stage dependencies
 - [**Context & Data Flow**](guides/context.md) — Pass data between stages
@@ -152,6 +155,7 @@ The following symbols are exported from `stageflow` and can be imported directly
 | `Pipeline`, `UnifiedStageSpec` | Pipeline | [Pipeline](api/pipeline.md) |
 | `UnifiedStageGraph`, `UnifiedStageSpec` | Pipeline | [Pipeline](api/pipeline.md) |
 | `StageGraph`, `StageSpec`, `StageExecutionError` | Pipeline (Deprecated) | [Pipeline](api/pipeline.md) |
+| `run_logged_pipeline`, `run_logged_subpipeline`, `run_logged_subpipelines`, `LoggedSubpipelineRequest` | Pipeline | [Pipeline](api/pipeline.md) |
 | `PipelineRegistry`, `pipeline_registry` | Pipeline | [Pipeline](api/pipeline.md) |
 | `PipelineContext`, `StageResult`, `StageError` | Context | [Context](api/context.md) |
 | `extract_service` | Context | [Context](api/context.md) |

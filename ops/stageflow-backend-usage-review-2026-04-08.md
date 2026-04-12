@@ -43,7 +43,7 @@ The most reusable abstractions SoftSkills had to build locally were:
 - ordered event emission for UI-facing workflows
 - a provider-native tool runtime with persistence and approval hooks
 
-The framework improvement priority is clear:
+The framework improvement priority was clear:
 
 1. Keep Stageflow opinionated about orchestration.
 2. Move the repeated operational scaffolding into first-class framework helpers.
@@ -74,17 +74,143 @@ this review.
 
 ### Not Shipped Yet
 
-- A native provider tool-calling agent runtime.
 - First-class logged pipeline/subpipeline execution with run-log hooks in the framework core.
 - Prompt-render and typed-LLM stage builders.
-- Richer persistence-aware tool runtime hooks.
+- Richer persistence-aware tool runtime hooks for durable app-owned persistence.
 - Ordered UI projection support at the framework level.
 
 ### Practical Effect
 
 The framework now absorbs most of the "typed stage ergonomics" and a meaningful
 part of the "long-running workflow ergonomics" that SoftSkills previously had to
-build locally. The largest remaining gap is still the agent/tool runtime boundary.
+build locally. As of 2026-04-11, the framework also absorbs the reusable native
+tool-calling boundary itself; the remaining gap is durable app-specific
+persistence and projection around that runtime.
+
+### SoftSkills Adoption Status (2026-04-09)
+
+Status in this repository after the Stageflow 1.2.0 alignment work:
+
+- `backend/pyproject.toml` now requires `stageflow-core>=1.2.0`.
+- `backend/src/soft_skills_backend/platform/workflows/stageflow.py`
+  now imports Stageflow's built-in typed payload helpers directly:
+  `StagePayloadResult`, `ok_output(...)`, `payload_from_inputs(...)`,
+  `payload_from_results(...)`, and `summary_from_output(...)`.
+- `StageflowStageResult` remains as a thin compatibility alias over
+  `StagePayloadResult` so existing workflow code did not need a broad
+  rewrite in the same change.
+- `run_logged_subpipeline(...)` now uses Stageflow's child-context data
+  inheritance support via `inherit_data=True` and `data_overrides=...`
+  instead of manually rehydrating private parent data on the child context.
+- `run_logged_pipeline(...)` and local child run logging still remain in
+  SoftSkills because first-class logged pipeline/subpipeline execution has
+  not shipped in Stageflow itself yet.
+- Assistant tool runtime, approval persistence, prompt-render staging, and
+  UI-facing ordered projection logic also remain local.
+
+Verification completed during this update:
+
+- targeted unit tests passed:
+  `test_assistant_runtime.py`,
+  `test_generation_streaming.py`,
+  `test_practice_runtime.py`,
+  `test_smoke_runner.py`
+- smoke registry load passed via
+  `python -m soft_skills_backend.smoke --list`
+- local smoke suites passed:
+  `auth-flows` and `pipeline-visualization`
+
+Verification caveat:
+
+- the backend virtualenv still reported installed package metadata for
+  `stageflow-core` as `1.1.0`, so verification used
+  `PYTHONPATH=/home/antonioborgerees/coding/stageflow` to force the local
+  Stageflow checkout that contains the 1.2.0 API surface
+- `practice-run-lifecycle` did not complete within the validation window, so
+  that suite is not marked as passed here
+
+## Implementation Update (2026-04-11)
+
+This repository and SoftSkills now validate the main recommendation from this
+review: the reusable boundary was the native provider tool runtime, and that
+boundary now exists in Stageflow and is adopted in SoftSkills where it fit
+naturally.
+
+### Shipped in Stageflow
+
+- A native-first agent tool runtime now exists in framework core.
+- `Agent` supports provider-native tool-calling as the primary path rather than
+  only a local JSON envelope loop.
+- Tool execution now flows through a pluggable runtime boundary instead of
+  direct registry execution inside the agent loop.
+- Typed provider-tool contracts now support `input_model`-driven schema
+  generation and strict provider-argument validation.
+- Tool runtime I/O now supports structured `tool.updated` publication and child
+  subpipeline lineage from tool execution.
+- Approval handling now has an explicit backend abstraction instead of only an
+  in-memory service shape.
+- Logged pipeline and subpipeline execution now exist as first-class framework
+  helpers rather than only as SoftSkills-local wrappers.
+- Parallel logged child-run coordination now exists as a first-class framework
+  helper through `run_logged_subpipelines(...)`.
+
+### SoftSkills Adoption Status (2026-04-11)
+
+SoftSkills did not replace its entire assistant orchestration with Stageflow's
+`Agent`, which would have been forced. Instead it adopted the extracted pieces
+that were actually reusable:
+
+- assistant provider tool definitions now come from Stageflow-backed typed tool
+  contracts rather than local manual schema assembly
+- assistant tool-update emission now uses Stageflow runtime I/O while preserving
+  SoftSkills-owned persistence and broker projection
+- provider-facing generation tool schemas now preserve SoftSkills' existing
+  alias semantics at the contract boundary while normalizing back into
+  canonical backend command models internally
+
+SoftSkills still intentionally keeps these concerns local:
+
+- persisted tool-call rows and approval request storage
+- websocket/broker projection policy
+- assistant loop policy and final streamed response path
+- app-specific subpipeline result shaping
+
+SoftSkills has also adopted the new logged execution helpers in its local
+Stageflow adapter layer, so top-level and child-run orchestration no longer
+need to reimplement run logging or lineage reconstruction from scratch.
+
+The main remaining orchestration-shaped gaps are now:
+
+- durable persistence-aware hooks around tool lifecycle state
+- ordered projection and event sink support for UI-facing workflows
+- reusable prompt-render and typed-LLM stage builders
+
+### Real Verification Completed
+
+Verification is no longer only unit-test or local-workflow level.
+
+Stageflow verification completed in the framework repository:
+
+- unit and integration coverage for native tool-calling runtime, typed tool
+  schemas, lifecycle hooks, approval backend abstraction, and subpipeline-aware
+  tool runtime behavior
+
+SoftSkills verification completed against the local Stageflow checkout:
+
+- assistant unit tests passed after adoption changes
+- deterministic assistant smoke passed
+- provider-backed assistant read smoke passed
+- provider-backed assistant generation smoke passed
+- provider-backed assistant multi-tool sequence smoke passed
+
+The important real-world result is that the new strict typed tool contracts
+initially exposed a live compatibility issue in SoftSkills generation tool
+schemas. The provider was still emitting legacy `counts` keys such as
+`quick_practice_prompt` and `interview_prompt`, while the extracted strict
+schema had narrowed to backend field names. That failure was fixed at the
+provider-facing contract layer and then verified with real-provider-backed
+generation smoke. That is exactly the kind of extraction validation this review
+was intended to drive.
 
 ## Backend Usage Inventory
 
@@ -114,7 +240,8 @@ build locally. The largest remaining gap is still the agent/tool runtime boundar
 SoftSkills created local wrappers for both parent and child execution in [stageflow.py](/home/antonioborgerees/df/soft-skills/backend/src/soft_skills_backend/platform/workflows/stageflow.py).
 
 - `run_logged_pipeline(...)` centralizes context creation, timeout wiring, idempotency setup, wide-event settings, and run logging.
-- `run_logged_subpipeline(...)` reconstructs child context, preserves lineage, logs child runs, and manually rehydrates parent `data`.
+- `run_logged_subpipeline(...)` still reconstructs child context, preserves lineage, and logs child runs.
+- As of 2026-04-09 it no longer manually rehydrates parent `data`; it now uses Stageflow's built-in child data inheritance controls.
 
 This is valuable framework behavior, not app-specific behavior.
 
@@ -138,7 +265,9 @@ That is generic enough to deserve framework support through interfaces, even if 
 
 SoftSkills introduced `StageflowStageResult`, `ok_output(...)`, `payload_from_inputs(...)`, and `payload_from_results(...)` because raw `StageOutput` access is too loose and repetitive for typed application code.
 
-The number of repeated `StageflowStageResult(...)` wrappers across backend workflows is a signal that the base ergonomics are too low-level.
+As of 2026-04-09, the helper functions now come directly from Stageflow 1.2.0 and `StageflowStageResult` is only a compatibility alias over the framework type.
+
+The number of repeated `StageflowStageResult(...)` wrappers across backend workflows is still a signal that the application may want a later cleanup pass to rename local compatibility types and reduce remaining wrapper noise.
 
 ### 5. Cancellation and progress scaffolding
 
@@ -217,7 +346,10 @@ The admin agent is also revealing. In [admin_agent/workflows/service.py](/home/a
 
 ### Native tool calling was outside the Stageflow agent abstraction
 
-SoftSkills could not use the documented JSON loop because it needed actual provider-native tool calling for reliability and better model behavior. The assistant therefore bypassed Stageflow agent runtime entirely and built its own loop.
+This was true at review time. It is no longer fully true as of 2026-04-11.
+Stageflow now has a native-first tool runtime boundary, but SoftSkills still
+keeps its own assistant loop policy and persistence/projection concerns around
+that boundary.
 
 ### Tool execution needed persistence and realtime state, not just execution
 
@@ -259,9 +391,9 @@ For production backend use, the framework should start from these assumptions:
 
 ## 1. Native Tool-Calling Agent Runtime
 
-This is the top priority.
+This was the top priority and is now substantially shipped.
 
-Stageflow should provide a first-class agent runtime that:
+Stageflow now provides a first-class reusable runtime that:
 
 - accepts provider-native tool definitions
 - calls providers through native tool-calling APIs
@@ -273,7 +405,8 @@ Stageflow should provide a first-class agent runtime that:
 - supports cancellation checkpoints between iterations
 - optionally hands off final response generation to a separate streaming responder
 
-This should replace the current JSON envelope contract as the primary recommendation. The JSON loop can remain as a fallback or testing mode.
+This now replaces the JSON envelope contract as the primary recommendation. The
+JSON loop should remain only as fallback or testing mode.
 
 ## 2. First-Class Logged Subpipeline Execution
 
@@ -285,7 +418,17 @@ Move the local subpipeline wrapper pattern into the framework:
 - preserve parent stage and run lineage
 - emit child run lifecycle logs automatically
 
-SoftSkills should not need local context reconstruction to make subpipelines production-safe.
+This is now shipped for both single and parallel child runs.
+
+Stageflow now provides:
+
+- `run_logged_subpipeline(...)` for one child run
+- `LoggedSubpipelineRequest` for declarative child-run configuration
+- `run_logged_subpipelines(...)` for bounded-concurrency child-run fan-out with
+  ordered results and optional fail-fast scheduling
+
+SoftSkills no longer needs to keep framework-shaped child-run logging glue just
+to make subpipelines production-safe.
 
 ## 3. Typed Stage Output Helpers
 
@@ -321,7 +464,11 @@ The prompt registry itself can remain pluggable, but the orchestration pattern i
 
 ## 6. Tool Execution Runtime With Persistence Hooks
 
-`AdvancedToolExecutor` should evolve beyond "execute with approval features" into a runtime that can integrate:
+The framework now has a reusable execution/runtime boundary, but it still needs
+stronger persistence-aware integration for production host apps.
+
+Stageflow should continue evolving beyond "execute with approval features" into
+a runtime that can integrate:
 
 - persistence callbacks
 - lifecycle event hooks
@@ -357,7 +504,7 @@ Stageflow should absorb orchestration mechanics, not product semantics.
 Ship these in Stageflow first:
 
 1. Native tool-calling agent runtime and stage
-2. First-class logged subpipeline helper with context-data propagation
+2. First-class logged pipeline and subpipeline helpers with context-data propagation
 3. Callable stage typing fixes
 4. Typed stage-result helpers
 
@@ -366,6 +513,10 @@ Impact:
 - removes the biggest local platform wrapper
 - makes agent support viable for production backends
 - reduces boilerplate across nearly every pipeline
+
+Status:
+
+- items 1, 2, 3, and 4 are now materially complete
 
 ## Phase 2: Improve Long-Running Workflow Ergonomics
 
@@ -397,21 +548,54 @@ Impact:
 ## Practical Guidance For SoftSkills Right Now
 
 - Keep using Stageflow for DAG orchestration and subpipeline topology.
-- Keep the assistant on the current custom native tool-calling path for now.
-- Do not migrate the assistant to the current `Agent` or `AgentStage` recommendation.
-- Treat `StageKind.AGENT` as an observability label today, not as proof that the framework agent abstraction is sufficient.
-- Keep prompt render stages, run wrappers, and tool execution infrastructure centralized until Stageflow grows the missing primitives.
+- Keep adopting extracted Stageflow surfaces where the boundary is genuinely
+  reusable: typed tool contracts, runtime I/O, lifecycle hooks, and approval
+  backend interfaces.
+- Do not force a full assistant rewrite onto `Agent` if the remaining app-owned
+  persistence and streaming concerns would just be restitched locally.
+- Keep prompt render stages and durable projection logic centralized until
+  Stageflow grows the missing primitives.
 
 ## Final Assessment
 
 Stageflow succeeded here as an orchestration framework.
 
-It did not succeed here as a production agent framework.
+At review time it did not succeed as a production agent framework. That is no
+longer the full picture.
 
 The strongest evidence is simple:
 
 - SoftSkills uses Stageflow everywhere for workflow coordination.
-- SoftSkills uses almost none of Stageflow's higher-level agent/tool runtime for the actual assistant.
-- The most complicated and reusable local code exists exactly where Stageflow stops short today.
+- SoftSkills previously used almost none of Stageflow's higher-level
+  agent/tool runtime for the actual assistant.
+- The most reusable parts of that local assistant runtime have now started to
+  move into Stageflow and survive real-provider validation in SoftSkills.
 
-That is the roadmap signal. The next Stageflow gains should come from absorbing the operational scaffolding SoftSkills had to build around orchestration, especially native tool calling, subpipeline execution, cancellation, and typed stage ergonomics.
+That is the roadmap signal. The next Stageflow gains should continue absorbing
+the operational scaffolding SoftSkills still has to build around orchestration,
+especially durable persistence hooks, ordered projection, stage-scoped
+idempotency, and prompt/LLM stage builders.
+
+## Recommended Next Sprint (2026-04-12)
+
+The next extraction target should be durable tool lifecycle persistence and
+projection hooks.
+
+Why this should be next:
+
+- the native tool runtime boundary is now proven in real-provider-backed use
+- logged parent/child execution is now framework-native
+- the largest remaining reusable gap is still the app-owned persistence and UI
+  projection glue around tool lifecycle state
+
+That sprint should aim to add:
+
+1. persistence-aware lifecycle callbacks for `tool.invoked`,
+   `tool.started`, `tool.updated`, `tool.completed`, and `tool.failed`
+2. projection and ordering hooks so UI-facing workflows can consume a
+   framework-level event stream without restitching sequencing logic
+3. stage-scoped idempotency and event naming/queryability improvements, since
+   SoftSkills still carries those as framework-shaped local wrappers
+
+After that, the next candidate should be prompt-render and typed-LLM stage
+builders.

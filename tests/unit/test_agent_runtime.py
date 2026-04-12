@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from stageflow.agent import (
     Agent,
     AgentConfig,
+    AgentLoopError,
     AgentStage,
     AgentTurn,
     LLMOutputValidationError,
@@ -25,6 +26,7 @@ from stageflow.helpers.mocks import MockCompletion
 from stageflow.testing import create_test_stage_context
 from stageflow.tools.base import BaseTool, ToolInput, ToolOutput
 from stageflow.tools.registry import ToolRegistry
+from tests.utils.mocks import MockEventSink
 
 
 class EchoTool(BaseTool):
@@ -41,6 +43,16 @@ class EchoTool(BaseTool):
             },
         )
 
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+            },
+            "required": ["text"],
+        }
+
 
 class ExamplePayload(BaseModel):
     value: int
@@ -48,6 +60,28 @@ class ExamplePayload(BaseModel):
 
 class _DummyClient:
     pass
+
+
+class _NativeToolProvider:
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self._responses = list(responses)
+        self.calls: list[dict[str, Any]] = []
+
+    async def chat(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        model: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        self.calls.append(
+            {
+                "messages": [dict(message) for message in messages],
+                "model": model,
+                **kwargs,
+            }
+        )
+        return self._responses.pop(0)
 
 
 def test_prompt_library_renders_specific_version() -> None:
@@ -226,6 +260,198 @@ def test_agent_executes_tool_loop_and_returns_final_answer() -> None:
         assert result.tool_results[0].data == {"echo": "hello", "stage_name": None}
         assert result.prompt_version == "v1"
         assert len(result.security) == 2
+        assert result.tool_calling_mode == "json"
+
+    asyncio.run(_run())
+
+
+def test_agent_prefers_native_tool_calling_when_chat_tools_are_available() -> None:
+    async def _run() -> None:
+        provider = _NativeToolProvider(
+            responses=[
+                {
+                    "model": "native-model",
+                    "choices": [
+                        {
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "ECHO",
+                                            "arguments": '{"text": "hello"}',
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+                {
+                    "model": "native-model",
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"role": "assistant", "content": "done"},
+                        }
+                    ],
+                },
+            ]
+        )
+        registry = ToolRegistry()
+        registry.register(EchoTool())
+        agent = Agent(llm_client=provider, config=AgentConfig(model="mock"), tool_registry=registry)
+
+        result = await agent.run("please use a tool")
+
+        assert result.response == "done"
+        assert result.tool_calling_mode == "native"
+        assert result.tool_results[0].data == {"echo": "hello", "stage_name": None}
+
+        first_call = provider.calls[0]
+        assert first_call["tool_choice"] == "auto"
+        assert first_call["tools"] == [
+            {
+                "type": "function",
+                "function": {
+                    "name": "ECHO",
+                    "description": "Echo input text",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}},
+                        "required": ["text"],
+                    },
+                },
+            }
+        ]
+
+        second_messages = provider.calls[1]["messages"]
+        assert any(message.get("tool_calls") for message in second_messages)
+        assert any(
+            message.get("role") == "tool"
+            and message.get("tool_call_id") == "call_1"
+            and "<tool_result>" in str(message.get("content"))
+            for message in second_messages
+        )
+
+    asyncio.run(_run())
+
+
+def test_agent_reports_unresolved_native_tool_calls_and_continues() -> None:
+    async def _run() -> None:
+        provider = _NativeToolProvider(
+            responses=[
+                {
+                    "model": "native-model",
+                    "choices": [
+                        {
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call_404",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "UNKNOWN_TOOL",
+                                            "arguments": '{"text": "hello"}',
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                },
+                {
+                    "model": "native-model",
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"role": "assistant", "content": "recovered"},
+                        }
+                    ],
+                },
+            ]
+        )
+        registry = ToolRegistry()
+        registry.register(EchoTool())
+        event_sink = MockEventSink()
+        ctx = create_test_stage_context(input_text="please use a tool", event_sink=event_sink)
+        agent = Agent(llm_client=provider, config=AgentConfig(model="mock"), tool_registry=registry)
+
+        result = await agent.run("please use a tool", stage_context=ctx)
+
+        assert result.response == "recovered"
+        assert result.tool_calling_mode == "native"
+        assert result.tool_results[0].success is False
+        assert "No tool registered" in str(result.tool_results[0].error)
+        assert event_sink.has_event("tools.unresolved")
+        assert any(
+            message.get("role") == "tool"
+            and message.get("tool_call_id") == "call_404"
+            and "No tool registered" in str(message.get("content"))
+            for message in provider.calls[1]["messages"]
+        )
+
+    asyncio.run(_run())
+
+
+def test_agent_native_mode_accepts_json_contract_fallback_from_chat_client() -> None:
+    async def _run() -> None:
+        provider = _NativeToolProvider(
+            responses=[
+                {
+                    "model": "mixed-provider",
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {
+                                "role": "assistant",
+                                "content": '{"tool_calls": [{"name": "ECHO", "arguments": {"text": "hello"}}]}',
+                            },
+                        }
+                    ],
+                },
+                {
+                    "model": "mixed-provider",
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"role": "assistant", "content": '{"final_answer": "done"}'},
+                        }
+                    ],
+                },
+            ]
+        )
+        registry = ToolRegistry()
+        registry.register(EchoTool())
+        agent = Agent(llm_client=provider, config=AgentConfig(model="mock"), tool_registry=registry)
+
+        result = await agent.run("please use a tool")
+
+        assert result.response == "done"
+        assert result.tool_calling_mode == "native"
+        assert result.tool_results[0].data == {"echo": "hello", "stage_name": None}
+
+    asyncio.run(_run())
+
+
+def test_agent_native_mode_requires_chat_client_and_registered_tools() -> None:
+    async def _run() -> None:
+        llm = MockLLMProvider(responses=["ignored"])
+        agent = Agent(
+            llm_client=llm,
+            config=AgentConfig(model="mock", tool_calling_mode="native"),
+            tool_registry=ToolRegistry(),
+        )
+
+        with pytest.raises(AgentLoopError):
+            await agent.run("hello")
 
     asyncio.run(_run())
 

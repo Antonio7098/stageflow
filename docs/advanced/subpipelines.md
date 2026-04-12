@@ -25,6 +25,15 @@ Parent Pipeline
 └─────────────────────────────────────────────────────────────┘
 ```
 
+For most new code, prefer the logged runtime helpers over hand-rolled child
+context construction:
+
+- `run_logged_subpipeline(...)` for one child run
+- `run_logged_subpipelines(...)` for many child runs with bounded concurrency
+
+Use `PipelineContext.fork(...)` or `SubpipelineSpawner.spawn(...)` directly only
+when you need lower-level orchestration control.
+
 ## Forking Context
 
 Use `PipelineContext.fork()` to create a child context:
@@ -79,6 +88,36 @@ parent_value = child_ctx.get_parent_data("some_key", default=None)
 ## Implementing Subpipeline Execution
 
 ### Stage That Spawns Subpipeline
+
+The low-level pattern is still available, but the recommended production path
+is usually the logged helper:
+
+```python
+from uuid import uuid4
+
+from stageflow import run_logged_subpipeline
+
+child = await run_logged_subpipeline(
+    tool_pipeline,
+    parent_ctx=ctx,
+    parent_stage_id=ctx.stage_name,
+    correlation_id=uuid4(),
+    logger=run_logger,
+    topology="tool_generate_assets",
+    execution_mode="tool_execution",
+    inherit_data=True,
+    data_overrides={"invoked_by": ctx.stage_name},
+    result_stage_name="persist",
+)
+```
+
+That gives you:
+
+- canonical child `PipelineContext` creation
+- parent/child correlation and lineage
+- child run logging through `PipelineRunLogger`
+- consistent cancellation and failure handling
+- optional stage-specific child result extraction
 
 ```python
 from uuid import uuid4
@@ -176,6 +215,44 @@ teams never have to construct it. If you implement your own orchestration layer,
 use the same contract so the spawner can emit events, enforce depth limits, and
 handle cancellations.
 
+## Parallel Subpipelines
+
+When one stage needs several child runs, prefer
+`run_logged_subpipelines(...)` over open-coded `asyncio.gather(...)`:
+
+```python
+from uuid import uuid4
+
+from stageflow import LoggedSubpipelineRequest, run_logged_subpipelines
+
+requests = [
+    LoggedSubpipelineRequest(
+        pipeline=tool_pipeline,
+        correlation_id=uuid4(),
+        parent_stage_id="tool_executor",
+        topology=f"tool_{call.type}",
+        execution_mode="tool_execution",
+        result_stage_name="persist",
+    )
+    for call in tool_calls
+]
+
+child_results = await run_logged_subpipelines(
+    requests,
+    parent_ctx=ctx,
+    logger=run_logger,
+    concurrency=4,
+    fail_fast=False,
+)
+```
+
+Behavior:
+
+- preserves input-order results
+- supports bounded concurrency
+- can stop scheduling new child runs after the first failure with `fail_fast=True`
+- preserves the same lineage and run-logging behavior as the single-child helper
+
 ### Telemetry & Tool Resolution in Subpipelines
 
 Subpipeline stages often orchestrate multiple tools. Standardize telemetry by resolving LLM-provided tool calls before spawning a child run and wiring streaming emitters through the child context:
@@ -243,6 +320,10 @@ Events from child pipelines include parent references:
 ```
 
 ## Observability and Metrics
+
+The logged helpers are the preferred way to keep run logging truthful. They add
+`PipelineRunLogger` lifecycle logging on top of the lower-level child tracker
+events emitted by `SubpipelineSpawner`.
 
 ### ChildRunTracker Metrics
 

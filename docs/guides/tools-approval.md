@@ -8,7 +8,7 @@ Stageflow provides three main building blocks:
 
 - `ToolRegistry` for discovery and legacy tool execution
 - `AdvancedToolExecutor` for behavior gating, approvals, undo, and telemetry
-- `ApprovalService` + `UndoStore` for HITL and rollback flows
+- `ApprovalBackend`/`ApprovalService` + `UndoStore` for HITL and rollback flows
 
 ## Tool Registry
 
@@ -33,6 +33,25 @@ registry = get_tool_registry()
 registry.register(CalculatorTool())
 ```
 
+### Typed Tool Schemas
+
+If a tool defines `input_model`, Stageflow derives the provider schema and
+validates tool-call arguments before execution.
+
+```python
+from pydantic import BaseModel
+from stageflow.tools import BaseTool
+
+class CalculatorArgs(BaseModel):
+    expression: str
+
+class CalculatorTool(BaseTool):
+    name = "calculator"
+    description = "Evaluate basic expressions"
+    action_type = "CALCULATE"
+    input_model = CalculatorArgs
+```
+
 ### Parsing LLM Tool Calls
 
 ```python
@@ -47,6 +66,33 @@ for call in resolved:
         ctx=ctx.to_dict(),
     )
 ```
+
+`resolved` calls are already schema-validated. Invalid arguments show up in
+`unresolved` with explicit validation errors.
+
+## Tool Runtime I/O
+
+Registry-backed tools now receive runtime helpers on `ToolInput`:
+
+```python
+async def generate_handler(input: ToolInput, ctx: dict) -> ToolOutput:
+    await input.publish_update({"progress": 0.5, "step": "drafting"})
+    child_run = await input.spawn_subpipeline(pipeline_name="generate_assets")
+    return ToolOutput(
+        success=True,
+        data={"child_run_id": str(child_run.child_run_id)},
+        child_runs=[child_run],
+    )
+```
+
+This is the framework extraction point for long-running tool progress and child
+pipeline lineage. The default agent runtime surfaces these as observable
+`tool.updated` and `agent.tool.updated` events.
+
+When a tool delegates substantial work to a child pipeline, prefer
+`run_logged_subpipeline(...)` or `run_logged_subpipelines(...)` in the tool's
+adapter layer instead of bespoke child-run wrappers. That keeps run logging,
+lineage, and failure behavior consistent across the framework.
 
 ## Legacy ToolExecutor (Plan Stage)
 
@@ -128,6 +174,10 @@ if decision.granted:
     print("approved")
 ```
 
+`ApprovalService` is the default in-memory adapter. Production applications can
+depend on the `ApprovalBackend` protocol and provide durable storage or
+notification behavior without changing the executor contract.
+
 ## Undo Workflow
 
 ```python
@@ -190,3 +240,6 @@ assert result.output["result"] == 4
 2. Keep approval payloads minimal and human-readable.
 3. Store undo metadata only for truly reversible actions.
 4. Emit `tools.unresolved` whenever model tool calls fail schema/registry resolution.
+5. Prefer `ApprovalBackend` as the dependency boundary; treat `ApprovalService` as the default adapter.
+6. Use `ToolInput.publish_update()` and `child_runs` for long-running or delegated tools.
+7. Use the logged pipeline helpers for delegated child workflow execution instead of open-coded subpipeline wrappers.

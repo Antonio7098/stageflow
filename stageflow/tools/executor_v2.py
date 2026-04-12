@@ -24,7 +24,7 @@ from uuid import UUID
 
 from stageflow.events import get_event_sink
 
-from .approval import ApprovalService, get_approval_service
+from .approval import ApprovalBackend, get_approval_service
 from .definitions import Action, ToolDefinition, ToolInput, ToolOutput, UndoMetadata
 from .errors import (
     ToolApprovalDeniedError,
@@ -104,7 +104,7 @@ class AdvancedToolExecutor:
         self,
         config: ToolExecutorConfig | None = None,
         undo_store: UndoStore | None = None,
-        approval_service: ApprovalService | None = None,
+        approval_service: ApprovalBackend | None = None,
     ) -> None:
         self.config = config or ToolExecutorConfig()
         self._tools: dict[str, ToolDefinition] = {}

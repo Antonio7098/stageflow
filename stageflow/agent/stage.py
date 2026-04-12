@@ -7,7 +7,8 @@ from typing import Any
 from stageflow.contracts import TypedStageOutput
 from stageflow.core import StageKind, StageOutput
 
-from .runtime import Agent, AgentRunResult
+from .models import AgentRunResult
+from .runtime import Agent
 
 
 class AgentStage:

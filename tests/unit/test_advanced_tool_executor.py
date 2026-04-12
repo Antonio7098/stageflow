@@ -1,5 +1,6 @@
 """Tests for AdvancedToolExecutor with ExecutionContext."""
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID, uuid4
@@ -14,6 +15,8 @@ from stageflow.stages.context import PipelineContext
 from stageflow.stages.inputs import StageInputs
 from stageflow.tools import (
     AdvancedToolExecutor,
+    ApprovalDecision,
+    ApprovalRequest,
     DictContextAdapter,
     ToolDefinition,
     ToolDeniedError,
@@ -340,6 +343,109 @@ class TestAdvancedToolExecutorErrors:
 
         result = await executor.execute(action, context)
         assert result.success
+
+
+class _ImmediateApprovalBackend:
+    def __init__(self) -> None:
+        self.requests: list[ApprovalRequest] = []
+
+    async def request_approval(
+        self,
+        action_id: UUID,
+        tool_name: str,
+        pipeline_run_id: UUID | None = None,
+        approval_message: str = "",
+        payload_summary: dict[str, Any] | None = None,
+    ) -> ApprovalRequest:
+        request = ApprovalRequest(
+            id=uuid4(),
+            action_id=action_id,
+            tool_name=tool_name,
+            pipeline_run_id=pipeline_run_id,
+            approval_message=approval_message,
+            payload_summary=payload_summary or {},
+        )
+        self.requests.append(request)
+        return request
+
+    async def request(self, request: ApprovalRequest) -> ApprovalRequest:
+        self.requests.append(request)
+        return request
+
+    async def await_decision(
+        self,
+        request_id: UUID,
+        timeout_seconds: float | None = None,  # noqa: ARG002
+    ) -> ApprovalDecision:
+        return ApprovalDecision(request_id=request_id, granted=True)
+
+    async def record_decision(
+        self,
+        request_id: UUID,
+        granted: bool,
+        decided_by: UUID | None = None,
+        reason: str | None = None,
+    ) -> ApprovalDecision:
+        return ApprovalDecision(
+            request_id=request_id,
+            granted=granted,
+            decided_by=decided_by,
+            reason=reason,
+        )
+
+    async def cancel_request(self, request_id: UUID) -> bool:  # noqa: ARG002
+        return True
+
+    async def get_request(self, request_id: UUID) -> ApprovalRequest | None:  # noqa: ARG002
+        return None
+
+    async def get_status(self, request_or_action_id: UUID):  # noqa: ANN201, ARG002
+        return None
+
+    async def get_pending_requests(
+        self,
+        pipeline_run_id: UUID | None = None,  # noqa: ARG002
+    ) -> list[ApprovalRequest]:
+        return list(self.requests)
+
+    async def cleanup(self, request_id: UUID) -> None:  # noqa: ARG002
+        return None
+
+
+def test_advanced_tool_executor_accepts_custom_approval_backend() -> None:
+    async def _run() -> None:
+        backend = _ImmediateApprovalBackend()
+        executor = AdvancedToolExecutor(
+            config=ToolExecutorConfig(emit_events=False),
+            approval_service=backend,
+        )
+        snapshot = _make_snapshot(
+            pipeline_run_id=uuid4(),
+            request_id=uuid4(),
+            execution_mode="practice",
+        )
+        ctx = _make_stage_context(snapshot)
+        executor.register(
+            ToolDefinition(
+                name="approved_tool",
+                action_type="APPROVED_ACTION",
+                handler=mock_handler,
+                requires_approval=True,
+                approval_message="Approve approved_tool?",
+            )
+        )
+
+        result = await executor.execute(
+            MockAction(id=uuid4(), type="APPROVED_ACTION", payload={"key": "value"}),
+            ctx,
+        )
+
+        assert result.success
+        assert len(backend.requests) == 1
+        assert backend.requests[0].tool_name == "approved_tool"
+        assert backend.requests[0].approval_message == "Approve approved_tool?"
+
+    asyncio.run(_run())
 
 
 class TestToolInputFromAction:

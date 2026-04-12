@@ -129,6 +129,114 @@ print(results.data("shout"))
 Use `build()` when you want to keep a reusable graph object or configure it once
 and run it multiple times.
 
+## Logged Runtime Helpers
+
+Stageflow also exposes first-class helpers for production entrypoints and child
+pipeline orchestration:
+
+```python
+from stageflow import (
+    LoggedSubpipelineRequest,
+    run_logged_pipeline,
+    run_logged_subpipeline,
+    run_logged_subpipelines,
+)
+```
+
+### run_logged_pipeline
+
+```python
+run_logged_pipeline(
+    pipeline: Pipeline,
+    *,
+    logger: PipelineRunLogger | None = None,
+    ctx: PipelineContext | None = None,
+    interceptors: list[BaseInterceptor] | None = None,
+    guard_retry_strategy: GuardRetryStrategy | None = None,
+    emit_stage_wide_events: bool = True,
+    emit_pipeline_wide_event: bool = True,
+    wide_event_emitter: WideEventEmitter | None = None,
+    on_context_ready: Callable[[PipelineContext], None] | None = None,
+    **context_kwargs: Any,
+) -> PipelineResults
+```
+
+Use this when top-level execution needs framework-managed run logging. It
+creates or reuses `PipelineContext`, logs lifecycle transitions through
+`PipelineRunLogger`, and re-raises original failures rather than silently
+wrapping them.
+
+### run_logged_subpipeline
+
+```python
+run_logged_subpipeline(
+    pipeline: Pipeline,
+    *,
+    parent_ctx: PipelineContext | StageContext,
+    parent_stage_id: str,
+    correlation_id: UUID,
+    logger: PipelineRunLogger | None = None,
+    spawner: SubpipelineSpawner | None = None,
+    interceptors: list[BaseInterceptor] | None = None,
+    guard_retry_strategy: GuardRetryStrategy | None = None,
+    emit_stage_wide_events: bool = True,
+    emit_pipeline_wide_event: bool = True,
+    wide_event_emitter: WideEventEmitter | None = None,
+    topology: str | None = None,
+    execution_mode: str | None = None,
+    inherit_data: bool | Iterable[str] = True,
+    data_overrides: dict[str, Any] | None = None,
+    result_stage_name: str | None = None,
+    result_data_builder: Callable[[PipelineResults], dict[str, Any]] | None = None,
+    on_child_context_ready: Callable[[PipelineContext], None] | None = None,
+) -> SubpipelineResult
+```
+
+This wraps `SubpipelineSpawner.spawn(...)` with run logging, lineage
+preservation, and child data inheritance controls.
+
+### LoggedSubpipelineRequest
+
+```python
+LoggedSubpipelineRequest(
+    pipeline: Pipeline,
+    correlation_id: UUID,
+    parent_stage_id: str,
+    topology: str | None = None,
+    execution_mode: str | None = None,
+    inherit_data: bool | Iterable[str] = True,
+    data_overrides: dict[str, Any] | None = None,
+    result_stage_name: str | None = None,
+    result_data_builder: Callable[[PipelineResults], dict[str, Any]] | None = None,
+    on_child_context_ready: Callable[[PipelineContext], None] | None = None,
+)
+```
+
+Use this value object to declare one child run when calling
+`run_logged_subpipelines(...)`.
+
+### run_logged_subpipelines
+
+```python
+run_logged_subpipelines(
+    requests: Iterable[LoggedSubpipelineRequest],
+    *,
+    parent_ctx: PipelineContext | StageContext,
+    logger: PipelineRunLogger | None = None,
+    spawner: SubpipelineSpawner | None = None,
+    interceptors: list[BaseInterceptor] | None = None,
+    guard_retry_strategy: GuardRetryStrategy | None = None,
+    emit_stage_wide_events: bool = True,
+    emit_pipeline_wide_event: bool = True,
+    wide_event_emitter: WideEventEmitter | None = None,
+    concurrency: int | None = None,
+    fail_fast: bool = False,
+) -> list[SubpipelineResult]
+```
+
+This helper runs multiple child pipelines with ordered result preservation,
+optional bounded concurrency, and optional fail-fast scheduling semantics.
+
 ### invoke
 
 ```python
@@ -212,6 +320,9 @@ graph = builder.build(
 
 - Use `stageflow.api` when you want the smallest practical public surface.
 - Use `Pipeline(...).run(...)` for the canonical new-code path.
+- Use `run_logged_pipeline(...)` when run logging is part of the application contract.
+- Use `run_logged_subpipeline(...)` for one child run with correlation and logging.
+- Use `run_logged_subpipelines(...)` for many child runs with shared policy and bounded concurrency.
 - Use `Pipeline(...).invoke(...)` only as a convenience alias for small scripts.
 - Use `Pipeline(...).build()` when you want an explicit reusable `UnifiedStageGraph`.
 - Keep `PipelineBuilder(...).build()` (`StageGraph`) only for deprecated flows you

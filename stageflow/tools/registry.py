@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from .base import Tool, ToolInput, ToolOutput
+from .runtime_io import NullToolRuntimeIO, ToolRuntimeIO
+from .schema import ToolArgumentsValidationError
+from .schema import validate_tool_arguments
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +109,13 @@ class ToolRegistry:
         """Check if we have a tool for this action type."""
         return action_type in self._tools or action_type in self._factories
 
-    async def execute(self, action: ActionProtocol, ctx: dict[str, Any]) -> ToolOutput | None:
+    async def execute(
+        self,
+        action: ActionProtocol,
+        ctx: dict[str, Any],
+        *,
+        runtime: ToolRuntimeIO | None = None,
+    ) -> ToolOutput | None:
         """Execute an action using its registered tool."""
         tool = self.get_tool(action.type)
         if tool is None:
@@ -115,7 +124,7 @@ class ToolRegistry:
                 error=f"No tool registered for action type: {action.type}",
             )
 
-        input = ToolInput(action=action)
+        input = ToolInput(action=action, runtime=runtime or NullToolRuntimeIO())
         return await tool.execute(input, ctx)
 
     def list_tools(self) -> list[Tool]:
@@ -227,11 +236,23 @@ class ToolRegistry:
                         raw=call,
                     ))
                 else:
+                    try:
+                        validated_arguments = validate_tool_arguments(tool, arguments)
+                    except ToolArgumentsValidationError as exc:
+                        unresolved.append(UnresolvedToolCall(
+                            call_id=call_id,
+                            name=name,
+                            arguments=arguments,
+                            error=str(exc),
+                            raw=call,
+                        ))
+                        continue
+
                     resolved.append(ResolvedToolCall(
                         tool=tool,
                         call_id=call_id,
                         name=name,
-                        arguments=arguments,
+                        arguments=validated_arguments,
                         raw=call,
                     ))
 

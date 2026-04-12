@@ -9,19 +9,21 @@ from stageflow.context import (
     RoutingDecision,
 )
 
+from .models import AgentConfig, AgentRunResult, AgentToolCall, AgentToolResult, AgentTurn
 from .prompts import PromptLibrary, PromptRenderError, PromptTemplate, RenderedPrompt
-from .runtime import (
-    Agent,
-    AgentConfig,
-    AgentLoopError,
-    AgentRunResult,
-    AgentToolCall,
-    AgentToolResult,
-    AgentTurn,
-    AgentTurnLimitError,
-)
+from .runtime import Agent, AgentLoopError, AgentTurnLimitError
 from .security import PromptSecurityError, PromptSecurityPolicy, PromptSecurityReport
 from .stage import AgentStage
+from .tool_runtime import (
+    AgentLifecycleHooks,
+    AgentToolDescriptor,
+    AgentToolExecutionResult,
+    AgentToolRuntime,
+    AgentToolRuntimeError,
+    EventEmittingAgentLifecycleHooks,
+    NoOpAgentLifecycleHooks,
+    RegistryAgentToolRuntime,
+)
 from .validation import LLMOutputValidationError, TypedLLMOutput, TypedLLMResult
 
 __all__ = [
@@ -48,6 +50,14 @@ __all__ = [
     "PromptTemplate",
     "RenderedPrompt",
     "RoutingDecision",
+    "AgentLifecycleHooks",
+    "AgentToolDescriptor",
+    "AgentToolExecutionResult",
+    "AgentToolRuntime",
+    "AgentToolRuntimeError",
+    "EventEmittingAgentLifecycleHooks",
+    "NoOpAgentLifecycleHooks",
+    "RegistryAgentToolRuntime",
     "TypedLLMOutput",
     "TypedLLMResult",
 ]

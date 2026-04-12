@@ -10,6 +10,7 @@ This module provides:
 
 from .adapters import DictContextAdapter, adapt_context
 from .approval import (
+    ApprovalBackend,
     ApprovalDecision,
     ApprovalRequest,
     ApprovalService,
@@ -68,6 +69,15 @@ from .registry import (
     register_tool,
     tool,
 )
+from .runtime_io import (
+    NullToolRuntimeIO,
+    StageflowToolRuntimeIO,
+    ToolChildRun,
+    ToolRuntimeIO,
+    ToolRuntimeIOError,
+    ToolUpdate,
+)
+from .schema import ToolArgumentsValidationError, ToolSchemaError
 from .undo import UndoStore, clear_undo_store, get_undo_store, set_undo_store
 
 __all__ = [
@@ -116,6 +126,14 @@ __all__ = [
     "get_tool_registry",
     "register_tool",
     "tool",
+    "ToolSchemaError",
+    "ToolArgumentsValidationError",
+    "ToolRuntimeIO",
+    "ToolRuntimeIOError",
+    "NullToolRuntimeIO",
+    "StageflowToolRuntimeIO",
+    "ToolChildRun",
+    "ToolUpdate",
     # Executors
     "ToolExecutor",
     "AdvancedToolExecutor",
@@ -130,6 +148,7 @@ __all__ = [
     "ApprovalStatus",
     "ApprovalRequest",
     "ApprovalDecision",
+    "ApprovalBackend",
     "ApprovalService",
     "get_approval_service",
     "set_approval_service",

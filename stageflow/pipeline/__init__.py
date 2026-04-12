@@ -30,6 +30,12 @@ from stageflow.pipeline.guard_retry import (
     GuardRetryStrategy,
     hash_retry_payload,
 )
+from stageflow.pipeline.logged import (
+    LoggedSubpipelineRequest,
+    run_logged_pipeline,
+    run_logged_subpipeline,
+    run_logged_subpipelines,
+)
 from stageflow.pipeline.pipeline import Pipeline, UnifiedStageSpec, run_stage, stage
 from stageflow.pipeline.registry import PipelineRegistry, pipeline_registry
 from stageflow.pipeline.results import PipelineResults
@@ -90,6 +96,10 @@ __all__ = [
     "GuardRetryPolicy",
     "GuardRetryStrategy",
     "hash_retry_payload",
+    "LoggedSubpipelineRequest",
+    "run_logged_pipeline",
+    "run_logged_subpipeline",
+    "run_logged_subpipelines",
     "stage",
     "run_stage",
     # Subpipeline support

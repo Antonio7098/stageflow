@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
-from stageflow.events import get_event_sink
+from stageflow.events import EventSink, get_event_sink
 
 if TYPE_CHECKING:
     from stageflow.stages.context import PipelineContext
@@ -487,7 +487,14 @@ class SubpipelineSpawner:
 
         # Emit spawn event
         if self._emit_events and parent_run_id:
-            await self._emit_spawned(parent_run_id, child_run_id, parent_stage_id, pipeline_name, correlation_id)
+            await self._emit_spawned(
+                parent_run_id,
+                child_run_id,
+                parent_stage_id,
+                pipeline_name,
+                correlation_id,
+                sink=_resolve_event_sink(ctx),
+            )
 
         start_time = time.perf_counter()
         try:
@@ -495,7 +502,13 @@ class SubpipelineSpawner:
             duration_ms = (time.perf_counter() - start_time) * 1000
 
             if self._emit_events and parent_run_id:
-                await self._emit_completed(parent_run_id, child_run_id, pipeline_name, duration_ms)
+                await self._emit_completed(
+                    parent_run_id,
+                    child_run_id,
+                    pipeline_name,
+                    duration_ms,
+                    sink=_resolve_event_sink(ctx),
+                )
 
             return SubpipelineResult(
                 success=True,
@@ -509,7 +522,14 @@ class SubpipelineSpawner:
             logger.error(f"Child pipeline {child_run_id} failed: {e}")
 
             if self._emit_events and parent_run_id:
-                await self._emit_failed(parent_run_id, child_run_id, pipeline_name, str(e), duration_ms)
+                await self._emit_failed(
+                    parent_run_id,
+                    child_run_id,
+                    pipeline_name,
+                    str(e),
+                    duration_ms,
+                    sink=_resolve_event_sink(ctx),
+                )
 
             return SubpipelineResult(
                 success=False,
@@ -562,7 +582,8 @@ class SubpipelineSpawner:
                     # Emit cancel event
                     if self._emit_events:
                         parent = await self._tracker.get_parent(current_id)
-                        await self._emit_canceled(current_id, parent, reason, depth)
+                        sink = _resolve_event_sink(contexts[current_id]) if contexts and current_id in contexts else get_event_sink()
+                        await self._emit_canceled(current_id, parent, reason, depth, sink=sink)
 
         await cancel_recursive(run_id, 0)
         return canceled
@@ -579,6 +600,8 @@ class SubpipelineSpawner:
         parent_stage_id: str,
         pipeline_name: str,
         correlation_id: UUID,
+        *,
+        sink: EventSink,
     ) -> None:
         event = PipelineSpawnedChildEvent(
             parent_run_id=parent_run_id,
@@ -587,7 +610,6 @@ class SubpipelineSpawner:
             pipeline_name=pipeline_name,
             correlation_id=correlation_id,
         )
-        sink = get_event_sink()
         await sink.emit(type="pipeline.spawned_child", data=event.to_dict())
 
     async def _emit_completed(
@@ -596,6 +618,8 @@ class SubpipelineSpawner:
         child_run_id: UUID,
         pipeline_name: str,
         duration_ms: float,
+        *,
+        sink: EventSink,
     ) -> None:
         event = PipelineChildCompletedEvent(
             parent_run_id=parent_run_id,
@@ -603,7 +627,6 @@ class SubpipelineSpawner:
             pipeline_name=pipeline_name,
             duration_ms=duration_ms,
         )
-        sink = get_event_sink()
         await sink.emit(type="pipeline.child_completed", data=event.to_dict())
 
     async def _emit_failed(
@@ -613,6 +636,8 @@ class SubpipelineSpawner:
         pipeline_name: str,
         error_message: str,
         duration_ms: float,
+        *,
+        sink: EventSink,
     ) -> None:
         event = PipelineChildFailedEvent(
             parent_run_id=parent_run_id,
@@ -621,7 +646,6 @@ class SubpipelineSpawner:
             error_message=error_message,
             duration_ms=duration_ms,
         )
-        sink = get_event_sink()
         await sink.emit(type="pipeline.child_failed", data=event.to_dict())
 
     async def _emit_canceled(
@@ -630,6 +654,8 @@ class SubpipelineSpawner:
         parent_run_id: UUID | None,
         reason: str,
         depth: int,
+        *,
+        sink: EventSink,
     ) -> None:
         event = PipelineCanceledEvent(
             pipeline_run_id=run_id,
@@ -637,8 +663,13 @@ class SubpipelineSpawner:
             reason=reason,
             cascade_depth=depth,
         )
-        sink = get_event_sink()
         await sink.emit(type="pipeline.canceled", data=event.to_dict())
+
+
+def _resolve_event_sink(ctx: PipelineContext | None) -> EventSink:
+    if ctx is not None and getattr(ctx, "event_sink", None) is not None:
+        return ctx.event_sink
+    return get_event_sink()
 
 
 # Global spawner instance

@@ -1,6 +1,21 @@
 # Composing Pipelines
 
-Pipelines are the backbone of stageflow applications. This guide covers how to build, compose, and manage pipelines effectively.
+Pipelines are the backbone of stageflow applications. This guide covers how to
+build, compose, and manage pipelines effectively.
+
+## Choosing An Execution Surface
+
+Stageflow exposes three distinct runtime entrypoints for pipeline execution:
+
+- `Pipeline.run(...)` for ordinary in-process execution
+- `run_logged_pipeline(...)` for top-level application entrypoints that require
+  canonical run logging
+- `run_logged_subpipeline(...)` / `run_logged_subpipelines(...)` for child
+  pipeline runs with preserved lineage
+
+Use `Pipeline.run(...)` for small scripts, tests, and flows where you already
+own context construction and logging. Use the logged helpers when observability,
+correlation, and consistent lifecycle logging are part of the runtime contract.
 
 ## The Pipeline Builder
 
@@ -103,6 +118,10 @@ pipeline = (
     .with_stage("d", StageD, StageKind.ENRICH, dependencies=("a",))
 )
 ```
+
+This pattern parallelizes stages inside one DAG. If you instead need to launch
+multiple child pipeline runs from a stage, prefer
+`run_logged_subpipelines(...)`.
 
 ### Fan-In (Aggregation)
 
@@ -218,6 +237,128 @@ pipeline = (
 
 If `forward_depends_on` and `reverse_depends_on` are omitted, both lanes use
 the previous fluent stage (`ingress` in this example) as their first dependency.
+
+## Logged Pipeline Execution
+
+`run_logged_pipeline(...)` is the framework-native helper for production
+entrypoints that need consistent run logging:
+
+```python
+from stageflow import Pipeline, run_logged_pipeline
+from stageflow.observability import PipelineRunLogger, WideEventEmitter
+
+results = await run_logged_pipeline(
+    pipeline,
+    logger=PipelineRunLogger(),
+    input_text="hello",
+    topology="support_turn",
+    execution_mode="prod",
+    emit_stage_wide_events=True,
+    emit_pipeline_wide_event=True,
+    wide_event_emitter=WideEventEmitter(),
+)
+```
+
+It centralizes:
+
+- `PipelineContext` creation or reuse
+- run start/completion/failure logging through `PipelineRunLogger`
+- stage summary capture for completion logs
+- wide-event configuration
+
+If you already have a `PipelineContext`, pass `ctx=...`. Do not pass both
+`ctx` and raw context keyword fields in the same call.
+
+### Failure Behavior
+
+`run_logged_pipeline(...)` is fail-loud by design:
+
+- successful runs log `started` then `completed`
+- cancelled runs log `completed` with `status="cancelled"` and return partial results
+- execution failures log `failed` and re-raise the original exception
+- unexpected exceptions log `failed` and re-raise
+
+## Logged Subpipeline Execution
+
+Use `run_logged_subpipeline(...)` when a stage needs one delegated child run:
+
+```python
+from uuid import uuid4
+
+from stageflow import run_logged_subpipeline
+
+child = await run_logged_subpipeline(
+    worker_pipeline,
+    parent_ctx=ctx,
+    parent_stage_id=ctx.stage_name,
+    correlation_id=uuid4(),
+    logger=run_logger,
+    topology="asset_generation_worker",
+    execution_mode="worker",
+    inherit_data=("tenant", "trace_id"),
+    data_overrides={"requested_by": ctx.stage_name},
+    result_stage_name="persist",
+)
+```
+
+This helper centralizes:
+
+- child context creation through `SubpipelineSpawner`
+- parent run, parent stage, and correlation propagation
+- optional parent `ctx.data` inheritance and overrides
+- child run lifecycle logging
+- optional extraction of a stage-specific result payload
+
+Use `result_data_builder=...` instead of `result_stage_name=...` when the child
+result needs custom shaping.
+
+## Parallel Child Runs
+
+Use `run_logged_subpipelines(...)` for bounded-concurrency child-run fan-out:
+
+```python
+from uuid import uuid4
+
+from stageflow import LoggedSubpipelineRequest, run_logged_subpipelines
+
+results = await run_logged_subpipelines(
+    [
+        LoggedSubpipelineRequest(
+            pipeline=worker_pipeline,
+            correlation_id=uuid4(),
+            parent_stage_id=ctx.stage_name,
+            topology="worker_a",
+            result_stage_name="done",
+        ),
+        LoggedSubpipelineRequest(
+            pipeline=worker_pipeline,
+            correlation_id=uuid4(),
+            parent_stage_id=ctx.stage_name,
+            topology="worker_b",
+            result_stage_name="done",
+        ),
+    ],
+    parent_ctx=ctx,
+    logger=run_logger,
+    concurrency=2,
+    fail_fast=True,
+)
+```
+
+Semantics:
+
+- results preserve input order
+- concurrency can be bounded
+- `fail_fast=True` stops scheduling new child runs after the first failure
+- already-running children are allowed to finish so observability remains truthful
+
+## Practical Guidance
+
+- Use `Pipeline.run(...)` for direct local execution.
+- Use `run_logged_pipeline(...)` at application boundaries.
+- Use `run_logged_subpipeline(...)` for one child run.
+- Use `run_logged_subpipelines(...)` for multiple child runs with shared policy.
+- Keep domain persistence and UI projection outside these helpers.
 
 ### Complex DAG
 
